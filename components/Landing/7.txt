@@ -1,0 +1,352 @@
+You are given a task to integrate an existing React component in the codebase
+
+The codebase should support:
+- shadcn project structure  
+- Tailwind CSS
+- Typescript
+
+If it doesn't, provide instructions on how to setup project via shadcn CLI, install Tailwind or Typescript.
+
+Determine the default path for components and styles. 
+If default path for components is not /components/ui, provide instructions on why it's important to create this folder
+Copy-paste this component to /components/ui folder:
+```tsx
+footer.tsx
+// components/ui/footer.tsx
+
+import React, { useState, type FC, type ReactNode } from 'react';
+import { cn } from '@/lib/utils'; // Assumes you have a `cn` utility
+import { Input } from '@/components/ui/input'; // Assumes shadcn Input
+import { Button } from '@/components/ui/button'; // Assumes shadcn Button
+
+/**
+ * Props for the Footer component.
+ */
+interface FooterProps extends React.HTMLAttributes<HTMLElement> {
+  /** The source URL for the company logo. */
+  logoSrc: string;
+  /** The name of the company, displayed next to the logo. */
+  companyName?: string;
+  /** A short description of the company. */
+  description?: string;
+  /** An array of objects for generating useful links. */
+  usefulLinks?: { label: string; href: string }[];
+  /** An array of objects for generating social media links. */
+  socialLinks?: { label: string; href: string; icon: ReactNode }[];
+  /** The title for the newsletter subscription section. */
+  newsletterTitle?: string;
+  /** Async function to handle email subscription. Should return `true` for success and `false` for failure. */
+  onSubscribe?: (email: string) => Promise<boolean>;
+}
+
+/**
+ * A responsive and theme-adaptive footer component with a newsletter subscription form.
+ * Designed following shadcn/ui and 21st.dev best practices.
+ */
+export const Footer: FC<FooterProps> = ({
+  logoSrc,
+  companyName = 'Datally Inc.',
+  description = 'Empowering businesses with intelligent financial solutions, designed for the future of finance.',
+  usefulLinks = [
+    { label: 'Products', href: '#' },
+    { label: 'Careers', href: '#' },
+    { label: 'Contact Us', href: '#' },
+    { label: 'Privacy Policy', href: '#' },
+  ],
+  socialLinks = [
+    { label: 'Facebook', href: '#', icon: <DummyIcon /> },
+    { label: 'Instagram', href: '#', icon: <DummyIcon /> },
+    { label: 'Twitter (X)', href: '#', icon: <DummyIcon /> },
+  ],
+  newsletterTitle = 'Subscribe our newsletter',
+  onSubscribe,
+  className,
+  ...props
+}) => {
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleSubscribe = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!email || !onSubscribe || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const success = await onSubscribe(email);
+
+    setSubscriptionStatus(success ? 'success' : 'error');
+    setIsSubmitting(false);
+
+    if (success) {
+      setEmail('');
+    }
+
+    // Reset the status message after 3 seconds
+    setTimeout(() => {
+      setSubscriptionStatus('idle');
+    }, 3000);
+  };
+
+  return (
+    <footer className={cn('bg-muted/50 text-foreground', className)} {...props}>
+      <div className="container mx-auto grid grid-cols-1 gap-8 px-4 py-16 md:grid-cols-2 lg:grid-cols-4 lg:gap-12">
+        {/* Company Info */}
+        <div className="flex flex-col items-start gap-4">
+          <div className="flex items-center gap-3">
+            <img src={logoSrc} alt={`${companyName} Logo`} className="h-10 w-10 rounded-full" />
+            <span className="text-xl font-bold">{companyName}</span>
+          </div>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+
+        {/* Useful Links */}
+        <div className="md:justify-self-center">
+          <h3 className="mb-4 text-base font-semibold">Useful Link</h3>
+          <ul className="space-y-2">
+            {usefulLinks.map((link) => (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  className="text-sm text-muted-foreground transition-colors hover:text-primary"
+                >
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Follow Us */}
+        <div className="md:justify-self-center">
+          <h3 className="mb-4 text-base font-semibold">Follow Us</h3>
+          <ul className="space-y-2">
+            {socialLinks.map((link) => (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  aria-label={link.label}
+                  className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
+                >
+                  {link.icon}
+                  <span>{link.label}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Newsletter */}
+        <div>
+          <h3 className="mb-4 text-base font-semibold">{newsletterTitle}</h3>
+          <form onSubmit={handleSubscribe} className="relative w-full max-w-sm">
+            <div className="relative">
+              <Input
+                type="email"
+                placeholder="Your email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting || subscriptionStatus !== 'idle'}
+                required
+                aria-label="Email for newsletter"
+                className="pr-28"
+              />
+              <Button
+                type="submit"
+                disabled={isSubmitting || subscriptionStatus !== 'idle'}
+                className="absolute right-0 top-0 h-full rounded-l-none px-4"
+              >
+                {isSubmitting ? 'Subscribing...' : 'Subscribe'}
+              </Button>
+            </div>
+            {/* Advanced Animation Overlay */}
+            {(subscriptionStatus === 'success' || subscriptionStatus === 'error') && (
+              <div
+                key={subscriptionStatus} // Re-trigger animation on status change
+                className="animate-in fade-in absolute inset-0 flex items-center justify-center rounded-lg bg-background/80 text-center backdrop-blur-sm"
+              >
+                {subscriptionStatus === 'success' ? (
+                  <span className="font-semibold text-green-500">Subscribed! 🎉</span>
+                ) : (
+                  <span className="font-semibold text-destructive">Failed. Try again.</span>
+                )}
+              </div>
+            )}
+          </form>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+// Dummy Icon: Replace with your actual icon library e.g., Lucide React
+const DummyIcon: FC = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-5 w-5 text-muted-foreground"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+  </svg>
+);
+
+demo.tsx
+// demo.tsx
+
+import React from 'react';
+import { Footer } from '@/components/ui/footer'; // Adjust this import path
+
+// It's recommended to use a library like 'lucide-react' for icons
+// For demo purposes, we'll define them here.
+const FacebookIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+);
+const InstagramIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+);
+const XIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+);
+
+
+const FooterDemo = () => {
+  /**
+   * A mock function to simulate an API call for newsletter subscription.
+   * Returns a promise that resolves to true (success) or false (failure).
+   */
+  const handleNewsletterSubscribe = async (email: string): Promise<boolean> => {
+    console.log(`Subscribing ${email}...`);
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Simulate a 70% success rate
+    if (Math.random() > 0.3) {
+      console.log(`Successfully subscribed ${email}!`);
+      return true;
+    } else {
+      console.error(`Failed to subscribe ${email}.`);
+      return false;
+    }
+  };
+
+  const socialLinksData = [
+    { label: 'Facebook', href: '#', icon: <FacebookIcon /> },
+    { label: 'Instagram', href: '#', icon: <InstagramIcon /> },
+    { label: 'Twitter (X)', href: '#', icon: <XIcon /> },
+  ];
+
+  return (
+    <div className="w-full bg-background">
+      <Footer
+        logoSrc="https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?q=80&w=256&h=256&fit=crop&crop=entropy"
+        onSubscribe={handleNewsletterSubscribe}
+        socialLinks={socialLinksData}
+      />
+    </div>
+  );
+};
+
+export default FooterDemo;
+```
+
+Copy-paste these files for dependencies:
+```tsx
+shadcn/input
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+export interface InputProps
+  extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
+Input.displayName = "Input"
+
+export { Input }
+
+```
+```tsx
+shadcn/button
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3",
+        lg: "h-11 rounded-md px-8",
+        icon: "h-10 w-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  },
+)
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean
+}
+
+const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : "button"
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        {...props}
+      />
+    )
+  },
+)
+Button.displayName = "Button"
+
+export { Button, buttonVariants }
+
+```
+
+Install NPM dependencies:
+```bash
+@radix-ui/react-slot, class-variance-authority
+```
