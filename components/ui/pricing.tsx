@@ -175,7 +175,7 @@ export function PricingCard({
         </div>
 
         <div className="text-lg font-medium">{plan.name}</div>
-        <p className="text-muted-foreground text-sm font-normal">{plan.info}</p>
+        <p className="text-muted-foreground text-sm font-normal min-h-[1.5rem] line-clamp-1">{plan.info}</p>
 
         {/* Price display — shows "Custom" when monthly === 0 */}
         <h3 className="mt-2 flex items-end gap-1">
@@ -195,7 +195,7 @@ export function PricingCard({
       {/* Features list */}
       <div
         className={cn(
-          'text-muted-foreground space-y-4 px-4 py-6 text-sm',
+          'flex-1 text-muted-foreground space-y-4 px-4 py-6 text-sm',
           plan.highlighted && 'bg-muted/10',
         )}
       >
@@ -263,7 +263,7 @@ export function BorderTrail({
   const BASE_TRANSITION = {
     repeat: Infinity,
     duration: 5,
-    ease: 'linear',
+    ease: 'linear' as const,
   };
 
   return (

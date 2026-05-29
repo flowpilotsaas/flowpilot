@@ -48,7 +48,7 @@ const PLANS = [
   },
   {
     name: 'Enterprise',
-    info: 'For large operations with custom needs',
+    info: 'For enterprise teams',
     price: {
       monthly: 0,
       yearly: 0,
