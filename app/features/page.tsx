@@ -1,10 +1,9 @@
-export const metadata = { title: "Features — Flow Pilot" };
+import FeaturesSlider from "@/components/Features/FeaturesSlider";
 
 export default function FeaturesPage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6">
-      <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">Features</h1>
-      <p className="text-muted-foreground text-lg">Coming soon.</p>
+    <div className="py-20">
+      <FeaturesSlider />
     </div>
   );
 }
