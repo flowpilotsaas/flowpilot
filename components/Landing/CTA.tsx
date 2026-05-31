@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import React from 'react'
 
 interface CTAProps {
@@ -30,13 +31,17 @@ export default function CTA({
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
           {description}
         </p>
-        <div className="flex justify-center gap-3 flex-wrap">
-          <Button asChild size="lg">
-            <Link href={buttonHref}>{buttonText}</Link>
+        <div className="flex flex-col sm:flex-row justify-center gap-3">
+          <Button asChild variant="cta" size="cta">
+            <Link href={buttonHref}>
+              {buttonText} <ArrowRight className="ml-1" />
+            </Link>
           </Button>
           {showSecondaryButton && (
-            <Button asChild variant="outline" size="lg">
-              <Link href={secondaryButtonHref}>{secondaryButtonText}</Link>
+            <Button asChild variant="cta-outline" size="cta">
+              <Link href={secondaryButtonHref}>
+                {secondaryButtonText} <ArrowRight className="ml-1" />
+              </Link>
             </Button>
           )}
         </div>

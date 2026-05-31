@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -151,8 +152,8 @@ const FloatingIconsHero = React.forwardRef<
           {subtitle}
         </p>
         <div className="mt-10">
-          <Button asChild size="lg" className="px-8 text-base font-semibold">
-            <a href={ctaHref}>{ctaText}</a>
+          <Button asChild variant="cta" size="cta" className="font-semibold">
+            <a href={ctaHref}>{ctaText} <ArrowRight className="ml-1" /></a>
           </Button>
         </div>
       </div>

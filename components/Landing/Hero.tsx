@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { motion } from "framer-motion"
-import { MoveRight, CalendarCheck } from "lucide-react"
+import { ArrowRight, MoveRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
@@ -69,14 +69,14 @@ export default function Hero() {
 
           {/* CTA Buttons */}
           <div className="flex flex-row gap-3">
-            <Button size="lg" className="gap-4" variant="outline" asChild>
+            <Button variant="cta-outline" size="cta" className="gap-2" asChild>
               <Link href="/demo">
-                Book a demo <CalendarCheck className="w-4 h-4" />
+                Book a demo <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
-            <Button size="lg" className="gap-4" asChild>
+            <Button variant="cta" size="cta" className="gap-2" asChild>
               <Link href="/signup">
-                Start free trial <MoveRight className="w-4 h-4" />
+                Start free trial <ArrowRight className="w-4 h-4" />
               </Link>
             </Button>
           </div>
