@@ -2,8 +2,10 @@
 
 import * as React from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { supabase } from '@/lib/supabase'
 
 interface AuthFormProps {
   mode: 'login' | 'signup'
@@ -14,13 +16,14 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = React.useState('')
   const [confirmPassword, setConfirmPassword] = React.useState('')
   const [error, setError] = React.useState('')
+  const router = useRouter()
 
   const isLogin = mode === 'login'
 
   const validateEmail = (email: string) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!email || !password) {
       setError('Please enter both email and password.')
       return
@@ -34,7 +37,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
       return
     }
     setError('')
-    alert(isLogin ? 'Sign in successful! (Demo)' : 'Account created! (Demo)')
+
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) { setError(error.message); return }
+      router.push('/dashboard')
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) { setError(error.message); return }
+      router.push('/dashboard')
+    }
   }
 
   return (
@@ -90,7 +102,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
         {/* Actions */}
         <div className="flex flex-col w-full gap-3">
-          {/* Primary action */}
           <Button
             onClick={handleSubmit}
             variant="default"
@@ -100,7 +111,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             {isLogin ? 'Sign in' : 'Create account'}
           </Button>
 
-          {/* Google */}
           <Button variant="outline" size="default" className="w-full gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -111,7 +121,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             Continue with Google
           </Button>
 
-          {/* Terms — signup only */}
           {!isLogin && (
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               By creating an account, you agree to our{' '}
@@ -126,7 +135,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
             </p>
           )}
 
-          {/* Switch link */}
           <p className="text-sm text-muted-foreground text-center mt-1">
             {isLogin ? (
               <>
