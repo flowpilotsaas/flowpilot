@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -88,6 +89,17 @@ export default function EstimatesPage() {
       return matchesSearch && matchesStatus
     })
   }, [estimates, search, statusFilter])
+
+  const handleStatusChange = async (estimateId: string, newStatus: EstimateStatus) => {
+    setEstimates((prev) =>
+      prev.map((e) => e.id === estimateId ? { ...e, status: newStatus } : e)
+    )
+    const { error } = await supabase
+      .from('estimates')
+      .update({ status: newStatus })
+      .eq('id', estimateId)
+    if (error) fetchEstimates()
+  }
 
   const handleDelete = async (id: string) => {
     setDeleting(true)
@@ -187,7 +199,11 @@ export default function EstimatesPage() {
                           {est.customer_name ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
                         <td className="px-6 py-3">
-                          <StatusBadge status={est.status} />
+                          <StatusDropdown
+                            estimateId={est.id}
+                            currentStatus={est.status}
+                            onStatusChange={handleStatusChange}
+                          />
                         </td>
                         <td className="px-6 py-3 text-foreground font-medium tabular-nums whitespace-nowrap">
                           {fmtCurrency(est.total)}
@@ -234,5 +250,91 @@ export default function EstimatesPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// ─── Inline status dropdown ───────────────────────────────────────────────────
+
+function StatusDropdown({ estimateId, currentStatus, onStatusChange }: {
+  estimateId: string
+  currentStatus: EstimateStatus
+  onStatusChange: (id: string, status: EstimateStatus) => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const [coords, setCoords] = React.useState({ top: 0, left: 0 })
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const menuRef = React.useRef<HTMLDivElement>(null)
+
+  const DROPDOWN_HEIGHT = 132 // 4 items × ~33px
+
+  const openMenu = () => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const top = spaceBelow >= DROPDOWN_HEIGHT
+      ? rect.bottom + 6
+      : rect.top - DROPDOWN_HEIGHT - 6
+    setCoords({ top, left: rect.left })
+    setOpen(true)
+  }
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (
+        !menuRef.current?.contains(e.target as Node) &&
+        !triggerRef.current?.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = () => setOpen(false)
+    window.addEventListener('scroll', handler, true)
+    return () => window.removeEventListener('scroll', handler, true)
+  }, [open])
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={openMenu}
+        className="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <StatusBadge status={currentStatus} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          style={{ top: coords.top, left: coords.left }}
+          className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm"
+        >
+          {STATUSES.map((s) => (
+            <button
+              key={s}
+              role="option"
+              aria-selected={s === currentStatus}
+              type="button"
+              onClick={() => { onStatusChange(estimateId, s); setOpen(false) }}
+              className={cn(
+                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors',
+                s === currentStatus && 'bg-muted/50'
+              )}
+            >
+              <StatusBadge status={s} />
+            </button>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
