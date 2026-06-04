@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Briefcase, LogOut, Zap } from 'lucide-react'
+import { LayoutDashboard, Users, Briefcase, BookOpen, LogOut, Zap } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { label: 'Dashboard',  href: '/dashboard',            icon: LayoutDashboard },
   { label: 'Jobs',       href: '/dashboard/jobs',       icon: Briefcase },
+  { label: 'Pricebook',  href: '/dashboard/pricebook',  icon: BookOpen },
   { label: 'Customers',  href: '/dashboard/customers',  icon: Users },
 ]
 
