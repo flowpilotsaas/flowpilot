@@ -12,6 +12,7 @@ const navItems = [
   { label: 'Estimates',  href: '/dashboard/estimates',  icon: FileText },
   { label: 'Pricebook',  href: '/dashboard/pricebook',  icon: BookOpen },
   { label: 'Customers',  href: '/dashboard/customers',  icon: Users },
+  { label: 'Team',       href: '/dashboard/team',       icon: Users },
 ]
 
 export default function DashboardSidebar() {
