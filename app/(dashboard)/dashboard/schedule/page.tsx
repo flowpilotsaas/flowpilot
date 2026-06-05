@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Calendar, Loader2, Plus, Settings, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Loader2, Plus, Settings, X, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -48,6 +48,16 @@ type ModalForm = {
   notes: string
 }
 
+type EditJobForm = {
+  title: string
+  status: JobStatus
+  scheduled_date: string
+  start_time: string
+  end_time: string
+  price: string
+  notes: string
+}
+
 type GridCfg = {
   start: number
   end: number
@@ -70,6 +80,8 @@ const JOB_BLOCK: Record<JobStatus, string> = {
   'In Progress': 'bg-amber-500 text-white',
   'Completed':   'bg-green-600 text-white',
 }
+
+const JOB_STATUSES: JobStatus[] = ['Scheduled', 'In Progress', 'Completed']
 
 // Time slots for the job-schedule modal (6 am – 8 pm, every 30 min)
 const TIME_SLOTS: string[] = (() => {
@@ -210,6 +222,15 @@ export default function SchedulePage() {
   // Job detail popover
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null)
 
+  // Job detail — edit mode
+  const [detailEditMode, setDetailEditMode] = React.useState(false)
+  const [detailForm, setDetailForm]         = React.useState<EditJobForm>({
+    title: '', status: 'Scheduled', scheduled_date: '',
+    start_time: '09:00', end_time: '10:00', price: '', notes: '',
+  })
+  const [savingDetail, setSavingDetail] = React.useState(false)
+  const [detailError, setDetailError]   = React.useState('')
+
   // Job-schedule modal
   const [schedulingJob, setSchedulingJob] = React.useState<Job | null>(null)
   const [modalForm, setModalForm] = React.useState<ModalForm>({
@@ -335,6 +356,66 @@ export default function SchedulePage() {
     await fetchJobs()
   }
 
+  // ─── Job detail edit mode ─────────────────────────────────────────────────
+
+  const closeDetailModal = () => {
+    setSelectedJob(null)
+    setDetailEditMode(false)
+    setDetailError('')
+  }
+
+  const openDetailEdit = () => {
+    if (!selectedJob) return
+    setDetailForm({
+      title:          selectedJob.title,
+      status:         selectedJob.status,
+      scheduled_date: selectedJob.scheduled_date ?? '',
+      start_time:     selectedJob.start_time  ?? '09:00',
+      end_time:       selectedJob.end_time    ?? '10:00',
+      price:          selectedJob.price != null ? String(selectedJob.price) : '',
+      notes:          selectedJob.notes ?? '',
+    })
+    setDetailError('')
+    setDetailEditMode(true)
+  }
+
+  const cancelDetailEdit = () => { setDetailEditMode(false); setDetailError('') }
+
+  const saveDetail = async () => {
+    if (!selectedJob) return
+    if (!detailForm.title.trim()) { setDetailError('Title is required.'); return }
+    setSavingDetail(true)
+    setDetailError('')
+
+    const { error } = await supabase.from('jobs').update({
+      title:          detailForm.title.trim(),
+      status:         detailForm.status,
+      scheduled_date: detailForm.scheduled_date || null,
+      start_time:     detailForm.start_time || null,
+      end_time:       detailForm.end_time   || null,
+      price:          detailForm.price !== '' ? parseFloat(detailForm.price) : null,
+      notes:          detailForm.notes.trim() || null,
+    }).eq('id', selectedJob.id)
+
+    if (error) { setDetailError(error.message); setSavingDetail(false); return }
+
+    // Reflect edits in view mode without closing the modal
+    setSelectedJob((prev) => prev ? {
+      ...prev,
+      title:          detailForm.title.trim(),
+      status:         detailForm.status,
+      scheduled_date: detailForm.scheduled_date || null,
+      start_time:     detailForm.start_time || null,
+      end_time:       detailForm.end_time   || null,
+      price:          detailForm.price !== '' ? parseFloat(detailForm.price) : null,
+      notes:          detailForm.notes.trim() || null,
+    } : prev)
+
+    setSavingDetail(false)
+    setDetailEditMode(false)
+    await fetchJobs()
+  }
+
   // ─── Working-hours modal ──────────────────────────────────────────────────
 
   const openWorkingHours = () => {
@@ -382,10 +463,10 @@ export default function SchedulePage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="h-screen p-6 flex flex-col gap-5">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-8 py-4 border-b border-border shrink-0 bg-background">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Schedule</h1>
           <div className="flex items-center gap-3 mt-0.5">
@@ -432,10 +513,11 @@ export default function SchedulePage() {
       </div>
 
       {/* ── Main body ── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex gap-4 flex-1 min-h-0">
 
-        {/* Calendar area */}
-        <div className="flex-1 overflow-auto">
+        {/* Calendar card */}
+        <div className="flex-1 min-h-0 bg-background border border-border rounded-xl overflow-hidden flex flex-col">
+          <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -465,10 +547,11 @@ export default function SchedulePage() {
               onJobClick={setSelectedJob}
             />
           )}
+          </div>
         </div>
 
         {/* Unscheduled panel */}
-        <div className="w-72 shrink-0 border-l border-border flex flex-col bg-background">
+        <div className="w-72 flex-shrink-0 bg-background border border-border rounded-xl overflow-hidden flex flex-col">
           <div className="px-4 py-3 border-b border-border shrink-0">
             <p className="text-sm font-semibold text-foreground">Unscheduled</p>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -609,73 +692,174 @@ export default function SchedulePage() {
       {/* ── Job detail modal ── */}
       {selectedJob && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelectedJob(null)} />
+          <div className="absolute inset-0 bg-black/40" onClick={closeDetailModal} />
           <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background shadow-2xl">
 
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-border">
-              <div className="min-w-0">
-                <p className="text-base font-semibold text-foreground leading-snug">{selectedJob.title}</p>
-                {selectedJob.customers?.name && (
-                  <p className="text-sm text-muted-foreground mt-0.5">{selectedJob.customers.name}</p>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedJob(null)}
-                aria-label="Close"
-                className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="px-5 py-4 flex flex-col gap-4">
-              {/* Status badge */}
-              <span className={cn(
-                'inline-flex items-center self-start px-2.5 py-0.5 rounded-full text-xs font-medium',
-                STATUS_BADGE[selectedJob.status]
-              )}>
-                {selectedJob.status}
-              </span>
-
-              {/* Detail grid */}
-              <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {selectedJob.scheduled_date && (
-                  <DetailRow label="Date" value={fmtDate(selectedJob.scheduled_date)} />
-                )}
-                {(selectedJob.start_time || selectedJob.end_time) && (
-                  <DetailRow
-                    label="Time"
-                    value={[
-                      selectedJob.start_time && fmtTime(selectedJob.start_time),
-                      selectedJob.end_time   && fmtTime(selectedJob.end_time),
-                    ].filter(Boolean).join(' – ')}
-                  />
-                )}
-                {selectedJob.price != null && (
-                  <DetailRow label="Price" value={fmtCurrency(selectedJob.price)} />
-                )}
-              </div>
-
-              {/* Notes */}
-              {selectedJob.notes && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                    Notes
-                  </p>
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{selectedJob.notes}</p>
+            {detailEditMode ? (
+              /* ── Edit mode ── */
+              <>
+                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
+                  <p className="text-base font-semibold text-foreground">Edit Job</p>
+                  <button
+                    type="button"
+                    onClick={closeDetailModal}
+                    aria-label="Close"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              )}
-            </div>
 
-            {/* Footer */}
-            <div className="px-5 pb-5">
-              <Button asChild variant="outline" size="sm" className="w-full">
-                <Link href="/dashboard/jobs">View Full Job</Link>
-              </Button>
-            </div>
+                <div className="px-5 py-4 flex flex-col gap-3 max-h-[60vh] overflow-y-auto">
+                  <MField label="Title">
+                    <Input
+                      value={detailForm.title}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="Job title"
+                    />
+                  </MField>
+
+                  <MField label="Status">
+                    <select
+                      value={detailForm.status}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, status: e.target.value as JobStatus }))}
+                      className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      {JOB_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </MField>
+
+                  <MField label="Scheduled Date">
+                    <Input
+                      type="date"
+                      value={detailForm.scheduled_date}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, scheduled_date: e.target.value }))}
+                    />
+                  </MField>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <MField label="Start Time">
+                      <TimeSelect value={detailForm.start_time} slots={TIME_SLOTS}
+                        onChange={(v) => setDetailForm((p) => ({ ...p, start_time: v }))} />
+                    </MField>
+                    <MField label="End Time">
+                      <TimeSelect value={detailForm.end_time} slots={TIME_SLOTS}
+                        onChange={(v) => setDetailForm((p) => ({ ...p, end_time: v }))} />
+                    </MField>
+                  </div>
+
+                  <MField label="Price ($)">
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={detailForm.price}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, price: e.target.value }))}
+                    />
+                  </MField>
+
+                  <MField label="Notes">
+                    <textarea
+                      rows={3}
+                      placeholder="Notes…"
+                      value={detailForm.notes}
+                      onChange={(e) => setDetailForm((p) => ({ ...p, notes: e.target.value }))}
+                      className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    />
+                  </MField>
+
+                  {detailError && <p className="text-sm text-destructive">{detailError}</p>}
+                </div>
+
+                <div className="px-5 pb-5 flex flex-col gap-2 pt-4 border-t border-border">
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={cancelDetailEdit} disabled={savingDetail} className="flex-1">
+                      Cancel
+                    </Button>
+                    <Button onClick={saveDetail} disabled={savingDetail} className="flex-1 gap-2">
+                      {savingDetail && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Save
+                    </Button>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="w-full text-muted-foreground">
+                    <Link href={`/dashboard/jobs/${selectedJob.id}`}>View Full Job</Link>
+                  </Button>
+                </div>
+              </>
+            ) : (
+              /* ── View mode ── */
+              <>
+                <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-border">
+                  <div className="min-w-0">
+                    <p className="text-base font-semibold text-foreground leading-snug">{selectedJob.title}</p>
+                    {selectedJob.customers?.name && (
+                      <p className="text-sm text-muted-foreground mt-0.5">{selectedJob.customers.name}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={openDetailEdit}
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeDetailModal}
+                      aria-label="Close"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 flex flex-col gap-4">
+                  <span className={cn(
+                    'inline-flex items-center self-start px-2.5 py-0.5 rounded-full text-xs font-medium',
+                    STATUS_BADGE[selectedJob.status]
+                  )}>
+                    {selectedJob.status}
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    {selectedJob.scheduled_date && (
+                      <DetailRow label="Date" value={fmtDate(selectedJob.scheduled_date)} />
+                    )}
+                    {(selectedJob.start_time || selectedJob.end_time) && (
+                      <DetailRow
+                        label="Time"
+                        value={[
+                          selectedJob.start_time && fmtTime(selectedJob.start_time),
+                          selectedJob.end_time   && fmtTime(selectedJob.end_time),
+                        ].filter(Boolean).join(' – ')}
+                      />
+                    )}
+                    {selectedJob.price != null && (
+                      <DetailRow label="Price" value={fmtCurrency(selectedJob.price)} />
+                    )}
+                  </div>
+
+                  {selectedJob.notes && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                        Notes
+                      </p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{selectedJob.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="px-5 pb-5">
+                  <Button asChild variant="outline" size="sm" className="w-full">
+                    <Link href={`/dashboard/jobs/${selectedJob.id}`}>View Full Job</Link>
+                  </Button>
+                </div>
+              </>
+            )}
 
           </div>
         </div>,
@@ -714,9 +898,9 @@ function WeekView({
   })).filter(({ fullName }) => workingDays.includes(fullName))
 
   return (
-    <div className="flex flex-col min-w-[320px] h-full">
+    <div className="flex flex-col min-w-[320px]">
 
-      {/* Day headers */}
+      {/* Day headers — sticky so they stay visible as the calendar container scrolls */}
       <div className="flex border-b border-border shrink-0 bg-background sticky top-0 z-10">
         <div className="w-14 shrink-0" />
         {days.map(({ date, label }) => {
@@ -745,8 +929,8 @@ function WeekView({
       {/* All-day strip */}
       <AllDayStrip days={days.map(({ date }) => date)} byDate={byDate} onJobClick={onJobClick} />
 
-      {/* Scrollable time grid */}
-      <div className="flex flex-1 overflow-auto">
+      {/* Time grid — pt-3 gives the first hour label room above top:0 so it isn't clipped */}
+      <div className="flex pt-3">
         {/* Hour gutter */}
         <div className="w-14 shrink-0 relative" style={{ height: grid.totalH }}>
           {grid.hourLabels.map(({ label, top }) => (
@@ -938,24 +1122,15 @@ function DayView({
   const allDayJobs = jobs.filter((j) => !j.start_time)
 
   return (
-    <div className="flex h-full">
-      <div className="w-14 shrink-0 relative border-r border-border">
-        <div style={{ height: grid.totalH, marginTop: allDayJobs.length ? 40 : 0, position: 'relative' }}>
-          {grid.hourLabels.map(({ label, top }) => (
-            <div
-              key={label}
-              className="absolute right-2 text-[10px] text-muted-foreground/60 select-none"
-              style={{ top, transform: 'translateY(-50%)' }}
-            >
-              {label}
-            </div>
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col">
 
-      <div className="flex-1 flex flex-col overflow-auto">
-        {allDayJobs.length > 0 && (
-          <div className="shrink-0 h-10 border-b border-border flex items-center gap-1 px-2">
+      {/* All-day row */}
+      {allDayJobs.length > 0 && (
+        <div className="shrink-0 flex border-b border-border">
+          <div className="w-14 shrink-0 border-r border-border flex items-center justify-end pr-2">
+            <span className="text-[9px] text-muted-foreground/50 uppercase tracking-wide">all day</span>
+          </div>
+          <div className="flex-1 h-10 flex items-center gap-1 px-2">
             {allDayJobs.map((job) => (
               <button
                 key={job.id}
@@ -967,9 +1142,27 @@ function DayView({
               </button>
             ))}
           </div>
-        )}
+        </div>
+      )}
 
-        <div className="relative" style={{ height: grid.totalH }}>
+      {/* Gutter + grid — pt-3 gives the first hour label room so it isn't clipped */}
+      <div className="flex pt-3">
+
+        {/* Hour gutter */}
+        <div className="w-14 shrink-0 border-r border-border relative" style={{ height: grid.totalH }}>
+          {grid.hourLabels.map(({ label, top }) => (
+            <div
+              key={label}
+              className="absolute right-2 text-[10px] text-muted-foreground/60 select-none"
+              style={{ top, transform: 'translateY(-50%)' }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {/* Time grid (inside scroll) */}
+        <div className="flex-1 relative" style={{ height: grid.totalH }}>
           {grid.slotTops.map((top, si) => (
             <div
               key={si}
