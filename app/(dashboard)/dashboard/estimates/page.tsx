@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Search, Eye, Trash2, Loader2, FileText } from 'lucide-react'
+import { Plus, Search, Eye, Trash2, Loader2, FileText, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -225,19 +225,10 @@ export default function EstimatesPage() {
                               </Button>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Button size="icon-sm" variant="ghost" asChild aria-label="View estimate">
-                                <Link href={`/dashboard/estimates/${est.id}`}>
-                                  <Eye className="w-3.5 h-3.5" />
-                                </Link>
-                              </Button>
-                              <Button size="icon-sm" variant="ghost"
-                                onClick={() => setDeleteConfirmId(est.id)}
-                                aria-label="Delete estimate"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </span>
+                            <ActionMenu
+                              estimateId={est.id}
+                              onDelete={() => setDeleteConfirmId(est.id)}
+                            />
                           )}
                         </td>
                       </tr>
@@ -250,6 +241,84 @@ export default function EstimatesPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// ─── Action menu ─────────────────────────────────────────────────────────────
+
+function ActionMenu({ estimateId, onDelete }: { estimateId: string; onDelete: () => void }) {
+  const [open, setOpen]     = React.useState(false)
+  const [coords, setCoords] = React.useState({ top: 0, left: 0 })
+  const triggerRef          = React.useRef<HTMLButtonElement>(null)
+  const menuRef             = React.useRef<HTMLDivElement>(null)
+
+  const openMenu = () => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setCoords({ top: rect.bottom + 6, left: rect.right - 144 })
+    setOpen(true)
+  }
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node))
+        setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) return
+    const handler = () => setOpen(false)
+    window.addEventListener('scroll', handler, true)
+    return () => window.removeEventListener('scroll', handler, true)
+  }, [open])
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={openMenu}
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label="Actions"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          role="menu"
+          style={{ top: coords.top, left: coords.left }}
+          className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm"
+        >
+          <Link
+            href={`/dashboard/estimates/${estimateId}`}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 text-muted-foreground" />
+            View
+          </Link>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); onDelete() }}
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 

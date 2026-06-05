@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "c:\\Users\\dinof\\Documents\\Flow-Pilot\\flow-pilot\\app\\(dashboard)\\dashboard",
+      "c:\\Users\\dinof\\Documents\\Flow-Pilot\\flow-pilot\\app\\(dashboard)\\dashboard\\jobs"
+    ]
+  }
+}
