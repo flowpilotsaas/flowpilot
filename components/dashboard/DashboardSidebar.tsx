@@ -2,18 +2,37 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays, LogOut, Zap } from 'lucide-react'
+import {
+  LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays, LogOut, Zap,
+  LayoutGrid, ClipboardList, Phone, GitBranch, CheckSquare, Package, Wrench,
+  DollarSign, Globe, BarChart2, MapPin, MessageSquare, CreditCard, Settings,
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { label: 'Dashboard',  href: '/dashboard',            icon: LayoutDashboard },
-  { label: 'Schedule',   href: '/dashboard/schedule',   icon: CalendarDays },
-  { label: 'Jobs',       href: '/dashboard/jobs',       icon: Briefcase },
-  { label: 'Estimates',  href: '/dashboard/estimates',  icon: FileText },
-  { label: 'Pricebook',  href: '/dashboard/pricebook',  icon: BookOpen },
-  { label: 'Customers',  href: '/dashboard/customers',  icon: Users },
-  { label: 'Team',       href: '/dashboard/team',       icon: Users },
+  { label: 'Dashboard',         href: '/dashboard',                 icon: LayoutDashboard },
+  { label: 'Schedule',          href: '/dashboard/schedule',        icon: CalendarDays },
+  { label: 'Dispatch',          href: '/dashboard/dispatch',        icon: LayoutGrid },
+  { label: 'Jobs',              href: '/dashboard/jobs',            icon: Briefcase },
+  { label: 'Estimates',         href: '/dashboard/estimates',       icon: FileText },
+  { label: 'Pricebook',         href: '/dashboard/pricebook',       icon: BookOpen },
+  { label: 'Customers',         href: '/dashboard/customers',       icon: Users },
+  { label: 'Team',              href: '/dashboard/team',            icon: Users },
+  { label: 'Agreements',        href: '/dashboard/agreements',      icon: ClipboardList },
+  { label: 'Communications',    href: '/dashboard/communications',  icon: Phone },
+  { label: 'Pipeline',          href: '/dashboard/pipeline',        icon: GitBranch },
+  { label: 'Tasks',             href: '/dashboard/tasks',           icon: CheckSquare },
+  { label: 'Inventory',         href: '/dashboard/inventory',       icon: Package },
+  { label: 'Company Equipment', href: '/dashboard/equipment',       icon: Wrench },
+  { label: 'Transactions',      href: '/dashboard/transactions',    icon: DollarSign },
+  { label: 'Google',            href: '/dashboard/google',          icon: Globe },
+  { label: 'Reports',           href: '/dashboard/reports',         icon: BarChart2 },
+  { label: 'Tech Live Map',     href: '/dashboard/tech-live-map',   icon: MapPin },
+  { label: 'Appeals',           href: '/dashboard/appeals',         icon: MessageSquare },
+  { label: 'Leads Hub',         href: '/dashboard/leads-hub',       icon: Zap },
+  { label: 'Billing',           href: '/dashboard/billing',         icon: CreditCard },
+  { label: 'Settings',          href: '/dashboard/settings',        icon: Settings },
 ]
 
 export default function DashboardSidebar() {
