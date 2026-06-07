@@ -14,11 +14,11 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2, Lock, Plug, User } from 'lucide-react'
+import { Loader2, Building2, Lock, Plug, User, CheckCircle2 } from 'lucide-react'
 
 const INDUSTRIES = [
-  'HVAC', 'Plumbing', 'Electrical', 'Landscaping', 'Cleaning', 'Pest Control',
-  'Roofing', 'General Contractor', 'Security Systems', 'Other',
+  'HVAC', 'Plumbing', 'Electrical', 'Landscaping', 'Cleaning',
+  'Pest Control', 'Appliance Repair', 'General Contractor', 'Other',
 ]
 
 export default function SettingsPage() {
@@ -80,42 +80,58 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSavingCompany(false); return }
 
-    const payload = {
-      company_name: companyName.trim() || null,
-      industry:     industry || null,
-      timezone:     timezone.trim() || null,
-    }
+    const { data, error } = await supabase
+      .from('user_settings')
+      .upsert(
+        {
+          user_id:      user.id,
+          company_name: companyName.trim() || null,
+          industry:     industry || null,
+          timezone:     timezone.trim() || null,
+        },
+        { onConflict: 'user_id' },
+      )
+      .select('id')
+      .single()
 
-    if (settingsId) {
-      const { error } = await supabase.from('user_settings').update(payload).eq('id', settingsId)
-      if (error) { setCompanyMsg(`Error: ${error.message}`); setSavingCompany(false); return }
-    } else {
-      const { data, error } = await supabase
-        .from('user_settings')
-        .insert({ user_id: user.id, ...payload })
-        .select('id')
-        .single()
-      if (error) { setCompanyMsg(`Error: ${error.message}`); setSavingCompany(false); return }
-      if (data) setSettingsId(data.id)
+    if (error) {
+      setCompanyMsg(`error:${error.message}`)
+      setSavingCompany(false)
+      return
     }
+    if (data) setSettingsId(data.id)
 
-    setCompanyMsg('Changes saved.')
+    setCompanyMsg('success:Changes saved successfully.')
     setSavingCompany(false)
-    setTimeout(() => setCompanyMsg(''), 3000)
+    setTimeout(() => setCompanyMsg(''), 4000)
   }
 
   const handleChangePassword = async () => {
     setPwError('')
     setPwMsg('')
 
-    if (!newPw) { setPwError('New password is required.'); return }
-    if (newPw.length < 6) { setPwError('Password must be at least 6 characters.'); return }
+    if (!currentPw)          { setPwError('Current password is required.'); return }
+    if (!newPw)              { setPwError('New password is required.'); return }
+    if (newPw.length < 6)    { setPwError('Password must be at least 6 characters.'); return }
     if (newPw !== confirmPw) { setPwError('Passwords do not match.'); return }
 
     setSavingPw(true)
 
-    const { error } = await supabase.auth.updateUser({ password: newPw })
-    if (error) { setPwError(error.message); setSavingPw(false); return }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) { setPwError('Could not retrieve account email.'); setSavingPw(false); return }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email:    user.email,
+      password: currentPw,
+    })
+    if (signInError) {
+      setPwError('Current password is incorrect.')
+      setSavingPw(false)
+      return
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPw })
+    if (updateError) { setPwError(updateError.message); setSavingPw(false); return }
 
     setPwMsg('Password updated successfully.')
     setCurrentPw(''); setNewPw(''); setConfirmPw('')
@@ -170,11 +186,7 @@ export default function SettingsPage() {
                 {savingCompany && <Loader2 className="w-4 h-4 animate-spin" />}
                 Save Changes
               </Button>
-              {companyMsg && (
-                <p className={`text-sm ${companyMsg.startsWith('Error') ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
-                  {companyMsg}
-                </p>
-              )}
+              <InlineMsg msg={companyMsg} />
             </div>
           </div>
         )}
@@ -207,12 +219,21 @@ export default function SettingsPage() {
               onChange={(e) => setConfirmPw(e.target.value)}
             />
           </Field>
-          {pwError && <p className="text-sm text-destructive">{pwError}</p>}
-          {pwMsg   && <p className="text-sm text-green-600 dark:text-green-400">{pwMsg}</p>}
-          <Button onClick={handleChangePassword} disabled={savingPw} className="gap-2">
-            {savingPw && <Loader2 className="w-4 h-4 animate-spin" />}
-            Update Password
-          </Button>
+          <div className="flex items-center gap-3 pt-1">
+            <Button onClick={handleChangePassword} disabled={savingPw} className="gap-2">
+              {savingPw && <Loader2 className="w-4 h-4 animate-spin" />}
+              Update Password
+            </Button>
+            {pwError && (
+              <p className="text-sm text-destructive">{pwError}</p>
+            )}
+            {pwMsg && (
+              <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {pwMsg}
+              </span>
+            )}
+          </div>
         </div>
       </Section>
 
@@ -294,6 +315,22 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   )
+}
+
+// msg format: "success:text" | "error:text" | ""
+function InlineMsg({ msg }: { msg: string }) {
+  if (!msg) return null
+  const isSuccess = msg.startsWith('success:')
+  const text = msg.replace(/^(success|error):/, '')
+  if (isSuccess) {
+    return (
+      <span className="flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+        <CheckCircle2 className="w-4 h-4 shrink-0" />
+        {text}
+      </span>
+    )
+  }
+  return <p className="text-sm text-destructive">{text}</p>
 }
 
 function AccountRow({ label, value }: { label: string; value: string }) {
