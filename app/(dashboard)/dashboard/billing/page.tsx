@@ -51,7 +51,7 @@ export default function BillingPage() {
   const [currentPlan] = React.useState('Starter')
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8">
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold text-foreground">Billing &amp; Payments</h1>
