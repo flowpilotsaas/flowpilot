@@ -1,11 +1,13 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\({next: p.dependencies?.next, react: p.dependencies?.react}, null, 2\\)\\)\")",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)"
+    ],
     "additionalDirectories": [
       "c:\\Users\\dinof\\Documents\\Flow-Pilot\\flow-pilot\\app\\(dashboard)\\dashboard",
       "c:\\Users\\dinof\\Documents\\Flow-Pilot\\flow-pilot\\app\\(dashboard)\\dashboard\\jobs"
-    ],
-    "allow": [
-      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\({next: p.dependencies?.next, react: p.dependencies?.react}, null, 2\\)\\)\")"
     ]
   }
 }

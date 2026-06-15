@@ -15,12 +15,12 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
-import { ArrowLeft, Briefcase, FileText, Pencil, Clock, Loader2, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Briefcase, FileText, Pencil, Clock, Loader2, ChevronDown, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-type JobStatus = 'Scheduled' | 'In Progress' | 'Completed'
+type JobStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Paid'
 
 type FullJob = {
   id: string
@@ -61,12 +61,13 @@ type FormData = {
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const STATUSES: JobStatus[] = ['Scheduled', 'In Progress', 'Completed']
+const STATUSES: JobStatus[] = ['Scheduled', 'In Progress', 'Completed', 'Paid']
 
 const STATUS_STYLES: Record<JobStatus, string> = {
   Scheduled:    'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
   'In Progress':'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   Completed:    'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-500',
+  Paid:         'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 }
 
 const EMPTY_FORM: FormData = {
@@ -135,6 +136,9 @@ export default function JobDetailPage() {
   const [form, setForm]           = React.useState<FormData>(EMPTY_FORM)
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving]       = React.useState(false)
+
+  // Payment modal
+  const [payModalOpen, setPayModalOpen] = React.useState(false)
 
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
@@ -227,6 +231,44 @@ export default function JobDetailPage() {
     await loadJob()
   }
 
+  // ─── Mark as Paid ─────────────────────────────────────────────────────────
+
+  const handleMarkAsPaid = async (
+    amount: string,
+    method: string,
+    notes: string,
+  ): Promise<string | null> => {
+    if (!job) return null
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return 'Not authenticated.'
+
+    const { error: txError } = await supabase.from('transactions').insert({
+      user_id:        user.id,
+      job_id:         job.id,
+      customer_id:    job.customer_id,
+      customer_name:  job.customers?.name ?? null,
+      job_number:     fmtJobNumber(job.job_number, job.created_at),
+      amount:         parseFloat(amount),
+      payment_method: method,
+      status:         'paid',
+      type:           'payment',
+      details:        notes.trim() || null,
+      date:           new Date().toISOString().slice(0, 10),
+    })
+    if (txError) return txError.message
+
+    const { error: jobError } = await supabase
+      .from('jobs')
+      .update({ status: 'Paid' })
+      .eq('id', job.id)
+    if (jobError) return jobError.message
+
+    setJob((prev) => prev ? { ...prev, status: 'Paid' } : prev)
+    setPayModalOpen(false)
+    return null
+  }
+
   // ─── Loading / not found ──────────────────────────────────────────────────
 
   if (loading) {
@@ -284,6 +326,17 @@ export default function JobDetailPage() {
               Create Estimate
             </Link>
           </Button>
+          {job.status !== 'Paid' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPayModalOpen(true)}
+              className="gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              Mark as Paid
+            </Button>
+          )}
           <Button size="sm" onClick={openEdit} className="gap-1.5">
             <Pencil className="w-3.5 h-3.5" />
             Edit Job
@@ -377,6 +430,16 @@ export default function JobDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Payment modal ── */}
+      {payModalOpen && (
+        <PaymentModal
+          jobTitle={job.title}
+          jobPrice={job.price}
+          onClose={() => setPayModalOpen(false)}
+          onConfirm={handleMarkAsPaid}
+        />
+      )}
 
       {/* ── Edit sheet ── */}
       <Sheet open={sheetOpen} onOpenChange={closeSheet}>
@@ -616,5 +679,106 @@ function NativeSelect({ className, children, ...props }: React.ComponentProps<'s
     >
       {children}
     </select>
+  )
+}
+
+// ─── Payment modal ────────────────────────────────────────────────────────────
+
+const PAYMENT_METHODS = ['Cash', 'Check', 'Card', 'Bank Transfer']
+
+function PaymentModal({
+  jobTitle,
+  jobPrice,
+  onClose,
+  onConfirm,
+}: {
+  jobTitle: string
+  jobPrice: number | null
+  onClose: () => void
+  onConfirm: (amount: string, method: string, notes: string) => Promise<string | null>
+}) {
+  const [amount, setAmount] = React.useState(jobPrice != null ? jobPrice.toFixed(2) : '')
+  const [method, setMethod] = React.useState('Cash')
+  const [notes, setNotes]   = React.useState('')
+  const [error, setError]   = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  const handleConfirm = async () => {
+    const parsed = parseFloat(amount)
+    if (!amount || isNaN(parsed) || parsed < 0) {
+      setError('Please enter a valid amount.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    const err = await onConfirm(amount, method, notes)
+    if (err) {
+      setError(err)
+      setSaving(false)
+    }
+  }
+
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose()
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      onClick={handleBackdrop}
+    >
+      <div className="bg-popover rounded-xl border border-border shadow-xl w-full max-w-md mx-4">
+        <div className="px-6 pt-5 pb-4 border-b border-border flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
+            <DollarSign className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-foreground">Mark as Paid</h2>
+            <p className="text-sm text-muted-foreground truncate max-w-xs">{jobTitle}</p>
+          </div>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <Field label="Amount ($)" required>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              autoFocus
+            />
+          </Field>
+
+          <Field label="Payment Method" required>
+            <NativeSelect value={method} onChange={(e) => setMethod(e.target.value)}>
+              {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </NativeSelect>
+          </Field>
+
+          <Field label="Notes">
+            <textarea
+              rows={3}
+              placeholder="Payment notes (optional)…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            />
+          </Field>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+        </div>
+
+        <div className="px-6 pb-5 flex gap-3 justify-end border-t border-border pt-4">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={handleConfirm} disabled={saving} className="gap-2">
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            Confirm Payment
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }

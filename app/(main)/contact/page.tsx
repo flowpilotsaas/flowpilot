@@ -1,4 +1,4 @@
-export const metadata = { title: "Contact — Flow Pilot" };
+export const metadata = { title: "Contact — PilotWork" };
 
 export default function ContactPage() {
   return (

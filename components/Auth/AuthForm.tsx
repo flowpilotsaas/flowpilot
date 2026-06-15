@@ -56,7 +56,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         {/* Wordmark */}
         <div className="mb-8 text-center">
           <Link href="/" className="text-2xl font-bold tracking-tight text-foreground">
-            Flow Pilot
+            PilotWork
           </Link>
         </div>
 
@@ -66,7 +66,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         </h1>
         <p className="text-sm text-muted-foreground mb-8 text-center">
           {isLogin
-            ? 'Sign in to your Flow Pilot account'
+            ? 'Sign in to your PilotWork account'
             : 'Start your 14-day free trial'}
         </p>
 

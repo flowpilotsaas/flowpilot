@@ -15,7 +15,7 @@ interface CTAProps {
 
 export default function CTA({
   heading = <>Stop juggling spreadsheets.<br />Start dispatching smarter.</>,
-  description = 'Join hundreds of field service teams already saving hours every week with Flow Pilot. No credit card required to get started.',
+  description = 'Join hundreds of field service teams already saving hours every week with PilotWork. No credit card required to get started.',
   buttonText = 'Start free trial',
   buttonHref = '/signup',
   secondaryButtonText = 'Book a demo',

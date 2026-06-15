@@ -33,7 +33,7 @@ const FEATURES: Feature[] = [
     category: "Scheduling",
     title: "Job scheduling & calendar",
     description:
-      "Drag-and-drop scheduling with calendar views by day, week, or month. Set up recurring jobs and let Flow Pilot handle the repeats.",
+      "Drag-and-drop scheduling with calendar views by day, week, or month. Set up recurring jobs and let PilotWork handle the repeats.",
     icon: Calendar,
     color: "bg-blue-500",
   },

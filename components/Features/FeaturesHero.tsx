@@ -42,7 +42,7 @@ export default function FeaturesHero() {
   return (
     <FloatingIconsHero
       title="Everything you need to run the job"
-      subtitle="From the first phone call to final payment, Flow Pilot covers every step of your field service business."
+      subtitle="From the first phone call to final payment, PilotWork covers every step of your field service business."
       ctaText="Book a demo"
       ctaHref="/contact"
       icons={icons}

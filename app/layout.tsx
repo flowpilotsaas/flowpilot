@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Flow Pilot — Field Service Management",
+  title: "PilotWork — Field Service Management",
   description: "Field service management built for modern teams.",
 };
 

@@ -12,7 +12,7 @@ const steps = [
   {
     title: 'Schedule jobs',
     content:
-      'Drag new work orders onto a live calendar and assign them to available techs. Flow Pilot flags conflicts, suggests optimal routes, and keeps your schedule airtight.',
+      'Drag new work orders onto a live calendar and assign them to available techs. PilotWork flags conflicts, suggests optimal routes, and keeps your schedule airtight.',
   },
   {
     title: 'Dispatch to the field',
@@ -22,7 +22,7 @@ const steps = [
   {
     title: 'Invoice and get paid',
     content:
-      'The moment a tech marks a job done, Flow Pilot generates the invoice automatically. Send it instantly via email or SMS and accept card payments online — from the job site.',
+      'The moment a tech marks a job done, PilotWork generates the invoice automatically. Send it instantly via email or SMS and accept card payments online — from the job site.',
   },
 ]
 
@@ -88,7 +88,7 @@ export default function HowItWorks() {
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Your team is dispatched, jobs are rolling in, and invoices go out automatically.
-                    Welcome to Flow Pilot.
+                    Welcome to PilotWork.
                   </p>
                 </div>
               </Steps.CompletedContent>

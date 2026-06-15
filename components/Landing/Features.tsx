@@ -26,7 +26,7 @@ const features = [
     icon: FileText,
     title: 'Automated Invoicing',
     description:
-      'The moment a job is marked complete, Flow Pilot generates an accurate invoice. Send it by email or SMS in seconds and collect payment online — from anywhere.',
+      'The moment a job is marked complete, PilotWork generates an accurate invoice. Send it by email or SMS in seconds and collect payment online — from anywhere.',
     image: 'https://placehold.co/600x400/fdf4ff/9333ea?text=Invoice+View',
   },
   {
@@ -87,7 +87,7 @@ export default function Features() {
             Built for the way field work actually happens
           </h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            From the first call to the final invoice, Flow Pilot handles every step so your
+            From the first call to the final invoice, PilotWork handles every step so your
             team can focus on the work — not the admin.
           </p>
         </div>

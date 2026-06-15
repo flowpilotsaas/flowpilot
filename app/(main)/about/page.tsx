@@ -1,4 +1,4 @@
-export const metadata = { title: "About — Flow Pilot" };
+export const metadata = { title: "About — PilotWork" };
 
 export default function AboutPage() {
   return (

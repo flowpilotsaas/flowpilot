@@ -54,7 +54,7 @@ export default function DashboardSidebar() {
           className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
         >
           <Zap className="w-4 h-4 text-primary shrink-0" />
-          Flow Pilot
+          PilotWork
         </Link>
       </div>
 

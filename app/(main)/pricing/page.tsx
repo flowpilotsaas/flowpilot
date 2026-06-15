@@ -1,6 +1,6 @@
 import { PricingSection } from '@/components/ui/pricing';
 
-export const metadata = { title: 'Pricing — Flow Pilot' };
+export const metadata = { title: 'Pricing — PilotWork' };
 
 const PLANS = [
   {

@@ -60,7 +60,7 @@ export default function Footer() {
 
         {/* Brand */}
         <div className="flex flex-col items-start gap-4">
-          <span className="text-xl font-bold">Flow Pilot</span>
+          <span className="text-xl font-bold">PilotWork</span>
           <p className="text-sm text-muted-foreground">
             Field service management built for modern teams. Schedule smarter,
             dispatch faster, and get paid without the paperwork.
@@ -147,7 +147,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-border/40 py-6 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Flow Pilot. All rights reserved.
+        © {new Date().getFullYear()} PilotWork. All rights reserved.
       </div>
     </footer>
   )

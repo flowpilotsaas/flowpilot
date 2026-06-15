@@ -1,5 +1,34 @@
 'use client'
 
+/*
+  SQL — run in Supabase SQL editor:
+
+  create table public.transactions (
+    id              uuid primary key default gen_random_uuid(),
+    user_id         uuid references auth.users(id) on delete cascade not null,
+    job_id          uuid references public.jobs(id) on delete set null,
+    customer_id     uuid references public.customers(id) on delete set null,
+    customer_name   text,
+    job_number      text,
+    amount          numeric(10,2) not null default 0,
+    payment_method  text,
+    status          text not null default 'paid',
+    type            text not null default 'payment',
+    details         text,
+    date            date not null,
+    created_at      timestamptz not null default now()
+  );
+
+  alter table public.transactions enable row level security;
+
+  create policy "transactions: owner full access"
+    on public.transactions for all
+    using  (auth.uid() = user_id)
+    with check (auth.uid() = user_id);
+
+  grant all on public.transactions to anon, authenticated;
+*/
+
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -10,33 +39,83 @@ import { cn } from '@/lib/utils'
 
 type DateFilter = 'day' | 'week' | 'month' | 'custom'
 
+type Transaction = {
+  id: string
+  job_id: string | null
+  customer_id: string | null
+  customer_name: string | null
+  job_number: string | null
+  amount: number
+  payment_method: string | null
+  status: string
+  type: string
+  details: string | null
+  date: string
+  created_at: string
+}
+
 function fmtCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
 }
 
-export default function TransactionsPage() {
-  const [loading, setLoading]         = React.useState(true)
-  const [dateFilter, setDateFilter]   = React.useState<DateFilter>('month')
-  const [search, setSearch]           = React.useState('')
-  const [fromDate, setFromDate]       = React.useState('')
-  const [toDate, setToDate]           = React.useState('')
+function fmtDate(s: string) {
+  return new Date(s + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
+}
 
-  // Real stats
-  const [jobsRevenue, setJobsRevenue]         = React.useState(0)
-  const [estimatesCount, setEstimatesCount]   = React.useState(0)
-  const [customersCount, setCustomersCount]   = React.useState(0)
-  const [activeJobs, setActiveJobs]           = React.useState(0)
+// Returns the inclusive [from, to] ISO date strings for the current filter
+function getDateBounds(
+  filter: DateFilter,
+  fromDate: string,
+  toDate: string,
+): { from: string; to: string } | null {
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  const today = new Date()
+
+  if (filter === 'day') {
+    const t = iso(today)
+    return { from: t, to: t }
+  }
+  if (filter === 'week') {
+    const start = new Date(today)
+    start.setDate(today.getDate() - 6)
+    return { from: iso(start), to: iso(today) }
+  }
+  if (filter === 'month') {
+    const start = new Date(today.getFullYear(), today.getMonth(), 1)
+    return { from: iso(start), to: iso(today) }
+  }
+  // custom — only apply if both dates are set
+  if (fromDate && toDate) return { from: fromDate, to: toDate }
+  if (fromDate) return { from: fromDate, to: iso(today) }
+  return null // no filter when custom dates aren't set
+}
+
+export default function TransactionsPage() {
+  const [loading, setLoading]       = React.useState(true)
+  const [transactions, setTransactions] = React.useState<Transaction[]>([])
+  const [dateFilter, setDateFilter] = React.useState<DateFilter>('month')
+  const [search, setSearch]         = React.useState('')
+  const [fromDate, setFromDate]     = React.useState('')
+  const [toDate, setToDate]         = React.useState('')
+
+  // Other stats (unchanged from jobs / estimates / customers tables)
+  const [estimatesCount, setEstimatesCount] = React.useState(0)
+  const [customersCount, setCustomersCount] = React.useState(0)
+  const [activeJobs, setActiveJobs]         = React.useState(0)
 
   React.useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const [jobsRes, estRes, custRes] = await Promise.all([
+      const [txRes, estRes, custRes, jobsRes] = await Promise.all([
         supabase
-          .from('jobs')
-          .select('status, price')
-          .eq('user_id', user.id),
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false }),
         supabase
           .from('estimates')
           .select('id', { count: 'exact', head: true })
@@ -45,28 +124,91 @@ export default function TransactionsPage() {
           .from('customers')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id),
+        supabase
+          .from('jobs')
+          .select('status')
+          .eq('user_id', user.id),
       ])
 
-      if (jobsRes.data) {
-        const completed = jobsRes.data.filter((j) => j.status === 'Completed')
-        const active    = jobsRes.data.filter((j) => j.status !== 'Completed')
-        setJobsRevenue(completed.reduce((sum, j) => sum + (j.price ?? 0), 0))
-        setActiveJobs(active.length)
-      }
+      if (txRes.data) setTransactions(txRes.data as Transaction[])
       if (estRes.count !== null)  setEstimatesCount(estRes.count)
       if (custRes.count !== null) setCustomersCount(custRes.count)
+      if (jobsRes.data) {
+        setActiveJobs(jobsRes.data.filter((j) => j.status !== 'Completed' && j.status !== 'Paid').length)
+      }
 
       setLoading(false)
     }
     load()
   }, [])
 
+  // ── Filtered transactions ──────────────────────────────────────────────
+
+  const filtered = React.useMemo(() => {
+    const bounds = getDateBounds(dateFilter, fromDate, toDate)
+    const q = search.toLowerCase().trim()
+
+    return transactions.filter((tx) => {
+      if (bounds) {
+        if (tx.date < bounds.from || tx.date > bounds.to) return false
+      }
+      if (q) {
+        const haystack = [
+          tx.customer_name ?? '',
+          tx.job_number ?? '',
+          tx.details ?? '',
+          tx.payment_method ?? '',
+          tx.type,
+        ].join(' ').toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [transactions, dateFilter, fromDate, toDate, search])
+
+  const totalAmount = React.useMemo(
+    () => filtered.reduce((sum, tx) => sum + tx.amount, 0),
+    [filtered],
+  )
+
+  // ── Period label for the banner ────────────────────────────────────────
+
+  const periodLabel =
+    dateFilter === 'day'   ? 'Today' :
+    dateFilter === 'week'  ? 'Last 7 days' :
+    dateFilter === 'month' ? 'This month' : 'Custom range'
+
+  // ── Stat cards ─────────────────────────────────────────────────────────
+
   const statCards = [
-    { label: 'Customer Payments',  value: '$0.00',                         icon: DollarSign, color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
-    { label: 'Total Jobs Revenue', value: loading ? '—' : fmtCurrency(jobsRevenue), icon: Briefcase,  color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-    { label: 'Estimates Sent',     value: loading ? '—' : estimatesCount,  icon: FileText,   color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
-    { label: 'Total Customers',    value: loading ? '—' : customersCount,  icon: Users,      color: 'text-pink-500',   bg: 'bg-pink-50 dark:bg-pink-900/20' },
-    { label: 'Active Jobs',        value: loading ? '—' : activeJobs,      icon: Briefcase,  color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+    {
+      label: 'Customer Payments',
+      value: loading ? '—' : fmtCurrency(totalAmount),
+      icon: DollarSign,
+      color: 'text-green-500',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+    },
+    {
+      label: 'Estimates Sent',
+      value: loading ? '—' : estimatesCount,
+      icon: FileText,
+      color: 'text-purple-500',
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
+    },
+    {
+      label: 'Total Customers',
+      value: loading ? '—' : customersCount,
+      icon: Users,
+      color: 'text-pink-500',
+      bg: 'bg-pink-50 dark:bg-pink-900/20',
+    },
+    {
+      label: 'Active Jobs',
+      value: loading ? '—' : activeJobs,
+      icon: Briefcase,
+      color: 'text-orange-500',
+      bg: 'bg-orange-50 dark:bg-orange-900/20',
+    },
   ]
 
   return (
@@ -81,8 +223,10 @@ export default function TransactionsPage() {
       <Card>
         <CardContent className="p-5 flex items-center justify-between">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">This month</p>
-            <p className="text-3xl font-bold text-foreground mt-1">$0.00</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">{periodLabel}</p>
+            <p className="text-3xl font-bold text-foreground mt-1 tabular-nums">
+              {loading ? '—' : fmtCurrency(totalAmount)}
+            </p>
             <p className="text-xs text-muted-foreground mt-0.5">Net Movement</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
@@ -92,7 +236,7 @@ export default function TransactionsPage() {
       </Card>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label}>
             <CardContent className="p-5">
@@ -108,7 +252,6 @@ export default function TransactionsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        {/* Period buttons */}
         <div className="flex rounded-lg border border-border overflow-hidden text-sm">
           {(['day', 'week', 'month', 'custom'] as DateFilter[]).map((f) => (
             <button
@@ -119,7 +262,7 @@ export default function TransactionsPage() {
                 'px-3 py-1.5 capitalize transition-colors',
                 dateFilter === f
                   ? 'bg-primary text-primary-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-muted'
+                  : 'text-muted-foreground hover:bg-muted',
               )}
             >
               {f}
@@ -127,13 +270,16 @@ export default function TransactionsPage() {
           ))}
         </div>
 
-        {/* Search */}
         <div className="relative flex-1 min-w-[160px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-          <Input className="pl-9" placeholder="Search transactions…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            className="pl-9"
+            placeholder="Search transactions…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
 
-        {/* Date range (shown for custom) */}
         {dateFilter === 'custom' && (
           <>
             <Input type="date" className="w-36" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -150,23 +296,61 @@ export default function TransactionsPage() {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 {['Date', 'Type', 'Job #', 'Customer', 'Details', 'Status', 'Payment Method', 'Amount'].map((h) => (
-                  <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                    {h}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={8} className="px-6 py-16 text-center">
-                  <div className="flex flex-col items-center gap-3">
-                    {loading
-                      ? <Loader2 className="w-8 h-8 text-muted-foreground/40 animate-spin" />
-                      : <DollarSign className="w-10 h-10 text-muted-foreground/30" />}
-                    <p className="text-sm text-muted-foreground">
-                      {loading ? 'Loading…' : 'No income activity found.'}
-                    </p>
-                  </div>
-                </td>
-              </tr>
+              {loading ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <Loader2 className="w-8 h-8 text-muted-foreground/40 animate-spin" />
+                      <p className="text-sm text-muted-foreground">Loading…</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <DollarSign className="w-10 h-10 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground">
+                        {search ? 'No transactions match your search.' : 'No transactions recorded yet.'}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((tx) => (
+                  <tr key={tx.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(tx.date)}</td>
+                    <td className="px-6 py-3 capitalize text-foreground whitespace-nowrap">{tx.type}</td>
+                    <td className="px-6 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {tx.job_number ?? '—'}
+                    </td>
+                    <td className="px-6 py-3 text-foreground whitespace-nowrap">
+                      {tx.customer_name ?? <span className="text-muted-foreground/40">—</span>}
+                    </td>
+                    <td className="px-6 py-3 text-muted-foreground max-w-[14rem] truncate" title={tx.details ?? ''}>
+                      {tx.details ?? '—'}
+                    </td>
+                    <td className="px-6 py-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 capitalize">
+                        {tx.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                      {tx.payment_method ?? '—'}
+                    </td>
+                    <td className="px-6 py-3 font-medium text-foreground tabular-nums whitespace-nowrap">
+                      {fmtCurrency(tx.amount)}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

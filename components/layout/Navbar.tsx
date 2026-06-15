@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React from 'react'
 import Link from 'next/link'
@@ -37,7 +37,7 @@ export default function Navbar() {
                                 href="/"
                                 aria-label="home"
                                 className="flex items-center space-x-2">
-                                <span className="text-xl font-bold tracking-tight">Flow Pilot</span>
+                                <span className="text-xl font-bold tracking-tight">PilotWork</span>
                             </Link>
 
                             <button
