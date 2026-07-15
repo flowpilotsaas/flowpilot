@@ -75,6 +75,27 @@ export async function POST(req: NextRequest) {
         console.log('[webhook] session.subscription:', session.subscription)
         console.log('[webhook] session.metadata:', JSON.stringify(session.metadata))
 
+        // ── estimate payment ─────────────────────────────────────────────
+        if (session.mode === 'payment' && session.metadata?.type === 'estimate_payment') {
+          const estimateId = session.metadata.estimate_id
+          const userId = session.metadata.user_id
+          console.log('[webhook] Estimate payment completed. estimateId:', estimateId, 'userId:', userId)
+
+          if (estimateId && userId) {
+            const { error: dbError } = await supabase
+              .from('estimates')
+              .update({ payment_link_status: 'paid', status: 'Approved' })
+              .eq('id', estimateId)
+              .eq('user_id', userId)
+            if (dbError) {
+              console.error('[webhook] Failed to update estimate:', dbError.message)
+            } else {
+              console.log('[webhook] Estimate updated to paid/Approved.')
+            }
+          }
+          break
+        }
+
         if (session.mode !== 'subscription' || !session.subscription) {
           console.log('[webhook] Skipping — not a subscription checkout.')
           break

@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, Phone, CheckCircle2, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -34,7 +34,8 @@ type Estimate = {
   require_payment: boolean
   payment_type: 'full' | 'deposit'
   deposit_percent: number | null
-  financing_status: 'sent' | 'approved' | 'declined' | null
+  payment_link_url: string | null
+  payment_link_status: 'sent' | 'paid' | null
   created_at: string
 }
 
@@ -181,12 +182,11 @@ export default function EstimateDetailPage({
   const [notFound, setNotFound] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
 
-  // Financing
-  const [financingModalOpen, setFinancingModalOpen] = React.useState(false)
-  const [financingPhone, setFinancingPhone] = React.useState('')
-  const [sendingFinancing, setSendingFinancing] = React.useState(false)
-  const [financingMsg, setFinancingMsg] = React.useState('')
-  const [financingError, setFinancingError] = React.useState('')
+  // Payment link
+  const [paymentLinkModalOpen, setPaymentLinkModalOpen] = React.useState(false)
+  const [paymentLinkUrl, setPaymentLinkUrl] = React.useState('')
+  const [generatingPaymentLink, setGeneratingPaymentLink] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
 
   // ─── Fetch ──────────────────────────────────────────────────────────────
 
@@ -234,30 +234,26 @@ export default function EstimateDetailPage({
     setUpdatingStatus(false)
   }
 
-  // ─── Financing ──────────────────────────────────────────────────────────
+  // ─── Payment link ────────────────────────────────────────────────────────
 
-  const handleSendFinancing = async () => {
-    setSendingFinancing(true)
-    setFinancingError('')
-
-    const { error } = await supabase
-      .from('estimates')
-      .update({ financing_status: 'sent' })
-      .eq('id', id)
-
-    if (error) {
-      const msg = error.code === '42703'
-        ? 'The financing_status column is missing. Run the SQL shown below, then try again.'
-        : error.message
-      setFinancingError(msg)
-      setSendingFinancing(false)
-      return
+  const handleGeneratePaymentLink = async () => {
+    setGeneratingPaymentLink(true)
+    try {
+      const res = await fetch('/api/stripe/create-estimate-payment-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ estimateId: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate payment link.')
+      setPaymentLinkUrl(data.url)
+      setEstimate((prev) => prev ? { ...prev, payment_link_url: data.url, payment_link_status: 'sent' } : prev)
+      setPaymentLinkModalOpen(true)
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setGeneratingPaymentLink(false)
     }
-
-    setEstimate((prev) => prev ? { ...prev, financing_status: 'sent' } : prev)
-    setFinancingMsg(`Financing link sent to ${estimate?.customer_name ?? 'customer'}!`)
-    setFinancingModalOpen(false)
-    setSendingFinancing(false)
   }
 
   // ─── Derived pricing ────────────────────────────────────────────────────
@@ -505,93 +501,76 @@ export default function EstimateDetailPage({
         </Card>
       )}
 
-      {/* ── Financing (Wisetack) ── */}
-      <Card className="mb-6 border-cyan-200 dark:border-cyan-900">
-        <CardHeader className="border-b border-cyan-100 dark:border-cyan-900 px-6 py-4 bg-cyan-50/60 dark:bg-cyan-950/30 rounded-t-xl">
-          <div className="flex items-center gap-3">
-            {/* Wisetack "W" mark */}
-            <div className="w-8 h-8 rounded-lg bg-cyan-500 flex items-center justify-center shrink-0">
-              <span className="text-white text-sm font-bold leading-none">W</span>
+      {/* ── Send Payment Link ── */}
+      <Card className="mb-6 border-violet-200 dark:border-violet-900">
+        <CardHeader className="border-b border-violet-100 dark:border-violet-900 px-6 py-4 bg-violet-50/60 dark:bg-violet-950/30 rounded-t-xl">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+                <Link2 className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold text-foreground">Send Payment Link</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Powered by Stripe</p>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-base font-semibold text-foreground">Offer Financing</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Powered by Wisetack</p>
-            </div>
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+              <CreditCard className="w-3 h-3" />
+              Card, ACH &amp; Financing available
+            </span>
           </div>
         </CardHeader>
         <CardContent className="px-6 py-5">
           <p className="text-sm text-muted-foreground mb-4">
-            Give your customer the option to pay in monthly installments through Wisetack. They&apos;ll
-            receive a text message with a link to apply — no impact to their credit score to check rates.
+            Generate a secure Stripe Checkout link to send to your customer. They can pay in full or
+            choose to finance through Sunbit, available at checkout.
           </p>
 
-          {/* Success message */}
-          {financingMsg && (
-            <div className="flex items-center gap-2 text-sm text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30 border border-cyan-200 dark:border-cyan-800 rounded-lg px-4 py-2.5 mb-4">
+          {estimate.payment_link_status === 'paid' ? (
+            <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg px-4 py-2.5">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              {financingMsg}
+              Payment received — estimate marked as Approved
             </div>
-          )}
-
-          {/* Status badge + actions */}
-          {estimate.financing_status ? (
-            <div className="flex items-center gap-3">
-              <span className={cn(
-                'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium',
-                estimate.financing_status === 'sent'
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                  : estimate.financing_status === 'approved'
-                  ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-500'
-                  : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-              )}>
-                {estimate.financing_status === 'sent'
-                  ? 'Link Sent'
-                  : estimate.financing_status === 'approved'
-                  ? 'Approved'
-                  : 'Declined'}
-              </span>
-              {(estimate.financing_status === 'sent' || estimate.financing_status === 'declined') && (
+          ) : (
+            <div className="flex items-center gap-3 flex-wrap">
+              {estimate.payment_link_status === 'sent' && estimate.payment_link_url && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-1.5 text-cyan-700 border-cyan-200 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:bg-cyan-950"
-                  onClick={() => { setFinancingMsg(''); setFinancingError(''); setFinancingModalOpen(true) }}
+                  className="gap-1.5"
+                  onClick={() => { setPaymentLinkUrl(estimate.payment_link_url!); setPaymentLinkModalOpen(true) }}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Resend
+                  <Copy className="w-3.5 h-3.5" />
+                  View Link
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950"
+                disabled={generatingPaymentLink}
+                onClick={handleGeneratePaymentLink}
+              >
+                {generatingPaymentLink
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating…</>
+                  : <><Link2 className="w-3.5 h-3.5" />{estimate.payment_link_status === 'sent' ? 'Regenerate Link' : 'Generate Payment Link'}</>}
+              </Button>
             </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-cyan-700 border-cyan-200 hover:bg-cyan-50 dark:text-cyan-400 dark:border-cyan-800 dark:hover:bg-cyan-950"
-              onClick={() => {
-                setFinancingPhone(estimate.customer_phone ?? '')
-                setFinancingMsg('')
-                setFinancingError('')
-                setFinancingModalOpen(true)
-              }}
-            >
-              <Phone className="w-3.5 h-3.5" />
-              Send Financing Link
-            </Button>
           )}
         </CardContent>
       </Card>
 
-      {/* Financing modal */}
-      {financingModalOpen && (
-        <FinancingModal
-          customerName={estimate.customer_name ?? 'Customer'}
-          total={estimate.total}
-          phone={financingPhone}
-          onPhoneChange={setFinancingPhone}
-          onConfirm={handleSendFinancing}
-          onClose={() => setFinancingModalOpen(false)}
-          saving={sendingFinancing}
-          error={financingError}
+      {/* Payment link modal */}
+      {paymentLinkModalOpen && (
+        <PaymentLinkModal
+          url={paymentLinkUrl}
+          copied={copied}
+          onCopy={() => {
+            navigator.clipboard.writeText(paymentLinkUrl)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          }}
+          onClose={() => { setPaymentLinkModalOpen(false); setCopied(false) }}
         />
       )}
 
@@ -631,29 +610,17 @@ function Dash() {
   return <span className="text-muted-foreground/40">—</span>
 }
 
-function FinancingModal({
-  customerName,
-  total,
-  phone,
-  onPhoneChange,
-  onConfirm,
+function PaymentLinkModal({
+  url,
+  copied,
+  onCopy,
   onClose,
-  saving,
-  error,
 }: {
-  customerName: string
-  total: number
-  phone: string
-  onPhoneChange: (v: string) => void
-  onConfirm: () => void
+  url: string
+  copied: boolean
+  onCopy: () => void
   onClose: () => void
-  saving: boolean
-  error: string
 }) {
-  const fmtCurrency = (n: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
-
-  // Close on Escape
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handler)
@@ -663,75 +630,40 @@ function FinancingModal({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-background rounded-xl border border-border shadow-xl w-full max-w-sm">
-        {/* Header */}
+      <div className="relative bg-background rounded-xl border border-border shadow-xl w-full max-w-md">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-          <div className="w-7 h-7 rounded-md bg-cyan-500 flex items-center justify-center shrink-0">
-            <span className="text-white text-xs font-bold">W</span>
+          <div className="w-7 h-7 rounded-md bg-violet-600 flex items-center justify-center shrink-0">
+            <Link2 className="w-3.5 h-3.5 text-white" />
           </div>
-          <h2 className="text-base font-semibold text-foreground">Send Financing Link</h2>
+          <h2 className="text-base font-semibold text-foreground">Payment Link Ready</h2>
         </div>
 
-        {/* Body */}
         <div className="px-6 py-5 flex flex-col gap-4">
-          <div className="rounded-lg bg-muted/40 px-4 py-3 flex flex-col gap-1.5 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Customer</span>
-              <span className="font-medium text-foreground">{customerName}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Estimate Total</span>
-              <span className="font-medium text-foreground tabular-nums">{fmtCurrency(total)}</span>
-            </div>
-          </div>
-
-          {error && (
-            <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-              <span className="mt-px shrink-0">⚠</span>
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-foreground">
-              Customer Phone <span className="text-destructive">*</span>
-            </label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              <input
-                type="tel"
-                placeholder="+1 (555) 000-0000"
-                value={phone}
-                onChange={(e) => onPhoneChange(e.target.value)}
-                autoFocus
-                className="h-9 w-full rounded-md border border-input bg-transparent pl-9 pr-3 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Wisetack will send an application link to this number via SMS.
-            </p>
+          <p className="text-sm text-muted-foreground">
+            Send this link to your customer. They can pay in full or choose to finance through
+            Sunbit, available at checkout.
+          </p>
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+            <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{url}</span>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+            >
+              {copied
+                ? <><Check className="w-3 h-3" /> Copied!</>
+                : <><Copy className="w-3 h-3" /> Copy Link</>}
+            </button>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-border flex items-center justify-end gap-2">
+        <div className="px-6 py-4 border-t border-border flex justify-end">
           <button
             type="button"
             onClick={onClose}
-            disabled={saving}
-            className="h-8 px-3 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted disabled:opacity-50"
+            className="h-8 px-4 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={saving || !phone.trim()}
-            className="inline-flex items-center gap-1.5 h-8 px-4 text-sm font-medium rounded-md bg-cyan-500 text-white hover:bg-cyan-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving
-              ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending…</>
-              : <><Phone className="w-3.5 h-3.5" /> Send Link</>}
+            Done
           </button>
         </div>
       </div>
