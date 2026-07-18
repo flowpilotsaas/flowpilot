@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { use } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { sendEmail } from '@/lib/send-email'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard } from 'lucide-react'
@@ -230,6 +231,15 @@ export default function EstimateDetailPage({
     if (error) {
       // Revert on failure
       setEstimate((prev) => prev ? { ...prev, status: estimate.status } : prev)
+    } else if (newStatus === 'Sent') {
+      console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
+      if (estimate.customer_email) {
+        sendEmail(estimate.customer_email, 'estimate_sent', {
+          customerName:   estimate.customer_name,
+          estimateNumber: estimate.estimate_number,
+          total:          estimate.total,
+        })
+      }
     }
     setUpdatingStatus(false)
   }

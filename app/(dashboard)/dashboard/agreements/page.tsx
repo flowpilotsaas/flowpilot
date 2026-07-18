@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { sendEmail } from '@/lib/send-email'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -202,6 +203,26 @@ export default function AgreementsPage() {
     } else {
       const { error } = await supabase.from('agreements').insert({ ...payload, user_id: user.id })
       if (error) { setFormError(error.message); setSaving(false); return }
+    }
+
+    if (form.status === 'Active' && form.customer_id) {
+      supabase
+        .from('customers')
+        .select('email, name')
+        .eq('id', form.customer_id)
+        .maybeSingle()
+        .then(({ data: customer }) => {
+          if (customer?.email) {
+            sendEmail(customer.email, 'agreement_sent', {
+              customerName:    customer.name,
+              agreementTitle:  payload.title,
+              startDate:       payload.start_date ?? '—',
+              endDate:         payload.end_date ?? '—',
+              value:           payload.value,
+            })
+          }
+        })
+        .catch(() => {})
     }
 
     setSaving(false)

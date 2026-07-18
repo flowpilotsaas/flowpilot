@@ -4,6 +4,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { sendEmail } from '@/lib/send-email'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,7 +34,7 @@ type Job = {
   scheduled_date: string | null
   price: number | null
   created_at: string
-  customers?: { name: string } | null
+  customers?: { name: string; email: string | null } | null
 }
 
 type Customer = {
@@ -128,7 +129,7 @@ export default function JobsPage() {
     const [jobsRes, customersRes] = await Promise.all([
       supabase
         .from('jobs')
-        .select('*, customers(name)')
+        .select('*, customers(name, email)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
@@ -212,8 +213,20 @@ export default function JobsPage() {
       const { error } = await supabase.from('jobs').update(payload).eq('id', editingJob.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { error } = await supabase.from('jobs').insert({ ...payload, user_id: user.id })
+      const { data: newJob, error } = await supabase
+        .from('jobs')
+        .insert({ ...payload, user_id: user.id })
+        .select('*, customers(name, email)')
+        .single()
       if (error) { setFormError(error.message); setSaving(false); return }
+      if (newJob?.customers?.email) {
+        sendEmail(newJob.customers.email, 'job_confirmation', {
+          customerName:  newJob.customers.name,
+          jobNumber:     newJob.job_number,
+          title:         newJob.title,
+          scheduledDate: newJob.scheduled_date ?? 'TBD',
+        })
+      }
     }
 
     setSaving(false)
@@ -273,6 +286,14 @@ export default function JobsPage() {
       .update({ status: 'Paid' })
       .eq('id', payModalJob.id)
     if (jobError) return jobError.message
+
+    if (payModalJob.customers?.email) {
+      sendEmail(payModalJob.customers.email, 'payment_received', {
+        customerName: payModalJob.customers.name,
+        jobNumber:    fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
+        amount:       parseFloat(amount),
+      })
+    }
 
     setJobs((prev) =>
       prev.map((j) => j.id === payModalJob!.id ? { ...j, status: 'Paid' as JobStatus } : j)
