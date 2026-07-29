@@ -231,13 +231,22 @@ export default function EstimateDetailPage({
     if (error) {
       // Revert on failure
       setEstimate((prev) => prev ? { ...prev, status: estimate.status } : prev)
-    } else if (newStatus === 'Sent') {
-      console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
-      if (estimate.customer_email) {
+    } else if (estimate.customer_email) {
+      if (newStatus === 'Sent') {
+        console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
         sendEmail(estimate.customer_email, 'estimate_sent', {
           customerName:   estimate.customer_name,
           estimateNumber: estimate.estimate_number,
           total:          estimate.total,
+        })
+      } else if (newStatus === 'Approved') {
+        sendEmail(estimate.customer_email, 'estimate_approved', {
+          customerName: estimate.customer_name,
+          total:        estimate.total,
+        })
+      } else if (newStatus === 'Declined') {
+        sendEmail(estimate.customer_email, 'estimate_declined', {
+          customerName: estimate.customer_name,
         })
       }
     }
@@ -259,6 +268,13 @@ export default function EstimateDetailPage({
       setPaymentLinkUrl(data.url)
       setEstimate((prev) => prev ? { ...prev, payment_link_url: data.url, payment_link_status: 'sent' } : prev)
       setPaymentLinkModalOpen(true)
+      if (estimate?.customer_email) {
+        sendEmail(estimate.customer_email, 'payment_link_sent', {
+          customerName: estimate.customer_name,
+          payUrl:       data.url,
+          total:        estimate.total,
+        })
+      }
     } catch (err) {
       alert((err as Error).message)
     } finally {

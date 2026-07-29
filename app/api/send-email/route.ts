@@ -59,6 +59,13 @@ function estimateSentHtml(d: Record<string, unknown>) {
   `)
 }
 
+function tr(label: string, value: string) {
+  return `<tr>
+    <td style="font-size:14px;color:#71717a;padding:5px 0;white-space:nowrap;padding-right:16px;">${label}:</td>
+    <td style="font-size:14px;color:#18181b;padding:5px 0;font-weight:600;">${value}</td>
+  </tr>`
+}
+
 function jobConfirmationHtml(d: Record<string, unknown>) {
   const name = d.customerName ?? 'there'
   const num = d.jobNumber ? `#${d.jobNumber}` : ''
@@ -69,9 +76,11 @@ function jobConfirmationHtml(d: Record<string, unknown>) {
     <p>Hi ${name},</p>
     <p>Your job has been confirmed with <strong>${company}</strong>.</p>
     <div class="card">
-      ${num ? `<div class="card-row"><span class="label">Job</span><span class="value">${num}</span></div>` : ''}
-      <div class="card-row"><span class="label">Service</span><span class="value">${title}</span></div>
-      <div class="card-row"><span class="label">Scheduled Date</span><span class="value">${date}</span></div>
+      <table cellpadding="0" cellspacing="0" border="0">
+        ${num ? tr('Job', num) : ''}
+        ${tr('Service', title)}
+        ${tr('Scheduled Date', date)}
+      </table>
     </div>
     <p>We'll be in touch if anything changes. Feel free to reach out with any questions.</p>
   `)
@@ -87,9 +96,11 @@ function jobReminderHtml(d: Record<string, unknown>) {
     <p>Hi ${name},</p>
     <p>This is a friendly reminder that <strong>${company}</strong> has a job scheduled with you.</p>
     <div class="card">
-      ${num ? `<div class="card-row"><span class="label">Job</span><span class="value">${num}</span></div>` : ''}
-      <div class="card-row"><span class="label">Service</span><span class="value">${title}</span></div>
-      <div class="card-row"><span class="label">Scheduled Date</span><span class="value">${date}</span></div>
+      <table cellpadding="0" cellspacing="0" border="0">
+        ${num ? tr('Job', num) : ''}
+        ${tr('Service', title)}
+        ${tr('Scheduled Date', date)}
+      </table>
     </div>
     <p>Please ensure someone is available at the scheduled time. Contact us if you need to reschedule.</p>
   `)
@@ -104,8 +115,10 @@ function paymentReceivedHtml(d: Record<string, unknown>) {
     <p>Hi ${name},</p>
     <p>We've received your payment. Thank you!</p>
     <div class="card">
-      ${num ? `<div class="card-row"><span class="label">Job</span><span class="value">${num}</span></div>` : ''}
-      <div class="card-row"><span class="label">Amount Paid</span><span class="value">${amount}</span></div>
+      <table cellpadding="0" cellspacing="0" border="0">
+        ${num ? tr('Job', num) : ''}
+        ${tr('Amount Paid', amount)}
+      </table>
     </div>
     <p>Your account with <strong>${company}</strong> is now up to date. We appreciate your prompt payment.</p>
   `)
@@ -122,29 +135,103 @@ function agreementSentHtml(d: Record<string, unknown>) {
     <p>Hi ${name},</p>
     <p>Your service agreement with <strong>${company}</strong> is now active.</p>
     <div class="card">
-      <div class="card-row"><span class="label">Agreement</span><span class="value">${title}</span></div>
-      <div class="card-row"><span class="label">Start Date</span><span class="value">${start}</span></div>
-      <div class="card-row"><span class="label">End Date</span><span class="value">${end}</span></div>
-      ${value ? `<div class="card-row"><span class="label">Value</span><span class="value">${value}</span></div>` : ''}
+      <table cellpadding="0" cellspacing="0" border="0">
+        ${tr('Agreement', title)}
+        ${tr('Start Date', start)}
+        ${tr('End Date', end)}
+        ${value ? tr('Value', value) : ''}
+      </table>
     </div>
     <p>We look forward to serving you. Contact us anytime with questions or service requests.</p>
   `)
 }
 
+function estimateApprovedHtml(d: Record<string, unknown>) {
+  const name = d.customerName ?? 'there'
+  const total = d.total != null ? `$${Number(d.total).toFixed(2)}` : null
+  return wrap('Estimate Approved', `
+    <p>Hi ${name},</p>
+    <p>Great news — your estimate has been <strong>approved</strong>. We'll be in touch shortly to schedule the work.</p>
+    ${total ? `<div class="card">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="font-size:15px;color:#3f3f46;padding:4px 0;">Total</td>
+          <td style="font-size:15px;text-align:right;padding:4px 0;"><strong>${total}</strong></td>
+        </tr>
+      </table>
+    </div>` : ''}
+    <p>Thank you for choosing us. We look forward to working with you.</p>
+  `)
+}
+
+function estimateDeclinedHtml(d: Record<string, unknown>) {
+  const name = d.customerName ?? 'there'
+  return wrap('Estimate Update', `
+    <p>Hi ${name},</p>
+    <p>We've noted that your estimate has been <strong>declined</strong>.</p>
+    <p>If you'd like to discuss the scope, pricing, or any concerns, we're happy to work with you on a revised proposal. Please don't hesitate to reach out.</p>
+    <p>Thank you for considering us.</p>
+  `)
+}
+
+function jobCompletionHtml(d: Record<string, unknown>) {
+  const name = d.customerName ?? 'there'
+  const title = d.title ?? 'your service'
+  const num = d.jobNumber ? `#${d.jobNumber}` : ''
+  return wrap('Service Complete', `
+    <p>Hi ${name},</p>
+    <p>We're pleased to let you know that <strong>${title}</strong>${num ? ` (Job ${num})` : ''} has been completed.</p>
+    <p>Thank you for your business. If you have any questions or feedback about the work performed, please reach out — we'd love to hear from you.</p>
+  `)
+}
+
+function paymentLinkSentHtml(d: Record<string, unknown>) {
+  const name = d.customerName ?? 'there'
+  const url = d.payUrl as string ?? '#'
+  const total = d.total != null ? `$${Number(d.total).toFixed(2)}` : null
+  return wrap('Your Payment Link is Ready', `
+    <p>Hi ${name},</p>
+    <p>Your payment link is ready. Click the button below to securely complete your payment online.</p>
+    ${total ? `<div class="card">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="font-size:15px;color:#3f3f46;padding:4px 0;">Amount Due</td>
+          <td style="font-size:15px;text-align:right;padding:4px 0;"><strong>${total}</strong></td>
+        </tr>
+      </table>
+    </div>` : ''}
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+      <tr>
+        <td align="center">
+          <a href="${url}" style="display:inline-block;background:#18181b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 40px;border-radius:6px;">Pay Now</a>
+        </td>
+      </tr>
+    </table>
+  `)
+}
+
 const TEMPLATES: Record<string, (d: Record<string, unknown>) => string> = {
-  estimate_sent:    estimateSentHtml,
-  job_confirmation: jobConfirmationHtml,
-  job_reminder:     jobReminderHtml,
-  payment_received: paymentReceivedHtml,
-  agreement_sent:   agreementSentHtml,
+  estimate_sent:     estimateSentHtml,
+  estimate_approved: estimateApprovedHtml,
+  estimate_declined: estimateDeclinedHtml,
+  job_confirmation:  jobConfirmationHtml,
+  job_reminder:      jobReminderHtml,
+  job_completion:    jobCompletionHtml,
+  payment_received:  paymentReceivedHtml,
+  payment_link_sent: paymentLinkSentHtml,
+  agreement_sent:    agreementSentHtml,
 }
 
 const SUBJECTS: Record<string, string> = {
-  estimate_sent:    'Your estimate is ready to review',
-  job_confirmation: 'Your job has been confirmed',
-  job_reminder:     'Reminder: upcoming job scheduled',
-  payment_received: 'Payment received — thank you!',
-  agreement_sent:   'Your service agreement is now active',
+  estimate_sent:     'Your estimate is ready to review',
+  estimate_approved: 'Your estimate has been approved',
+  estimate_declined: 'Update on your estimate',
+  job_confirmation:  'Your job has been confirmed',
+  job_reminder:      'Reminder: upcoming job scheduled',
+  job_completion:    'Your service is complete',
+  payment_received:  'Payment received — thank you!',
+  payment_link_sent: 'Your payment link is ready',
+  agreement_sent:    'Your service agreement is now active',
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────

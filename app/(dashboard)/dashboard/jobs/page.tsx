@@ -247,11 +247,20 @@ export default function JobsPage() {
   // ─── Quick status update (inline, no sheet) ──────────────────────────
 
   const handleStatusChange = async (jobId: string, newStatus: JobStatus) => {
+    const job = jobs.find((j) => j.id === jobId)
     // Optimistic update so the UI responds instantly
     setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: newStatus } : j))
     const { error } = await supabase.from('jobs').update({ status: newStatus }).eq('id', jobId)
-    // Revert on failure
-    if (error) fetchData()
+    if (error) {
+      // Revert on failure
+      fetchData()
+    } else if (newStatus === 'Completed' && job?.customers?.email) {
+      sendEmail(job.customers.email, 'job_completion', {
+        customerName: job.customers.name,
+        title:        job.title,
+        jobNumber:    fmtJobNumber(job.job_number, job.created_at),
+      })
+    }
   }
 
   // ─── Mark as Paid ─────────────────────────────────────────────────────

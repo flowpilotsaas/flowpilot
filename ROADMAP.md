@@ -1,9 +1,37 @@
 # PilotWork — Roadmap
 
-## In Progress
-- Job detail page (/dashboard/jobs/[id])
+## Deployment Checklist (needs live URL)
 
-## To Build Later
+### Scheduled Emails (need cron job)
+- [ ] Job reminder email — 24hrs before scheduled appointment
+- [ ] Agreement expiring soon reminder email
+- [ ] Technician on the way notification email
+
+### Stripe
+- [ ] Switch to live keys (sk_live_, pk_live_)
+- [ ] Set up live webhook endpoint pointing to https://yourapp.com/api/stripe/webhook
+- [ ] Test Sunbit financing appears on real Stripe Checkout
+
+### Resend Email
+- [ ] Verify pilotwork.com domain in Resend dashboard
+- [ ] Add RESEND_FROM_EMAIL=noreply@pilotwork.com to production env vars
+
+### Wisetack
+- [ ] Receive partner API credentials from Wisetack
+- [ ] Replace placeholder financing UI with real Wisetack API calls
+
+## In Progress
+- Pipeline page (/dashboard/pipeline)
+
+## Completed ✅
+- Full CRUD: Customers, Jobs, Estimates, Pricebook, Team, Inventory, Company Equipment, Transactions, Agreements
+- Stripe billing with 6 subscription tiers
+- Sunbit financing via Stripe Checkout on estimates
+- Wisetack financing placeholder on estimates
+- Email notifications (estimate sent/approved/declined, job confirmation/completion, payment received, payment link sent, agreement sent)
+- Rebrand to PilotWork
+
+## To Build
 
 ### Jobs
 - Google Maps embed on job detail page (requires Google Maps API key)
@@ -11,28 +39,13 @@
 - Invoice tab on job detail
 - Billing tab on job detail
 - Callback tracking
-- Job number in JOB-2026-000001 format (currently serial number only)
 - Export jobs to CSV
 
 ### Estimates
-- Actually sending estimates via email to customers
 - Customer-facing approval portal
 - Digital signature capture
-- Payment processing (Stripe etc.)
-- Financing integration (Enhancify etc.)
-- Edit existing estimate
 
 ### Team
 - Actually sending email invites to staff and technicians
 - Technicians logging in with their own separate accounts
-- Assigning technicians to specific jobs
-- Technician mobile app
-
-### Schedule
-- Drag and drop jobs onto calendar
-- Technician color coding on calendar
-
-### General
-- Customer detail page (click customer → see all their jobs and estimates)
-- Dashboard stats (revenue, jobs this week, open jobs, etc.)
-- Deploy to Vercel
+-

@@ -1,8 +1,12 @@
 type EmailType =
   | 'estimate_sent'
+  | 'estimate_approved'
+  | 'estimate_declined'
   | 'job_confirmation'
   | 'job_reminder'
+  | 'job_completion'
   | 'payment_received'
+  | 'payment_link_sent'
   | 'agreement_sent'
 
 export function sendEmail(to: string, type: EmailType, data: Record<string, unknown>) {
