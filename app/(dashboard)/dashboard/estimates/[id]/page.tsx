@@ -6,6 +6,7 @@ import { use } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { sendEmail } from '@/lib/send-email'
+import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard } from 'lucide-react'
@@ -231,20 +232,24 @@ export default function EstimateDetailPage({
     if (error) {
       // Revert on failure
       setEstimate((prev) => prev ? { ...prev, status: estimate.status } : prev)
-    } else if (estimate.customer_email) {
+    } else {
       if (newStatus === 'Sent') {
-        console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
-        sendEmail(estimate.customer_email, 'estimate_sent', {
+        const sentData = {
           customerName:   estimate.customer_name,
           estimateNumber: estimate.estimate_number,
           total:          estimate.total,
-        })
-      } else if (newStatus === 'Approved') {
+        }
+        if (estimate.customer_email) {
+          console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
+          sendEmail(estimate.customer_email, 'estimate_sent', sentData)
+        }
+        if (estimate.customer_phone) sendSms(estimate.customer_phone, 'estimate_sent', sentData)
+      } else if (newStatus === 'Approved' && estimate.customer_email) {
         sendEmail(estimate.customer_email, 'estimate_approved', {
           customerName: estimate.customer_name,
           total:        estimate.total,
         })
-      } else if (newStatus === 'Declined') {
+      } else if (newStatus === 'Declined' && estimate.customer_email) {
         sendEmail(estimate.customer_email, 'estimate_declined', {
           customerName: estimate.customer_name,
         })
@@ -268,13 +273,13 @@ export default function EstimateDetailPage({
       setPaymentLinkUrl(data.url)
       setEstimate((prev) => prev ? { ...prev, payment_link_url: data.url, payment_link_status: 'sent' } : prev)
       setPaymentLinkModalOpen(true)
-      if (estimate?.customer_email) {
-        sendEmail(estimate.customer_email, 'payment_link_sent', {
-          customerName: estimate.customer_name,
-          payUrl:       data.url,
-          total:        estimate.total,
-        })
+      const linkData = {
+        customerName: estimate?.customer_name,
+        payUrl:       data.url,
+        total:        estimate?.total,
       }
+      if (estimate?.customer_email) sendEmail(estimate.customer_email, 'payment_link_sent', linkData)
+      if (estimate?.customer_phone) sendSms(estimate.customer_phone, 'payment_link_sent', linkData)
     } catch (err) {
       alert((err as Error).message)
     } finally {

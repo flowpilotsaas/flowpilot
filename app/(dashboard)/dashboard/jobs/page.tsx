@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { sendEmail } from '@/lib/send-email'
+import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,7 +35,7 @@ type Job = {
   scheduled_date: string | null
   price: number | null
   created_at: string
-  customers?: { name: string; email: string | null } | null
+  customers?: { name: string; email: string | null; phone: string | null } | null
 }
 
 type Customer = {
@@ -129,7 +130,7 @@ export default function JobsPage() {
     const [jobsRes, customersRes] = await Promise.all([
       supabase
         .from('jobs')
-        .select('*, customers(name, email)')
+        .select('*, customers(name, email, phone)')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
@@ -216,17 +217,17 @@ export default function JobsPage() {
       const { data: newJob, error } = await supabase
         .from('jobs')
         .insert({ ...payload, user_id: user.id })
-        .select('*, customers(name, email)')
+        .select('*, customers(name, email, phone)')
         .single()
       if (error) { setFormError(error.message); setSaving(false); return }
-      if (newJob?.customers?.email) {
-        sendEmail(newJob.customers.email, 'job_confirmation', {
-          customerName:  newJob.customers.name,
-          jobNumber:     newJob.job_number,
-          title:         newJob.title,
-          scheduledDate: newJob.scheduled_date ?? 'TBD',
-        })
+      const jobData = {
+        customerName:  newJob?.customers?.name,
+        jobNumber:     newJob?.job_number,
+        title:         newJob?.title,
+        scheduledDate: newJob?.scheduled_date ?? 'TBD',
       }
+      if (newJob?.customers?.email) sendEmail(newJob.customers.email, 'job_confirmation', jobData)
+      if (newJob?.customers?.phone) sendSms(newJob.customers.phone, 'job_confirmation', jobData)
     }
 
     setSaving(false)
@@ -254,12 +255,14 @@ export default function JobsPage() {
     if (error) {
       // Revert on failure
       fetchData()
-    } else if (newStatus === 'Completed' && job?.customers?.email) {
-      sendEmail(job.customers.email, 'job_completion', {
-        customerName: job.customers.name,
-        title:        job.title,
-        jobNumber:    fmtJobNumber(job.job_number, job.created_at),
-      })
+    } else if (newStatus === 'Completed') {
+      const completionData = {
+        customerName: job?.customers?.name,
+        title:        job?.title,
+        jobNumber:    job ? fmtJobNumber(job.job_number, job.created_at) : '',
+      }
+      if (job?.customers?.email) sendEmail(job.customers.email, 'job_completion', completionData)
+      if (job?.customers?.phone) sendSms(job.customers.phone, 'job_completion', completionData)
     }
   }
 
@@ -296,13 +299,13 @@ export default function JobsPage() {
       .eq('id', payModalJob.id)
     if (jobError) return jobError.message
 
-    if (payModalJob.customers?.email) {
-      sendEmail(payModalJob.customers.email, 'payment_received', {
-        customerName: payModalJob.customers.name,
-        jobNumber:    fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
-        amount:       parseFloat(amount),
-      })
+    const paymentData = {
+      customerName: payModalJob.customers?.name,
+      jobNumber:    fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
+      amount:       parseFloat(amount),
     }
+    if (payModalJob.customers?.email) sendEmail(payModalJob.customers.email, 'payment_received', paymentData)
+    if (payModalJob.customers?.phone) sendSms(payModalJob.customers.phone, 'payment_received', paymentData)
 
     setJobs((prev) =>
       prev.map((j) => j.id === payModalJob!.id ? { ...j, status: 'Paid' as JobStatus } : j)
