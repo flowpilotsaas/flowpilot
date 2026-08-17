@@ -49,3 +49,9 @@
 - Actually sending email invites to staff and technicians
 - Technicians logging in with their own separate accounts
 -
+
+### Twilio
+- [ ] Upgrade Twilio account to enable phone number search and purchase
+- [ ] Test Communications page — Phone Numbers tab (buy numbers by area code)
+- [ ] Test Communications page — Texting tab (send SMS to customers)
+- [ ] Add Twilio Voice SDK for browser-based calling (Quick Call feature)

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { sendEmail } from '@/lib/send-email'
+import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -177,7 +179,17 @@ export default function JobDetailPage() {
     setUpdatingStatus(true)
     setJob((prev) => prev ? { ...prev, status: newStatus } : prev)
     const { error } = await supabase.from('jobs').update({ status: newStatus }).eq('id', id)
-    if (error) loadJob()
+    if (error) {
+      loadJob()
+    } else if (newStatus === 'Completed') {
+      const completionData = {
+        customerName: job.customers?.name,
+        title:        job.title,
+        jobNumber:    fmtJobNumber(job.job_number, job.created_at),
+      }
+      if (job.customers?.email) sendEmail(job.customers.email, 'job_completion', completionData)
+      if (job.customers?.phone) sendSms(job.customers.phone, 'job_completion', completionData)
+    }
     setUpdatingStatus(false)
   }
 
