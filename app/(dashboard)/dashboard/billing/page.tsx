@@ -2,9 +2,10 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CreditCard, Check, CheckCircle2, AlertCircle, Loader2, DollarSign } from 'lucide-react'
+import { CreditCard, Check, CheckCircle2, AlertCircle, Loader2, DollarSign, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type SubscriptionRow = {
@@ -68,6 +69,7 @@ function fmtDate(s: string) {
 
 
 export default function BillingPage() {
+  const { role: orgRole, loading: orgLoading } = useOrganization()
   const [loadingData, setLoadingData]     = React.useState(true)
   const [sub, setSub]                     = React.useState<SubscriptionRow | null>(null)
   const [billingHistory, setBillingHistory] = React.useState<SubscriptionRow[]>([])
@@ -157,6 +159,30 @@ export default function BillingPage() {
     statusLabel === 'past_due'  ? 'Past Due' :
     statusLabel === 'cancelled' || statusLabel === 'canceled' ? 'Cancelled' :
     statusLabel ?? 'Inactive'
+
+  if (orgLoading) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto flex items-center justify-center min-h-64">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (orgRole === 'technician') {
+    return (
+      <div className="p-8 max-w-7xl mx-auto">
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+            <Lock className="w-8 h-8 text-muted-foreground/40" />
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">Access Restricted</h2>
+          <p className="text-sm text-muted-foreground text-center max-w-sm">
+            Billing is only accessible to account owners and admins. Contact your organization owner if you need access.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">

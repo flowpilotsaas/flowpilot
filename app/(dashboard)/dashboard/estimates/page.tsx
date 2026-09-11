@@ -4,6 +4,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -65,17 +66,18 @@ export default function EstimatesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   const fetchEstimates = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
     const { data, error } = await supabase
       .from('estimates')
       .select('id, user_id, estimate_number, customer_name, status, total, created_at')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
     if (!error && data) setEstimates(data)
     setLoading(false)
-  }, [])
+  }, [organizationId])
 
   React.useEffect(() => { fetchEstimates() }, [fetchEstimates])
 

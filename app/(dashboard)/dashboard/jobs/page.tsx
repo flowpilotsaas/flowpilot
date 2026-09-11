@@ -4,6 +4,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { sendEmail } from '@/lib/send-email'
 import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
@@ -121,29 +122,30 @@ export default function JobsPage() {
 
   const [payModalJob, setPayModalJob] = React.useState<Job | null>(null)
 
+  const { organizationId } = useOrganization()
+
   // ─── Data fetching ────────────────────────────────────────────────────
 
   const fetchData = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
 
     const [jobsRes, customersRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('*, customers(name, email, phone)')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false }),
       supabase
         .from('customers')
         .select('id, name')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('name'),
     ])
 
     if (jobsRes.data) setJobs(jobsRes.data)
     if (customersRes.data) setCustomers(customersRes.data)
     setLoading(false)
-  }, [])
+  }, [organizationId])
 
   React.useEffect(() => { fetchData() }, [fetchData])
 
@@ -198,7 +200,7 @@ export default function JobsPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
 
     const payload = {
       title: form.title.trim(),
@@ -216,7 +218,7 @@ export default function JobsPage() {
     } else {
       const { data: newJob, error } = await supabase
         .from('jobs')
-        .insert({ ...payload, user_id: user.id })
+        .insert({ ...payload, user_id: user.id, organization_id: organizationId })
         .select('*, customers(name, email, phone)')
         .single()
       if (error) { setFormError(error.message); setSaving(false); return }
@@ -276,20 +278,21 @@ export default function JobsPage() {
     if (!payModalJob) return null
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return 'Not authenticated.'
+    if (!user || !organizationId) return 'Not authenticated.'
 
     const { error: txError } = await supabase.from('transactions').insert({
-      user_id:        user.id,
-      job_id:         payModalJob.id,
-      customer_id:    payModalJob.customer_id,
-      customer_name:  payModalJob.customers?.name ?? null,
-      job_number:     fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
-      amount:         parseFloat(amount),
-      payment_method: method,
-      status:         'paid',
-      type:           'payment',
-      details:        notes.trim() || null,
-      date:           new Date().toISOString().slice(0, 10),
+      user_id:         user.id,
+      organization_id: organizationId,
+      job_id:          payModalJob.id,
+      customer_id:     payModalJob.customer_id,
+      customer_name:   payModalJob.customers?.name ?? null,
+      job_number:      fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
+      amount:          parseFloat(amount),
+      payment_method:  method,
+      status:          'paid',
+      type:            'payment',
+      details:         notes.trim() || null,
+      date:            new Date().toISOString().slice(0, 10),
     })
     if (txError) return txError.message
 

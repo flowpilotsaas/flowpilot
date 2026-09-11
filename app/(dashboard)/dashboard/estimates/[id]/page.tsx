@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { use } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { sendEmail } from '@/lib/send-email'
 import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
@@ -190,15 +191,19 @@ export default function EstimateDetailPage({
   const [generatingPaymentLink, setGeneratingPaymentLink] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   // ─── Fetch ──────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
+    if (!organizationId) return
     const load = async () => {
       const [estRes, liRes] = await Promise.all([
         supabase
           .from('estimates')
           .select('*')
           .eq('id', id)
+          .eq('organization_id', organizationId)
           .maybeSingle(),
         supabase
           .from('estimate_line_items')
@@ -216,7 +221,7 @@ export default function EstimateDetailPage({
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [id, organizationId])
 
   // ─── Status update ──────────────────────────────────────────────────────
 

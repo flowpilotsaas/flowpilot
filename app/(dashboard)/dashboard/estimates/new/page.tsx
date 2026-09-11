@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,6 +51,7 @@ function fmtCurrency(n: number) {
 
 export default function NewEstimatePage() {
   const router = useRouter()
+  const { organizationId } = useOrganization()
 
   // Customer
   const [customers, setCustomers] = React.useState<Customer[]>([])
@@ -89,18 +91,17 @@ export default function NewEstimatePage() {
   // ─── Load data ────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
+    if (!organizationId) return
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
       const [custRes, pbRes] = await Promise.all([
-        supabase.from('customers').select('id, name, email, phone, address').eq('user_id', user.id).order('name'),
-        supabase.from('pricebook').select('id, name, description, price, unit').eq('user_id', user.id).order('name'),
+        supabase.from('customers').select('id, name, email, phone, address').eq('organization_id', organizationId).order('name'),
+        supabase.from('pricebook').select('id, name, description, price, unit').eq('organization_id', organizationId).order('name'),
       ])
       if (custRes.data) setCustomers(custRes.data)
       if (pbRes.data) setPricebook(pbRes.data)
     }
     load()
-  }, [])
+  }, [organizationId])
 
   // Close pricebook dropdown on outside click
   React.useEffect(() => {
@@ -177,12 +178,12 @@ export default function NewEstimatePage() {
     setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(null); setError('Not authenticated.'); return }
+    if (!user || !organizationId) { setSaving(null); setError('Not authenticated.'); return }
 
     const { data: maxRes } = await supabase
       .from('estimates')
       .select('estimate_number')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .order('estimate_number', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -193,6 +194,7 @@ export default function NewEstimatePage() {
       .from('estimates')
       .insert({
         user_id: user.id,
+        organization_id: organizationId,
         estimate_number: nextNum,
         customer_id: selectedCustomerId || null,
         customer_name: customerName.trim() || null,

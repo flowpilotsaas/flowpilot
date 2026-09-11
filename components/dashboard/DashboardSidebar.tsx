@@ -8,6 +8,7 @@ import {
   DollarSign, Globe, BarChart2, MapPin, MessageSquare, CreditCard, Settings,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -38,6 +39,14 @@ const navItems = [
 export default function DashboardSidebar() {
   const pathname = usePathname()
   const router   = useRouter()
+  const { role }  = useOrganization()
+
+  const visibleNavItems = navItems.filter(({ href }) => {
+    if (role === 'technician') {
+      if (href === '/dashboard/billing' || href === '/dashboard/settings') return false
+    }
+    return true
+  })
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -60,7 +69,7 @@ export default function DashboardSidebar() {
 
       {/* Nav links */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ label, href, icon: Icon }) => {
+        {visibleNavItems.map(({ label, href, icon: Icon }) => {
           const active =
             pathname === href ||
             (href !== '/dashboard' && pathname.startsWith(href))

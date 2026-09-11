@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { sendEmail } from '@/lib/send-email'
 import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
@@ -142,22 +143,24 @@ export default function JobDetailPage() {
   // Payment modal
   const [payModalOpen, setPayModalOpen] = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
   const loadJob = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
 
     const [jobRes, customersRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('*, customers(id, name, email, phone, address)')
         .eq('id', id)
+        .eq('organization_id', organizationId)
         .maybeSingle(),
       supabase
         .from('customers')
         .select('id, name')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('name'),
     ])
 
@@ -168,7 +171,7 @@ export default function JobDetailPage() {
     }
     if (customersRes.data) setCustomers(customersRes.data)
     setLoading(false)
-  }, [id])
+  }, [id, organizationId])
 
   React.useEffect(() => { loadJob() }, [loadJob])
 
@@ -253,20 +256,21 @@ export default function JobDetailPage() {
     if (!job) return null
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return 'Not authenticated.'
+    if (!user || !organizationId) return 'Not authenticated.'
 
     const { error: txError } = await supabase.from('transactions').insert({
-      user_id:        user.id,
-      job_id:         job.id,
-      customer_id:    job.customer_id,
-      customer_name:  job.customers?.name ?? null,
-      job_number:     fmtJobNumber(job.job_number, job.created_at),
-      amount:         parseFloat(amount),
-      payment_method: method,
-      status:         'paid',
-      type:           'payment',
-      details:        notes.trim() || null,
-      date:           new Date().toISOString().slice(0, 10),
+      user_id:         user.id,
+      organization_id: organizationId,
+      job_id:          job.id,
+      customer_id:     job.customer_id,
+      customer_name:   job.customers?.name ?? null,
+      job_number:      fmtJobNumber(job.job_number, job.created_at),
+      amount:          parseFloat(amount),
+      payment_method:  method,
+      status:          'paid',
+      type:            'payment',
+      details:         notes.trim() || null,
+      date:            new Date().toISOString().slice(0, 10),
     })
     if (txError) return txError.message
 

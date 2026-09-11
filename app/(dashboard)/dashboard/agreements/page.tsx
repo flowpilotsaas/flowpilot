@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { sendEmail } from '@/lib/send-email'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -106,29 +107,30 @@ export default function AgreementsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
   const [deleting, setDeleting]               = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
   const fetchData = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
 
     const [agrRes, custRes] = await Promise.all([
       supabase
         .from('agreements')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('created_at', { ascending: false }),
       supabase
         .from('customers')
         .select('id, name')
-        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
         .order('name'),
     ])
 
     if (agrRes.data)  setAgreements(agrRes.data as Agreement[])
     if (custRes.data) setCustomers(custRes.data)
     setLoading(false)
-  }, [])
+  }, [organizationId])
 
   React.useEffect(() => { fetchData() }, [fetchData])
 
@@ -182,7 +184,7 @@ export default function AgreementsPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
 
     const selectedCustomer = customers.find((c) => c.id === form.customer_id)
 
@@ -201,7 +203,7 @@ export default function AgreementsPage() {
       const { error } = await supabase.from('agreements').update(payload).eq('id', editing.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { error } = await supabase.from('agreements').insert({ ...payload, user_id: user.id })
+      const { error } = await supabase.from('agreements').insert({ ...payload, user_id: user.id, organization_id: organizationId })
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 

@@ -28,6 +28,7 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -98,17 +99,18 @@ export default function InventoryPage() {
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
   const [deleting, setDeleting]               = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   const fetchData = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
     const { data } = await supabase
       .from('inventory')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
     if (data) setItems(data as InventoryItem[])
     setLoading(false)
-  }, [])
+  }, [organizationId])
 
   React.useEffect(() => { fetchData() }, [fetchData])
 
@@ -152,7 +154,7 @@ export default function InventoryPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
 
     const payload = {
       name: form.name.trim(),
@@ -168,7 +170,7 @@ export default function InventoryPage() {
       const { error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { error } = await supabase.from('inventory').insert({ ...payload, user_id: user.id })
+      const { error } = await supabase.from('inventory').insert({ ...payload, user_id: user.id, organization_id: organizationId })
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 

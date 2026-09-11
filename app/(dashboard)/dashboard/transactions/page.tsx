@@ -31,6 +31,7 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -105,29 +106,29 @@ export default function TransactionsPage() {
   const [customersCount, setCustomersCount] = React.useState(0)
   const [activeJobs, setActiveJobs]         = React.useState(0)
 
-  React.useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+  const { organizationId } = useOrganization()
 
+  React.useEffect(() => {
+    if (!organizationId) return
+    async function load() {
       const [txRes, estRes, custRes, jobsRes] = await Promise.all([
         supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('organization_id', organizationId)
           .order('date', { ascending: false }),
         supabase
           .from('estimates')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id),
+          .eq('organization_id', organizationId),
         supabase
           .from('customers')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id),
+          .eq('organization_id', organizationId),
         supabase
           .from('jobs')
           .select('status')
-          .eq('user_id', user.id),
+          .eq('organization_id', organizationId),
       ])
 
       if (txRes.data) setTransactions(txRes.data as Transaction[])
@@ -140,7 +141,7 @@ export default function TransactionsPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [organizationId])
 
   // ── Filtered transactions ──────────────────────────────────────────────
 

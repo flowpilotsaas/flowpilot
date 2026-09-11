@@ -45,6 +45,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
     } else {
       const { error } = await supabase.auth.signUp({ email, password })
       if (error) { setError(error.message); return }
+      // Fire org provisioning; the DB trigger handles it automatically for new users,
+      // this is a client-side fallback in case the trigger isn't installed yet.
+      fetch('/api/auth/provision-org', { method: 'POST' }).catch(() => {})
       router.push('/dashboard')
     }
   }

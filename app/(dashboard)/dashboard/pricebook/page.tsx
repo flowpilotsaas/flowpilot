@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,21 +59,22 @@ export default function PricebookPage() {
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
   const [deleting, setDeleting] = React.useState(false)
 
+  const { organizationId } = useOrganization()
+
   // ─── Data fetching ──────────────────────────────────────────────────────
 
   const fetchItems = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!organizationId) return
 
     const { data, error } = await supabase
       .from('pricebook')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .order('name')
 
     if (!error && data) setItems(data)
     setLoading(false)
-  }, [])
+  }, [organizationId])
 
   React.useEffect(() => { fetchItems() }, [fetchItems])
 
@@ -128,7 +130,7 @@ export default function PricebookPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
 
     const payload = {
       name: form.name.trim(),
@@ -141,7 +143,7 @@ export default function PricebookPage() {
       const { error } = await supabase.from('pricebook').update(payload).eq('id', editingItem.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { error } = await supabase.from('pricebook').insert({ ...payload, user_id: user.id })
+      const { error } = await supabase.from('pricebook').insert({ ...payload, user_id: user.id, organization_id: organizationId })
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
