@@ -268,7 +268,7 @@ export default function SchedulePage() {
       .from('jobs')
       .select('id, title, status, scheduled_date, start_time, end_time, customer_id, price, notes, customers(name)')
       .eq('user_id', user.id)
-    if (!error && data) setJobs(data as Job[])
+    if (!error && data) setJobs(data as unknown as Job[])
   }, [])
 
   React.useEffect(() => {

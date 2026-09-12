@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   try {
     const twilio = (await import('twilio')).default
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-    const numbers = await client.availablePhoneNumbers('US').local.list({ areaCode, limit: 5 })
+    const numbers = await client.availablePhoneNumbers('US').local.list({ areaCode: parseInt(areaCode, 10), limit: 5 })
     return Response.json({
       numbers: numbers.map((n) => ({ phoneNumber: n.phoneNumber, friendlyName: n.friendlyName })),
     })

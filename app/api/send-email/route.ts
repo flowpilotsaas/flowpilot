@@ -59,7 +59,7 @@ function estimateSentHtml(d: Record<string, unknown>) {
   `)
 }
 
-function tr(label: string, value: string) {
+function tr(label: string, value: unknown) {
   return `<tr>
     <td style="font-size:14px;color:#71717a;padding:5px 0;white-space:nowrap;padding-right:16px;">${label}:</td>
     <td style="font-size:14px;color:#18181b;padding:5px 0;font-weight:600;">${value}</td>
