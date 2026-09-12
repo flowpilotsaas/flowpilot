@@ -94,7 +94,7 @@ export default function TeamPage() {
       .from('organization_members')
       .select('*')
       .eq('organization_id', organizationId)
-      .order('created_at', { ascending: true })
+      .order('invited_at', { ascending: true })
     if (data) setMembers(data as OrgMember[])
     setLoading(false)
   }, [organizationId])
