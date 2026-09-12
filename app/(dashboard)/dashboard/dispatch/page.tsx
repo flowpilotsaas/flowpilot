@@ -53,7 +53,7 @@ export default function DispatchPage() {
           .eq('role', 'Technician'),
       ])
 
-      if (jobsRes.data) setJobs(jobsRes.data as Job[])
+      if (jobsRes.data) setJobs(jobsRes.data as unknown as Job[])
       if (techsRes.data) setTechs(techsRes.data)
       setLoading(false)
     }
