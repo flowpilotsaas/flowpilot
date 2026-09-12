@@ -184,6 +184,7 @@ export default function EstimateDetailPage({
   const [loading, setLoading] = React.useState(true)
   const [notFound, setNotFound] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
+  const [notificationWarning, setNotificationWarning] = React.useState('')
 
   // Payment link
   const [paymentLinkModalOpen, setPaymentLinkModalOpen] = React.useState(false)
@@ -228,38 +229,73 @@ export default function EstimateDetailPage({
   const handleStatusChange = async (newStatus: EstimateStatus) => {
     if (!estimate || newStatus === estimate.status) return
     setUpdatingStatus(true)
-    // Optimistic
+    setNotificationWarning('')
+
+    // Optimistic update
     setEstimate((prev) => prev ? { ...prev, status: newStatus } : prev)
     const { error } = await supabase
       .from('estimates')
       .update({ status: newStatus })
       .eq('id', id)
+
     if (error) {
-      // Revert on failure
       setEstimate((prev) => prev ? { ...prev, status: estimate.status } : prev)
-    } else {
-      if (newStatus === 'Sent') {
-        const sentData = {
-          customerName:   estimate.customer_name,
-          estimateNumber: estimate.estimate_number,
-          total:          estimate.total,
-        }
-        if (estimate.customer_email) {
-          console.log('[handleStatusChange] status → Sent, customer_email:', estimate.customer_email)
-          sendEmail(estimate.customer_email, 'estimate_sent', sentData)
-        }
-        if (estimate.customer_phone) sendSms(estimate.customer_phone, 'estimate_sent', sentData)
-      } else if (newStatus === 'Approved' && estimate.customer_email) {
-        sendEmail(estimate.customer_email, 'estimate_approved', {
-          customerName: estimate.customer_name,
-          total:        estimate.total,
+      setUpdatingStatus(false)
+      return
+    }
+
+    // Status saved — now attempt notifications and collect any failures
+    const warnings: string[] = []
+
+    const notify = async (
+      channel: 'email' | 'sms',
+      to: string,
+      type: string,
+      data: Record<string, unknown>,
+    ) => {
+      const endpoint = channel === 'email' ? '/api/send-email' : '/api/send-sms'
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to, type, data }),
         })
-      } else if (newStatus === 'Declined' && estimate.customer_email) {
-        sendEmail(estimate.customer_email, 'estimate_declined', {
-          customerName: estimate.customer_name,
-        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          warnings.push(`${channel}: ${(body as { error?: string }).error ?? 'unknown error'}`)
+        }
+      } catch {
+        warnings.push(`${channel}: network error`)
       }
     }
+
+    if (newStatus === 'Sent') {
+      const sentData = {
+        customerName:   estimate.customer_name,
+        estimateNumber: estimate.estimate_number,
+        total:          estimate.total,
+      }
+      await Promise.all([
+        estimate.customer_email ? notify('email', estimate.customer_email, 'estimate_sent', sentData) : Promise.resolve(),
+        estimate.customer_phone ? notify('sms',   estimate.customer_phone, 'estimate_sent', sentData) : Promise.resolve(),
+      ])
+    } else if (newStatus === 'Approved' && estimate.customer_email) {
+      await notify('email', estimate.customer_email, 'estimate_approved', {
+        customerName: estimate.customer_name,
+        total:        estimate.total,
+      })
+    } else if (newStatus === 'Declined' && estimate.customer_email) {
+      await notify('email', estimate.customer_email, 'estimate_declined', {
+        customerName: estimate.customer_name,
+      })
+    }
+
+    if (warnings.length > 0) {
+      setNotificationWarning(
+        `Status updated to ${newStatus}, but the notification failed (${warnings.join('; ')}).`
+      )
+    }
+
     setUpdatingStatus(false)
   }
 
@@ -355,6 +391,13 @@ export default function EstimateDetailPage({
           </Button>
         </div>
       </div>
+
+      {/* Notification warning */}
+      {notificationWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mb-6">
+          {notificationWarning}
+        </p>
+      )}
 
       {/* Estimate header */}
       <div className="mb-8">
