@@ -52,6 +52,10 @@ export function useOrganization(): OrgState {
       // No org yet — attempt server-side provisioning (fallback for pre-trigger users)
       try {
         const res = await fetch('/api/auth/provision-org', { method: 'POST' })
+        if (!res.ok) {
+          const body = await res.text().catch(() => '(unreadable)')
+          console.error('[useOrganization] provision-org returned', res.status, body)
+        }
         if (res.ok) {
           // Re-query after provisioning
           const { data: retry } = await supabase

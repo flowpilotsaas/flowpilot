@@ -184,7 +184,8 @@ export default function AgreementsPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user) { setSaving(false); setFormError('Please sign in and try again.'); return }
+    if (!organizationId) { setSaving(false); setFormError('Organization not found — please refresh the page.'); return }
 
     const selectedCustomer = customers.find((c) => c.id === form.customer_id)
 

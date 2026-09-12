@@ -178,7 +178,8 @@ export default function NewEstimatePage() {
     setError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !organizationId) { setSaving(null); setError('Not authenticated.'); return }
+    if (!user) { setSaving(null); setError('Please sign in and try again.'); return }
+    if (!organizationId) { setSaving(null); setError('Organization not found — please refresh the page.'); return }
 
     const { data: maxRes } = await supabase
       .from('estimates')

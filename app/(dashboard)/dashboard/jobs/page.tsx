@@ -200,7 +200,8 @@ export default function JobsPage() {
     setFormError('')
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !organizationId) { setSaving(false); setFormError('Not authenticated.'); return }
+    if (!user) { setSaving(false); setFormError('Please sign in and try again.'); return }
+    if (!organizationId) { setSaving(false); setFormError('Organization not found — please refresh the page.'); return }
 
     const payload = {
       title: form.title.trim(),
@@ -278,7 +279,8 @@ export default function JobsPage() {
     if (!payModalJob) return null
 
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user || !organizationId) return 'Not authenticated.'
+    if (!user) return 'Please sign in and try again.'
+    if (!organizationId) return 'Organization not found — please refresh the page.'
 
     const { error: txError } = await supabase.from('transactions').insert({
       user_id:         user.id,
