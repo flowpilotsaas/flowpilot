@@ -208,12 +208,13 @@ export default function AgreementsPage() {
     }
 
     if (form.status === 'Active' && form.customer_id) {
-      supabase
-        .from('customers')
-        .select('email, name')
-        .eq('id', form.customer_id)
-        .maybeSingle()
-        .then(({ data: customer }) => {
+      ;(async () => {
+        try {
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('email, name')
+            .eq('id', form.customer_id)
+            .maybeSingle()
           if (customer?.email) {
             sendEmail(customer.email, 'agreement_sent', {
               customerName:    customer.name,
@@ -223,8 +224,8 @@ export default function AgreementsPage() {
               value:           payload.value,
             })
           }
-        })
-        .catch(() => {})
+        } catch {}
+      })()
     }
 
     setSaving(false)
