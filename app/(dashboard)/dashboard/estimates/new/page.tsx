@@ -243,6 +243,37 @@ export default function NewEstimatePage() {
       }
     }
 
+    // For "Sent" status, email the customer before navigating
+    if (status === 'Sent') {
+      const email = customerEmail.trim()
+      if (!email) {
+        setError('Estimate saved — no customer email address on file, so no email was sent.')
+        setSaving(null)
+        return
+      }
+      try {
+        const emailRes = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: email,
+            type: 'estimate_sent',
+            data: { customerName: customerName.trim() || 'there', total },
+          }),
+        })
+        if (!emailRes.ok) {
+          const body = await emailRes.json().catch(() => ({}))
+          setError(`Estimate saved, but the email failed to send: ${(body as { error?: string }).error ?? 'unknown error'}`)
+          setSaving(null)
+          return
+        }
+      } catch {
+        setError('Estimate saved, but the email could not be sent (network error).')
+        setSaving(null)
+        return
+      }
+    }
+
     setSaving(null)
     router.push('/dashboard/estimates')
   }
@@ -596,7 +627,11 @@ export default function NewEstimatePage() {
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+      {error && (
+        <p className={`text-sm mb-4 ${error.startsWith('Estimate saved') ? 'text-amber-600 dark:text-amber-400' : 'text-destructive'}`}>
+          {error}
+        </p>
+      )}
 
       {/* ── Sticky action bar ── */}
       <div className="fixed bottom-0 left-60 right-0 z-10 border-t border-border bg-background/95 backdrop-blur-sm px-8 py-4 flex items-center justify-end gap-3">
