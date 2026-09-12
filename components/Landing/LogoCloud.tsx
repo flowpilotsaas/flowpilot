@@ -43,7 +43,7 @@ const logos: Logo[] = [
 
 export default function LogoCloud() {
   return (
-    <section className="py-12">
+    <section className="py-12 border-y">
       <div className="mx-auto max-w-3xl px-4 text-center mb-8">
         <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground mb-1">
           Trusted by field service teams
@@ -54,9 +54,6 @@ export default function LogoCloud() {
       </div>
 
       <div className="relative mx-auto max-w-3xl bg-gradient-to-r from-secondary via-transparent to-secondary py-6 md:border-x">
-        {/* top rule spanning full viewport width */}
-        <div className="-translate-x-1/2 -top-px pointer-events-none absolute left-1/2 w-screen border-t" />
-
         <InfiniteSlider gap={42} reverse speed={60} speedOnHover={20}>
           {logos.map((logo) => (
             <img
@@ -81,9 +78,6 @@ export default function LogoCloud() {
           className="pointer-events-none absolute top-0 right-0 h-full w-[160px]"
           direction="right"
         />
-
-        {/* bottom rule spanning full viewport width */}
-        <div className="-translate-x-1/2 -bottom-px pointer-events-none absolute left-1/2 w-screen border-b" />
       </div>
     </section>
   );
