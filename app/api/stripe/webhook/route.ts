@@ -5,9 +5,9 @@ import Stripe from 'stripe'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   console.log('[webhook] Supabase URL present:', !!url)
-  console.log('[webhook] Supabase anon key present:', !!key)
+  console.log('[webhook] Supabase service role key present:', !!key)
   return createClient(url!, key!)
 }
 
@@ -21,14 +21,14 @@ export async function POST(req: NextRequest) {
   console.log('[webhook] STRIPE_WEBHOOK_SECRET present:', !!webhookSecret)
   console.log('[webhook] STRIPE_SECRET_KEY present:', !!process.env.STRIPE_SECRET_KEY)
   console.log('[webhook] NEXT_PUBLIC_SUPABASE_URL present:', !!process.env.NEXT_PUBLIC_SUPABASE_URL)
-  console.log('[webhook] NEXT_PUBLIC_SUPABASE_ANON_KEY present:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  console.log('[webhook] SUPABASE_SERVICE_ROLE_KEY present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   if (!webhookSecret) {
     console.error('[webhook] FATAL: STRIPE_WEBHOOK_SECRET is not set. Add it to .env.local then restart the dev server.')
     return Response.json({ error: 'Webhook not configured.' }, { status: 500 })
   }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    console.error('[webhook] FATAL: Supabase env vars are missing.')
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[webhook] FATAL: Supabase env vars are missing (need SUPABASE_SERVICE_ROLE_KEY).')
     return Response.json({ error: 'Server misconfigured.' }, { status: 500 })
   }
 

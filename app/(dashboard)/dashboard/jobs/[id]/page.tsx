@@ -6,8 +6,6 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
-import { sendEmail } from '@/lib/send-email'
-import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -133,6 +131,7 @@ export default function JobDetailPage() {
   const [loading, setLoading]   = React.useState(true)
   const [notFound, setNotFound] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
+  const [notificationWarning, setNotificationWarning] = React.useState('')
 
   // Edit sheet
   const [sheetOpen, setSheetOpen] = React.useState(false)
@@ -180,6 +179,7 @@ export default function JobDetailPage() {
   const handleStatusChange = async (newStatus: JobStatus) => {
     if (!job || newStatus === job.status) return
     setUpdatingStatus(true)
+    setNotificationWarning('')
     setJob((prev) => prev ? { ...prev, status: newStatus } : prev)
     const { error } = await supabase.from('jobs').update({ status: newStatus }).eq('id', id)
     if (error) {
@@ -190,8 +190,20 @@ export default function JobDetailPage() {
         title:        job.title,
         jobNumber:    fmtJobNumber(job.job_number, job.created_at),
       }
-      if (job.customers?.email) sendEmail(job.customers.email, 'job_completion', completionData)
-      if (job.customers?.phone) sendSms(job.customers.phone, 'job_completion', completionData)
+      const warns: string[] = []
+      if (job.customers?.email) {
+        try {
+          const r = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: job.customers.email, type: 'job_completion', data: completionData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`email: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('email: network error') }
+      }
+      if (job.customers?.phone) {
+        try {
+          const r = await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: job.customers.phone, type: 'job_completion', data: completionData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`SMS: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('SMS: network error') }
+      }
+      if (warns.length > 0) setNotificationWarning(`Status updated to Completed, but the notification failed (${warns.join('; ')}).`)
     }
     setUpdatingStatus(false)
   }
@@ -360,6 +372,10 @@ export default function JobDetailPage() {
           </Button>
         </div>
       </div>
+
+      {notificationWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mb-6">{notificationWarning}</p>
+      )}
 
       {/* ── Job title ── */}
       <div className="mb-6">

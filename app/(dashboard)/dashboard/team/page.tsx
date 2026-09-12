@@ -77,6 +77,8 @@ export default function TeamPage() {
   const [inviteError, setInviteError] = React.useState('')
   const [inviting, setInviting]       = React.useState(false)
 
+  const [notificationWarning, setNotificationWarning] = React.useState('')
+
   // Action states
   const [removeConfirmId, setRemoveConfirmId] = React.useState<string | null>(null)
   const [removingId, setRemovingId]           = React.useState<string | null>(null)
@@ -127,26 +129,42 @@ export default function TeamPage() {
 
     if (error) { setInviteError(error.message); setInviting(false); return }
 
-    fetch('/api/team/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role: inviteRole }),
-    }).catch(() => {})
-
     setInviting(false)
     setInviteOpen(false)
     setInviteEmail('')
     setInviteRole('technician')
     await fetchMembers()
+
+    try {
+      const r = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role: inviteRole }),
+      })
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}))
+        setNotificationWarning(`Invite created, but the email failed to send: ${(b as { error?: string }).error ?? 'unknown error'}`)
+      }
+    } catch {
+      setNotificationWarning('Invite created, but the email could not be sent (network error).')
+    }
   }
 
   const handleResend = async (member: OrgMember) => {
     setResendingId(member.id)
-    await fetch('/api/team/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: member.email, role: member.role }),
-    }).catch(() => {})
+    try {
+      const r = await fetch('/api/team/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: member.email, role: member.role }),
+      })
+      if (!r.ok) {
+        const b = await r.json().catch(() => ({}))
+        setNotificationWarning(`Invite email could not be resent: ${(b as { error?: string }).error ?? 'unknown error'}`)
+      }
+    } catch {
+      setNotificationWarning('Invite email could not be resent (network error).')
+    }
     setResendingId(null)
   }
 
@@ -190,6 +208,10 @@ export default function TeamPage() {
           </Button>
         )}
       </div>
+
+      {notificationWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">{notificationWarning}</p>
+      )}
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-border mb-6">

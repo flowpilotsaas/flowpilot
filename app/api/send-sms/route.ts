@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { createServerSupabase } from '@/lib/supabase-server'
 
 // ─── Phone normalizer ───────────────────────────────────────────────────────
 
@@ -50,6 +51,10 @@ const TEMPLATES: Record<string, (d: Record<string, unknown>) => string> = {
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
   console.log('[send-sms] POST hit')
   console.log('[send-sms] TWILIO_ACCOUNT_SID present:', !!process.env.TWILIO_ACCOUNT_SID)
   console.log('[send-sms] TWILIO_PHONE_NUMBER present:', !!process.env.TWILIO_PHONE_NUMBER)

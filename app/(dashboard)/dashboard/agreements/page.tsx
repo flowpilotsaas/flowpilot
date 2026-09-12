@@ -4,7 +4,6 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
-import { sendEmail } from '@/lib/send-email'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -103,6 +102,7 @@ export default function AgreementsPage() {
   const [form, setForm]               = React.useState<FormData>(EMPTY_FORM)
   const [formError, setFormError]     = React.useState('')
   const [saving, setSaving]           = React.useState(false)
+  const [notificationWarning, setNotificationWarning] = React.useState('')
 
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
   const [deleting, setDeleting]               = React.useState(false)
@@ -208,30 +208,42 @@ export default function AgreementsPage() {
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
-    if (form.status === 'Active' && form.customer_id) {
-      ;(async () => {
-        try {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('email, name')
-            .eq('id', form.customer_id)
-            .maybeSingle()
-          if (customer?.email) {
-            sendEmail(customer.email, 'agreement_sent', {
-              customerName:    customer.name,
-              agreementTitle:  payload.title,
-              startDate:       payload.start_date ?? '—',
-              endDate:         payload.end_date ?? '—',
-              value:           payload.value,
-            })
-          }
-        } catch {}
-      })()
-    }
-
     setSaving(false)
     closeSheet()
     await fetchData()
+
+    if (form.status === 'Active' && form.customer_id) {
+      try {
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('email, name')
+          .eq('id', form.customer_id)
+          .maybeSingle()
+        if (customer?.email) {
+          const r = await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: customer.email,
+              type: 'agreement_sent',
+              data: {
+                customerName:   customer.name,
+                agreementTitle: payload.title,
+                startDate:      payload.start_date ?? '—',
+                endDate:        payload.end_date ?? '—',
+                value:          payload.value,
+              },
+            }),
+          })
+          if (!r.ok) {
+            const b = await r.json().catch(() => ({}))
+            setNotificationWarning(`Agreement saved, but the notification email failed: ${(b as { error?: string }).error ?? 'unknown error'}`)
+          }
+        }
+      } catch {
+        setNotificationWarning('Agreement saved, but the notification email could not be sent (network error).')
+      }
+    }
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────────
@@ -297,6 +309,10 @@ export default function AgreementsPage() {
           New Agreement
         </Button>
       </div>
+
+      {notificationWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400">{notificationWarning}</p>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">

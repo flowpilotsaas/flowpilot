@@ -6,8 +6,6 @@ import { use } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
-import { sendEmail } from '@/lib/send-email'
-import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard } from 'lucide-react'
@@ -319,8 +317,20 @@ export default function EstimateDetailPage({
         payUrl:       data.url,
         total:        estimate?.total,
       }
-      if (estimate?.customer_email) sendEmail(estimate.customer_email, 'payment_link_sent', linkData)
-      if (estimate?.customer_phone) sendSms(estimate.customer_phone, 'payment_link_sent', linkData)
+      const warns: string[] = []
+      if (estimate?.customer_email) {
+        try {
+          const er = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: estimate.customer_email, type: 'payment_link_sent', data: linkData }) })
+          if (!er.ok) { const b = await er.json().catch(() => ({})); warns.push(`email: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('email: network error') }
+      }
+      if (estimate?.customer_phone) {
+        try {
+          const sr = await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: estimate.customer_phone, type: 'payment_link_sent', data: linkData }) })
+          if (!sr.ok) { const b = await sr.json().catch(() => ({})); warns.push(`SMS: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('SMS: network error') }
+      }
+      if (warns.length > 0) setNotificationWarning(`Payment link generated, but the notification failed (${warns.join('; ')}).`)
     } catch (err) {
       alert((err as Error).message)
     } finally {

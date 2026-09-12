@@ -5,8 +5,6 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
-import { sendEmail } from '@/lib/send-email'
-import { sendSms } from '@/lib/send-sms'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -121,6 +119,7 @@ export default function JobsPage() {
   const [deleting, setDeleting] = React.useState(false)
 
   const [payModalJob, setPayModalJob] = React.useState<Job | null>(null)
+  const [notificationWarning, setNotificationWarning] = React.useState('')
 
   const { organizationId } = useOrganization()
 
@@ -229,8 +228,24 @@ export default function JobsPage() {
         title:         newJob?.title,
         scheduledDate: newJob?.scheduled_date ?? 'TBD',
       }
-      if (newJob?.customers?.email) sendEmail(newJob.customers.email, 'job_confirmation', jobData)
-      if (newJob?.customers?.phone) sendSms(newJob.customers.phone, 'job_confirmation', jobData)
+      setSaving(false)
+      closeSheet()
+      await fetchData()
+      const warns: string[] = []
+      if (newJob?.customers?.email) {
+        try {
+          const r = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: newJob.customers.email, type: 'job_confirmation', data: jobData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`email: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('email: network error') }
+      }
+      if (newJob?.customers?.phone) {
+        try {
+          const r = await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: newJob.customers.phone, type: 'job_confirmation', data: jobData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`SMS: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('SMS: network error') }
+      }
+      if (warns.length > 0) setNotificationWarning(`Job created — confirmation notification failed (${warns.join('; ')}).`)
+      return
     }
 
     setSaving(false)
@@ -264,8 +279,20 @@ export default function JobsPage() {
         title:        job?.title,
         jobNumber:    job ? fmtJobNumber(job.job_number, job.created_at) : '',
       }
-      if (job?.customers?.email) sendEmail(job.customers.email, 'job_completion', completionData)
-      if (job?.customers?.phone) sendSms(job.customers.phone, 'job_completion', completionData)
+      const warns: string[] = []
+      if (job?.customers?.email) {
+        try {
+          const r = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: job.customers.email, type: 'job_completion', data: completionData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`email: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('email: network error') }
+      }
+      if (job?.customers?.phone) {
+        try {
+          const r = await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: job.customers.phone, type: 'job_completion', data: completionData }) })
+          if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`SMS: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+        } catch { warns.push('SMS: network error') }
+      }
+      if (warns.length > 0) setNotificationWarning(`Status updated to Completed, but the notification failed (${warns.join('; ')}).`)
     }
   }
 
@@ -309,13 +336,26 @@ export default function JobsPage() {
       jobNumber:    fmtJobNumber(payModalJob.job_number, payModalJob.created_at),
       amount:       parseFloat(amount),
     }
-    if (payModalJob.customers?.email) sendEmail(payModalJob.customers.email, 'payment_received', paymentData)
-    if (payModalJob.customers?.phone) sendSms(payModalJob.customers.phone, 'payment_received', paymentData)
 
     setJobs((prev) =>
       prev.map((j) => j.id === payModalJob!.id ? { ...j, status: 'Paid' as JobStatus } : j)
     )
     setPayModalJob(null)
+
+    const warns: string[] = []
+    if (payModalJob.customers?.email) {
+      try {
+        const r = await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: payModalJob.customers.email, type: 'payment_received', data: paymentData }) })
+        if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`email: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+      } catch { warns.push('email: network error') }
+    }
+    if (payModalJob.customers?.phone) {
+      try {
+        const r = await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: payModalJob.customers.phone, type: 'payment_received', data: paymentData }) })
+        if (!r.ok) { const b = await r.json().catch(() => ({})); warns.push(`SMS: ${(b as { error?: string }).error ?? 'unknown error'}`) }
+      } catch { warns.push('SMS: network error') }
+    }
+    if (warns.length > 0) setNotificationWarning(`Payment recorded, but the receipt notification failed (${warns.join('; ')}).`)
     return null
   }
 
@@ -334,6 +374,10 @@ export default function JobsPage() {
           Add Job
         </Button>
       </div>
+
+      {notificationWarning && (
+        <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">{notificationWarning}</p>
+      )}
 
       {/* Search */}
       <div className="relative mb-4 max-w-sm">
