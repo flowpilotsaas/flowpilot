@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
         const periodEnd = (subscription as any).current_period_end as number | undefined
         console.log('[webhook] current_period_end (raw):', periodEnd)
 
-        const upsertPayload = {
+        const subPayload = {
           user_id: userId,
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
@@ -136,16 +136,40 @@ export async function POST(req: NextRequest) {
           status: subscription.status,
           current_period_end: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
         }
-        console.log('[webhook] Upserting to subscriptions table:', JSON.stringify(upsertPayload))
+        console.log('[webhook] Writing to subscriptions table:', JSON.stringify(subPayload))
 
-        const { data: upsertData, error: dbError } = await supabase
+        // Check whether a row already exists for this user_id
+        const { data: existing, error: lookupErr } = await supabase
           .from('subscriptions')
-          .upsert(upsertPayload, { onConflict: 'user_id' })
-          .select()
-        if (dbError) {
-          console.error('[webhook] DB upsert ERROR:', dbError.message, '| code:', dbError.code, '| details:', dbError.details)
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (lookupErr) {
+          console.error('[webhook] Lookup ERROR:', lookupErr.message)
+        }
+        console.log('[webhook] Existing row:', existing ? existing.id : 'none')
+
+        if (existing) {
+          const { data: updated, error: dbError } = await supabase
+            .from('subscriptions')
+            .update(subPayload)
+            .eq('user_id', userId)
+            .select()
+          if (dbError) {
+            console.error('[webhook] DB update ERROR:', dbError.message, '| code:', dbError.code, '| details:', dbError.details)
+          } else {
+            console.log('[webhook] DB update SUCCESS. Rows affected:', updated?.length ?? 0)
+          }
         } else {
-          console.log('[webhook] DB upsert SUCCESS. Rows affected:', upsertData?.length ?? 0)
+          const { data: inserted, error: dbError } = await supabase
+            .from('subscriptions')
+            .insert(subPayload)
+            .select()
+          if (dbError) {
+            console.error('[webhook] DB insert ERROR:', dbError.message, '| code:', dbError.code, '| details:', dbError.details)
+          } else {
+            console.log('[webhook] DB insert SUCCESS. Rows affected:', inserted?.length ?? 0)
+          }
         }
         break
       }
@@ -180,7 +204,7 @@ export async function POST(req: NextRequest) {
         if (dbError) {
           console.error('[webhook] DB update ERROR:', dbError.message, '| code:', dbError.code, '| details:', dbError.details)
         } else {
-          console.log('[webhook] DB update SUCCESS. Rows affected:', updateData?.length ?? 0)
+          console.log('[webhook] DB update SUCCESS. Rows affected:', updateData?.length ?? 0, '(0 rows is expected when checkout.session.completed has not fired yet)')
         }
         break
       }
