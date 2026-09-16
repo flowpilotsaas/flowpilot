@@ -25,7 +25,8 @@ type OrgMember = {
   email: string
   role: OrgRole
   status: string
-  created_at: string
+  invited_at: string | null
+  joined_at: string | null
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -52,7 +53,8 @@ function roleLabel(r: OrgRole) {
   return r.charAt(0).toUpperCase() + r.slice(1)
 }
 
-function fmtDate(s: string) {
+function fmtDate(s: string | null | undefined) {
+  if (!s) return '—'
   return new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -270,7 +272,7 @@ export default function TeamPage() {
                             {roleLabel(member.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(member.created_at)}</td>
+                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
                         {canManage && (
                           <td className="px-6 py-3 text-right whitespace-nowrap">
                             {member.role === 'owner' ? (
@@ -347,7 +349,7 @@ export default function TeamPage() {
                             {roleLabel(invite.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(invite.created_at)}</td>
+                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(invite.invited_at)}</td>
                         {canManage && (
                           <td className="px-6 py-3 text-right whitespace-nowrap">
                             {cancelConfirmId === invite.id ? (
