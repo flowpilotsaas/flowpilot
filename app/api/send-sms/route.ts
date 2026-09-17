@@ -46,14 +46,26 @@ const TEMPLATES: Record<string, (d: Record<string, unknown>) => string> = {
     const link = d.payUrl as string ?? ''
     return `Hi ${name}, your payment link is ready: ${link} Reply STOP to opt out.`
   },
+
+  job_reminder(d) {
+    const name = d.customerName ?? 'there'
+    const title = d.title ?? 'your job'
+    const date = d.scheduledDate ?? 'soon'
+    return `Hi ${name}, reminder: '${title}' is scheduled for ${date}. Contact us if you need to reschedule. Reply STOP to opt out.`
+  },
 }
 
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabase()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  // Allow internal server-to-server calls (e.g. cron jobs) via CRON_SECRET
+  const authHeader = req.headers.get('authorization')
+  const isInternal = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
+  if (!isInternal) {
+    const supabase = await createServerSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   console.log('[send-sms] POST hit')
   console.log('[send-sms] TWILIO_ACCOUNT_SID present:', !!process.env.TWILIO_ACCOUNT_SID)
