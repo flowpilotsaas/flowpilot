@@ -27,7 +27,8 @@ const navItems = [
   { label: 'Inventory',         href: '/dashboard/inventory',       icon: Package },
   { label: 'Company Equipment', href: '/dashboard/equipment',       icon: Wrench },
   { label: 'Transactions',      href: '/dashboard/transactions',    icon: DollarSign },
-  { label: 'Google',            href: '/dashboard/google',          icon: Globe },
+  // Google Business Profile hidden pending API approval — page kept at /dashboard/google
+  // { label: 'Google',            href: '/dashboard/google',          icon: Globe },
   { label: 'Reports',           href: '/dashboard/reports',         icon: BarChart2 },
   { label: 'Tech Live Map',     href: '/dashboard/tech-live-map',   icon: MapPin },
   { label: 'Appeals',           href: '/dashboard/appeals',         icon: MessageSquare },

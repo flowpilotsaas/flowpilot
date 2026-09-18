@@ -43,8 +43,10 @@ export async function GET(req: NextRequest) {
   const results: { jobId: string; email?: string; sms?: string }[] = []
 
   for (const job of jobs ?? []) {
-    const customer = job.customers as { name: string; email: string | null; phone: string | null } | null
-    const org = job.organizations as { company_name: string | null } | null
+    const customersArr = job.customers as { name: string; email: string | null; phone: string | null }[] | null
+    const customer = Array.isArray(customersArr) ? customersArr[0] ?? null : null
+    const orgsArr = job.organizations as { company_name: string | null }[] | null
+    const org = Array.isArray(orgsArr) ? orgsArr[0] ?? null : null
 
     if (!customer?.email && !customer?.phone) continue
 

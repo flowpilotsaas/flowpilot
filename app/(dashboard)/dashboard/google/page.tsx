@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Globe, RefreshCw, Star, FileText } from 'lucide-react'
+import { Globe, RefreshCw, Star, FileText, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Tab = 'reviews' | 'posts'
@@ -19,10 +19,15 @@ export default function GooglePage() {
           <h1 className="text-2xl font-semibold text-foreground">Google Business Profile</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your reviews and posts from Google</p>
         </div>
-        <Button className="gap-2">
-          <RefreshCw className="w-4 h-4" />
-          Sync Reviews
-        </Button>
+      </div>
+
+      {/* Coming soon banner */}
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3.5">
+        <Clock className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Google Business Profile integration is coming soon.</span>{' '}
+          We&apos;re working through Google&apos;s API access approval process. Once approved, you&apos;ll be able to connect your profile and sync reviews directly from this page.
+        </p>
       </div>
 
       {/* Tabs card */}
@@ -61,7 +66,7 @@ export default function GooglePage() {
                   Connect your Google Business Profile and sync reviews to see them here.
                 </p>
               </div>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" disabled>
                 <RefreshCw className="w-4 h-4" />
                 Sync Now
               </Button>
@@ -79,7 +84,7 @@ export default function GooglePage() {
                   Connect your Google Business Profile to create and manage posts here.
                 </p>
               </div>
-              <Button variant="outline" className="gap-2">
+              <Button variant="outline" className="gap-2" disabled>
                 <Globe className="w-4 h-4" />
                 Connect Profile
               </Button>
