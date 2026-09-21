@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
@@ -16,7 +16,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = React.useState('')
   const [confirmPassword, setConfirmPassword] = React.useState('')
   const [error, setError] = React.useState('')
+  const [googleLoading, setGoogleLoading] = React.useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Surface error sent back from /auth/callback when OAuth exchange fails
+  React.useEffect(() => {
+    if (searchParams.get('error') === 'oauth') {
+      setError('Google sign-in failed. Please try again.')
+    }
+  }, [searchParams])
 
   const isLogin = mode === 'login'
 
@@ -37,7 +46,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
       return
     }
     setError('')
-
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setError(error.message); return }
@@ -50,6 +58,20 @@ export default function AuthForm({ mode }: AuthFormProps) {
       fetch('/api/auth/provision-org', { method: 'POST' }).catch(() => {})
       router.push('/dashboard')
     }
+  }
+
+  const handleGoogleSignIn = async () => {
+    setError('')
+    setGoogleLoading(true)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    })
+    if (error) {
+      setError(error.message)
+      setGoogleLoading(false)
+    }
+    // On success the browser navigates to Google — no need to reset loading state
   }
 
   return (
@@ -114,14 +136,20 @@ export default function AuthForm({ mode }: AuthFormProps) {
             {isLogin ? 'Sign in' : 'Create account'}
           </Button>
 
-          <Button variant="outline" size="default" className="w-full gap-2">
+          <Button
+            variant="outline"
+            size="default"
+            className="w-full gap-2"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="https://www.svgrepo.com/show/475656/google-color.svg"
               alt=""
               className="w-4 h-4 shrink-0"
             />
-            Continue with Google
+            {googleLoading ? 'Redirecting to Google…' : 'Continue with Google'}
           </Button>
 
           {!isLogin && (
