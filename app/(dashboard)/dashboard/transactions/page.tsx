@@ -295,9 +295,9 @@ export default function TransactionsPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/30">
+              <tr className="border-b border-border bg-muted/50">
                 {['Date', 'Type', 'Job #', 'Customer', 'Details', 'Status', 'Payment Method', 'Amount'].map((h) => (
-                  <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">
+                  <th key={h} className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -315,38 +315,45 @@ export default function TransactionsPage() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={8} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
-                      <DollarSign className="w-10 h-10 text-muted-foreground/30" />
-                      <p className="text-sm text-muted-foreground">
-                        {search ? 'No transactions match your search.' : 'No transactions recorded yet.'}
-                      </p>
+                      <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center mx-auto">
+                        <DollarSign className="w-6 h-6 text-muted-foreground/50" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {search ? 'No results found' : 'No transactions yet'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {search ? 'Try adjusting your search.' : 'Transactions will appear here as jobs are completed and paid.'}
+                        </p>
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filtered.map((tx) => (
-                  <tr key={tx.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(tx.date)}</td>
-                    <td className="px-6 py-3 capitalize text-foreground whitespace-nowrap">{tx.type}</td>
-                    <td className="px-6 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                  <tr key={tx.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                    <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(tx.date)}</td>
+                    <td className="px-6 py-4capitalize text-foreground whitespace-nowrap">{tx.type}</td>
+                    <td className="px-6 py-4font-mono text-xs text-muted-foreground whitespace-nowrap">
                       {tx.job_number ?? '—'}
                     </td>
-                    <td className="px-6 py-3 text-foreground whitespace-nowrap">
+                    <td className="px-6 py-4text-foreground whitespace-nowrap">
                       {tx.customer_name ?? <span className="text-muted-foreground/40">—</span>}
                     </td>
-                    <td className="px-6 py-3 text-muted-foreground max-w-[14rem] truncate" title={tx.details ?? ''}>
+                    <td className="px-6 py-4text-muted-foreground max-w-[14rem] truncate" title={tx.details ?? ''}>
                       {tx.details ?? '—'}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 capitalize">
+                    <td className="px-6 py-4whitespace-nowrap">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/15 text-success capitalize">
                         {tx.status}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                    <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
                       {tx.payment_method ?? '—'}
                     </td>
-                    <td className="px-6 py-3 font-medium text-foreground tabular-nums whitespace-nowrap">
+                    <td className="px-6 py-4font-medium text-foreground tabular-nums whitespace-nowrap">
                       {fmtCurrency(tx.amount)}
                     </td>
                   </tr>

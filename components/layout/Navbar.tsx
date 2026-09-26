@@ -37,7 +37,7 @@ export default function Navbar() {
                                 href="/"
                                 aria-label="home"
                                 className="flex items-center space-x-2">
-                                <span className="text-xl font-bold tracking-tight">PilotWork</span>
+                                <span className="text-xl font-bold tracking-tight">Jobigram</span>
                             </Link>
 
                             <button

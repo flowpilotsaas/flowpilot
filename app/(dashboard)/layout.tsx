@@ -2,8 +2,40 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+
+function TrialBanner() {
+  const { isLoading, hasActiveSub, trialDaysLeft, isAllowed } = useTrialStatus()
+
+  if (isLoading || hasActiveSub) return null
+
+  if (!isAllowed) {
+    return (
+      <div className="w-full bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-sm text-destructive">
+        Your free trial has ended.{' '}
+        <Link href="/dashboard/billing" className="font-semibold underline">
+          Subscribe to continue →
+        </Link>
+      </div>
+    )
+  }
+
+  if (trialDaysLeft <= 7) {
+    return (
+      <div className="w-full bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-sm text-amber-700 dark:text-amber-400">
+        Your free trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}.{' '}
+        <Link href="/dashboard/billing" className="font-semibold underline">
+          Subscribe now →
+        </Link>
+      </div>
+    )
+  }
+
+  return null
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -22,11 +54,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!checked) return null
 
   return (
-    <div className="min-h-screen bg-muted/30 flex">
-      <DashboardSidebar />
-      <main className="flex-1 ml-60 overflow-auto">
-        {children}
-      </main>
+    <div className="min-h-screen bg-background flex flex-col">
+      <TrialBanner />
+      <div className="flex flex-1">
+        <DashboardSidebar />
+        <main className="flex-1 ml-60 overflow-auto min-h-screen">
+          {children}
+        </main>
+      </div>
     </div>
   )
 }

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,10 +32,10 @@ type Estimate = {
 const STATUSES: EstimateStatus[] = ['Draft', 'Sent', 'Approved', 'Declined']
 
 const STATUS_STYLES: Record<EstimateStatus, string> = {
-  Draft:    'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-  Sent:     'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  Approved: 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-500',
-  Declined: 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  Draft:    'bg-muted text-muted-foreground',
+  Sent:     'bg-primary/10 text-primary',
+  Approved: 'bg-success/15 text-success',
+  Declined: 'bg-destructive/10 text-destructive',
 }
 
 function StatusBadge({ status }: { status: EstimateStatus }) {
@@ -67,6 +69,8 @@ export default function EstimatesPage() {
   const [deleting, setDeleting] = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   const fetchEstimates = React.useCallback(async () => {
     if (!organizationId) return
@@ -104,6 +108,7 @@ export default function EstimatesPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     await supabase.from('estimates').delete().eq('id', id)
     setEstimates((prev) => prev.filter((e) => e.id !== id))
@@ -162,13 +167,18 @@ export default function EstimatesPage() {
               Loading estimates…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <FileText className="w-10 h-10 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
-                {search || statusFilter !== 'all'
-                  ? 'No estimates match your filters.'
-                  : 'No estimates yet. Create your first one!'}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <FileText className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {search || statusFilter !== 'all' ? 'No results found' : 'No estimates yet'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {search || statusFilter !== 'all' ? 'Try adjusting your search or filters.' : 'Create your first estimate to send to a customer.'}
+                </p>
+              </div>
               {!search && statusFilter === 'all' && (
                 <Button variant="outline" size="sm" asChild className="gap-1.5 mt-1">
                   <Link href="/dashboard/estimates/new">
@@ -181,23 +191,23 @@ export default function EstimatesPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Estimate #</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Customer</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Status</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Total</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Created</th>
-                    <th className="text-right px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Estimate #</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Customer</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Status</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Total</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Created</th>
+                    <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((est) => (
                     <React.Fragment key={est.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-mono font-medium text-foreground whitespace-nowrap">
+                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4font-mono font-medium text-foreground whitespace-nowrap">
                           {fmtEstNum(est.estimate_number)}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground">
+                        <td className="px-6 py-4text-muted-foreground">
                           {est.customer_name ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
                         <td className="px-6 py-3">
@@ -207,13 +217,13 @@ export default function EstimatesPage() {
                             onStatusChange={handleStatusChange}
                           />
                         </td>
-                        <td className="px-6 py-3 text-foreground font-medium tabular-nums whitespace-nowrap">
+                        <td className="px-6 py-4text-foreground font-medium tabular-nums whitespace-nowrap">
                           {fmtCurrency(est.total)}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
                           {fmtDate(est.created_at)}
                         </td>
-                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <td className="px-6 py-4text-right whitespace-nowrap">
                           {deleteConfirmId === est.id ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">Delete?</span>
@@ -242,6 +252,7 @@ export default function EstimatesPage() {
           )}
         </CardContent>
       </Card>
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

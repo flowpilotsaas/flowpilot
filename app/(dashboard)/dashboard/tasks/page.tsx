@@ -39,6 +39,8 @@ import {
 } from '@/components/ui/sheet'
 import { Plus, CheckSquare, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 
 type Priority = 'Low' | 'Medium' | 'High'
 type FilterStatus = 'all' | 'pending' | 'completed'
@@ -71,9 +73,9 @@ const EMPTY_FORM: FormData = {
 }
 
 const PRIORITY_STYLES: Record<Priority, string> = {
-  Low:    'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-  Medium: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  High:   'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  Low:    'bg-muted text-muted-foreground',
+  Medium: 'bg-warning/20 text-warning',
+  High:   'bg-destructive/10 text-destructive',
 }
 
 function formatDate(d: string | null) {
@@ -92,7 +94,10 @@ export default function TasksPage() {
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving]       = React.useState(false)
 
-  const [toggling, setToggling]   = React.useState<string | null>(null)
+  const [toggling, setToggling]     = React.useState<string | null>(null)
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
 
   const fetchData = React.useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -131,6 +136,7 @@ export default function TasksPage() {
   }
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.title.trim()) { setFormError('Title is required.'); return }
     setSaving(true)
     setFormError('')
@@ -209,13 +215,18 @@ export default function TasksPage() {
               <Loader2 className="w-5 h-5 animate-spin" /> Loading tasks…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <CheckSquare className="w-10 h-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                {filter === 'all'
-                  ? 'No tasks yet. Create one to follow up with a customer.'
-                  : `No ${filter} tasks.`}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <CheckSquare className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {filter === 'all' ? 'No tasks yet' : `No ${filter} tasks`}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {filter === 'all' ? 'Create tasks to follow up with customers and track work.' : 'All clear in this category.'}
+                </p>
+              </div>
               {filter === 'all' && (
                 <Button variant="outline" size="sm" onClick={openSheet} className="gap-1.5 mt-1">
                   <Plus className="w-3.5 h-3.5" /> New Task
@@ -228,7 +239,7 @@ export default function TasksPage() {
                 <div
                   key={task.id}
                   className={cn(
-                    'flex items-start gap-4 px-6 py-4 hover:bg-muted/20 transition-colors',
+                    'flex items-start gap-4 px-6 py-4 hover:bg-muted/40 transition-colors',
                     task.completed && 'opacity-60'
                   )}
                 >
@@ -341,19 +352,23 @@ export default function TasksPage() {
               />
             </Field>
 
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
+            {formError && (
+              <p className="text-sm text-destructive">{formError}</p>
+            )}
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Add Task'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

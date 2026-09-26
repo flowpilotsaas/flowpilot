@@ -1,6 +1,6 @@
 import { PricingSection } from '@/components/ui/pricing';
 
-export const metadata = { title: 'Pricing — PilotWork' };
+export const metadata = { title: 'Pricing — Jobigram' };
 
 const PLANS = [
   {

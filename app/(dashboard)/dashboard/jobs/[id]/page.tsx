@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -143,6 +145,8 @@ export default function JobDetailPage() {
   const [payModalOpen, setPayModalOpen] = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
@@ -234,6 +238,7 @@ export default function JobDetailPage() {
   ) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.title.trim()) { setFormError('Title is required.'); return }
     setSaving(true)
     setFormError('')
@@ -546,7 +551,7 @@ export default function JobDetailPage() {
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving
                 ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
                 : 'Save changes'}
@@ -555,6 +560,7 @@ export default function JobDetailPage() {
         </SheetContent>
       </Sheet>
 
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

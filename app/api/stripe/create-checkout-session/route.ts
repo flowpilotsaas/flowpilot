@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Find or create product
-    const productName = `PilotWork - ${planName}`
+    const productName = `Jobigram - ${planName}`
     const existingProducts = await stripe.products.search({
       query: `name:'${productName}' AND active:'true'`,
     })

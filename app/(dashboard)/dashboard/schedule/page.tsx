@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Calendar, Loader2, Plus, Settings, X, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -239,6 +241,9 @@ export default function SchedulePage() {
   const [saving, setSaving]         = React.useState(false)
   const [modalError, setModalError] = React.useState('')
 
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
   // Working-hours form (shared between setup + update modals)
   const [setupOpen, setSetupOpen] = React.useState(false)
   const [hoursOpen, setHoursOpen] = React.useState(false)
@@ -340,6 +345,7 @@ export default function SchedulePage() {
 
   const handleSchedule = async () => {
     if (!schedulingJob) return
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!modalForm.date) { setModalError('Please pick a date.'); return }
     setSaving(true)
     setModalError('')
@@ -673,11 +679,13 @@ export default function SchedulePage() {
                   className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </MField>
-              {modalError && <p className="text-sm text-destructive">{modalError}</p>}
+              {modalError && (
+                <p className="text-sm text-destructive">{modalError}</p>
+              )}
             </div>
             <div className="flex gap-2 justify-end pt-1">
               <Button variant="outline" onClick={closeModal} disabled={saving}>Cancel</Button>
-              <Button onClick={handleSchedule} disabled={saving} className="gap-2">
+              <Button onClick={handleSchedule} disabled={saving || trialLoading} className="gap-2">
                 {saving
                   ? <Loader2 className="w-4 h-4 animate-spin" />
                   : <Calendar className="w-4 h-4" />}
@@ -866,6 +874,7 @@ export default function SchedulePage() {
         document.body
       )}
 
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

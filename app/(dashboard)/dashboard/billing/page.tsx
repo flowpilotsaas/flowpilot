@@ -29,12 +29,12 @@ const PLANS: Plan[] = [
   {
     name: 'Kickstart',
     price: 49,
-    features: ['Up to 2 users', '50 jobs/month', 'Basic scheduling', 'Email support'],
+    features: ['Up to 2 users', 'Unlimited jobs', 'Basic scheduling', 'Email support'],
   },
   {
     name: 'Standard',
     price: 99,
-    features: ['Up to 5 users', '200 jobs/month', 'Scheduling + dispatch', 'Estimates', 'Phone support'],
+    features: ['Up to 5 users', 'Unlimited jobs', 'Scheduling + dispatch', 'Estimates', 'Phone support'],
   },
   {
     name: 'Business',

@@ -7,6 +7,7 @@ import { useOrganization } from '@/hooks/useOrganization'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
 import {
   Plus, Loader2, Users, Check, X, Mail,
   MoreHorizontal, UserX, RefreshCw,
@@ -42,9 +43,9 @@ const PERMISSIONS = [
 ]
 
 const ROLE_BADGE: Record<OrgRole, string> = {
-  owner:      'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  admin:      'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  technician: 'bg-muted text-muted-foreground',
+  owner:      'bg-primary/10 text-primary',
+  admin:      'bg-muted text-muted-foreground',
+  technician: 'bg-muted/60 text-muted-foreground/80',
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -76,8 +77,9 @@ export default function TeamPage() {
   const [inviteOpen, setInviteOpen]   = React.useState(false)
   const [inviteEmail, setInviteEmail] = React.useState('')
   const [inviteRole, setInviteRole]   = React.useState<'admin' | 'technician'>('technician')
-  const [inviteError, setInviteError] = React.useState('')
-  const [inviting, setInviting]       = React.useState(false)
+  const [inviteError, setInviteError]         = React.useState('')
+  const [inviteAtLimit, setInviteAtLimit]     = React.useState(false)
+  const [inviting, setInviting]               = React.useState(false)
 
   const [notificationWarning, setNotificationWarning] = React.useState('')
 
@@ -115,27 +117,14 @@ export default function TeamPage() {
     if (!email) { setInviteError('Email is required.'); return }
     if (!organizationId) { setInviteError('Not authenticated.'); return }
 
+    // Quick client-side duplicate check to avoid an unnecessary round-trip
     const existing = members.find(m => m.email === email)
     if (existing?.status === 'active')  { setInviteError('This person is already a member.'); return }
     if (existing?.status === 'pending') { setInviteError('A pending invite already exists for this email.'); return }
 
     setInviting(true)
     setInviteError('')
-
-    const { error } = await supabase.from('organization_members').insert({
-      organization_id: organizationId,
-      email,
-      role: inviteRole,
-      status: 'pending',
-    })
-
-    if (error) { setInviteError(error.message); setInviting(false); return }
-
-    setInviting(false)
-    setInviteOpen(false)
-    setInviteEmail('')
-    setInviteRole('technician')
-    await fetchMembers()
+    setInviteAtLimit(false)
 
     try {
       const r = await fetch('/api/team/invite', {
@@ -143,12 +132,28 @@ export default function TeamPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: inviteRole }),
       })
+      const b = await r.json().catch(() => ({})) as { error?: string; code?: string; emailWarning?: string }
+
       if (!r.ok) {
-        const b = await r.json().catch(() => ({}))
-        setNotificationWarning(`Invite created, but the email failed to send: ${(b as { error?: string }).error ?? 'unknown error'}`)
+        if (b.code === 'plan_limit' || b.code === 'no_subscription') setInviteAtLimit(true)
+        setInviteError(b.error ?? 'Failed to send invite.')
+        setInviting(false)
+        return
+      }
+
+      setInviting(false)
+      setInviteOpen(false)
+      setInviteEmail('')
+      setInviteRole('technician')
+      setInviteAtLimit(false)
+      await fetchMembers()
+
+      if (b.emailWarning) {
+        setNotificationWarning(`Invite created, but the email failed to send: ${b.emailWarning}`)
       }
     } catch {
-      setNotificationWarning('Invite created, but the email could not be sent (network error).')
+      setInviteError('Network error. Please try again.')
+      setInviting(false)
     }
   }
 
@@ -204,7 +209,7 @@ export default function TeamPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Manage your team members and invites</p>
         </div>
         {canManage && (
-          <Button onClick={() => setInviteOpen(true)} className="gap-2">
+          <Button onClick={() => { setInviteOpen(true); setInviteAtLimit(false); setInviteError('') }} className="gap-2">
             <Plus className="w-4 h-4" />
             Invite Member
           </Button>
@@ -248,33 +253,38 @@ export default function TeamPage() {
                 <Loader2 className="w-5 h-5 animate-spin" /> Loading…
               </div>
             ) : activeMembers.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-                <Users className="w-10 h-10 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No members yet.</p>
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-muted-foreground/50" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No members yet</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Invite your team to get started.</p>
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground">Email</th>
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground">Role</th>
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Member Since</th>
-                      {canManage && <th className="text-right px-6 py-3 font-medium text-muted-foreground">Actions</th>}
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Email</th>
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Role</th>
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Member Since</th>
+                      {canManage && <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {activeMembers.map((member) => (
-                      <tr key={member.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 text-foreground">{member.email}</td>
-                        <td className="px-6 py-3">
+                      <tr key={member.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4text-foreground">{member.email}</td>
+                        <td className="px-6 py-4">
                           <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[member.role])}>
                             {roleLabel(member.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
                         {canManage && (
-                          <td className="px-6 py-3 text-right whitespace-nowrap">
+                          <td className="px-6 py-4text-right whitespace-nowrap">
                             {member.role === 'owner' ? (
                               <span className="text-xs text-muted-foreground/40">—</span>
                             ) : removeConfirmId === member.id ? (
@@ -320,9 +330,14 @@ export default function TeamPage() {
                 <Loader2 className="w-5 h-5 animate-spin" /> Loading…
               </div>
             ) : pendingInvites.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-                <Mail className="w-10 h-10 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No pending invites.</p>
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                  <Mail className="w-6 h-6 text-muted-foreground/50" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No pending invites</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Invitations you send will appear here until accepted.</p>
+                </div>
                 {canManage && (
                   <Button variant="outline" size="sm" onClick={() => setInviteOpen(true)} className="gap-1.5 mt-1">
                     <Plus className="w-3.5 h-3.5" /> Invite Member
@@ -333,25 +348,25 @@ export default function TeamPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground">Email</th>
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground">Role</th>
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Invited</th>
-                      {canManage && <th className="text-right px-6 py-3 font-medium text-muted-foreground">Actions</th>}
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Email</th>
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Role</th>
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Invited</th>
+                      {canManage && <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {pendingInvites.map((invite) => (
-                      <tr key={invite.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 text-foreground">{invite.email}</td>
-                        <td className="px-6 py-3">
+                      <tr key={invite.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4text-foreground">{invite.email}</td>
+                        <td className="px-6 py-4">
                           <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[invite.role])}>
                             {roleLabel(invite.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(invite.invited_at)}</td>
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(invite.invited_at)}</td>
                         {canManage && (
-                          <td className="px-6 py-3 text-right whitespace-nowrap">
+                          <td className="px-6 py-4text-right whitespace-nowrap">
                             {cancelConfirmId === invite.id ? (
                               <span className="inline-flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">Cancel invite?</span>
@@ -406,20 +421,20 @@ export default function TeamPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-6 py-3 font-medium text-muted-foreground">Permission</th>
-                      <th className="text-center px-6 py-3 font-medium text-muted-foreground w-28">Owner</th>
-                      <th className="text-center px-6 py-3 font-medium text-muted-foreground w-28">Admin</th>
-                      <th className="text-center px-6 py-3 font-medium text-muted-foreground w-28">Technician</th>
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Permission</th>
+                      <th className="text-center px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground w-28">Owner</th>
+                      <th className="text-center px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground w-28">Admin</th>
+                      <th className="text-center px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground w-28">Technician</th>
                     </tr>
                   </thead>
                   <tbody>
                     {PERMISSIONS.map((perm) => (
                       <tr key={perm.label} className="border-b border-border last:border-0">
-                        <td className="px-6 py-3 font-medium text-foreground">{perm.label}</td>
-                        <td className="px-6 py-3"><PermIcon allowed={perm.Owner} /></td>
-                        <td className="px-6 py-3"><PermIcon allowed={perm.Admin} /></td>
-                        <td className="px-6 py-3"><PermIcon allowed={perm.Technician} /></td>
+                        <td className="px-6 py-4font-medium text-foreground">{perm.label}</td>
+                        <td className="px-6 py-4"><PermIcon allowed={perm.Owner} /></td>
+                        <td className="px-6 py-4"><PermIcon allowed={perm.Admin} /></td>
+                        <td className="px-6 py-4"><PermIcon allowed={perm.Technician} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -437,7 +452,7 @@ export default function TeamPage() {
       {inviteOpen && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) { setInviteOpen(false); setInviteError('') } }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setInviteOpen(false); setInviteError(''); setInviteAtLimit(false) } }}
         >
           <div className="absolute inset-0 bg-black/40" />
           <div className="relative z-10 bg-background border border-border rounded-xl shadow-xl w-full max-w-md p-6">
@@ -465,11 +480,20 @@ export default function TeamPage() {
                   <option value="technician">Technician</option>
                 </NativeSelect>
               </Field>
-              {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+              {inviteError && (
+                <div className="text-sm text-destructive">
+                  {inviteError}
+                  {inviteAtLimit && (
+                    <> <Link href="/dashboard/billing" className="underline font-medium whitespace-nowrap">
+                      Upgrade plan →
+                    </Link></>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <Button variant="outline" className="flex-1"
-                onClick={() => { setInviteOpen(false); setInviteError('') }}
+                onClick={() => { setInviteOpen(false); setInviteError(''); setInviteAtLimit(false) }}
                 disabled={inviting}>
                 Cancel
               </Button>

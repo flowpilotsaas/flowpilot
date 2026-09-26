@@ -61,7 +61,7 @@ export default function Hero() {
 
             {/* Subtitle */}
             <p className="text-lg md:text-xl leading-relaxed tracking-tight text-muted-foreground max-w-2xl text-center">
-              PilotWork brings scheduling, dispatching, and invoicing together
+              Jobigram brings scheduling, dispatching, and invoicing together
               in one intelligent platform — so your team spends less time on
               admin and more time in the field.
             </p>

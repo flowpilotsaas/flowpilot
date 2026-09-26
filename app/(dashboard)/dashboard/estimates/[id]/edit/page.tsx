@@ -10,6 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Trash2, Loader2, Search, ArrowLeft, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +103,9 @@ export default function EditEstimatePage({
   // Save state
   const [saving, setSaving] = React.useState<'draft' | 'sent' | null>(null)
   const [error, setError] = React.useState('')
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
 
   // ─── Load estimate + supporting data ──────────────────────────────────────
 
@@ -233,6 +238,7 @@ export default function EditEstimatePage({
   // ─── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async (status: 'Draft' | 'Sent') => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     setSaving(status === 'Draft' ? 'draft' : 'sent')
     setError('')
 
@@ -665,7 +671,11 @@ export default function EditEstimatePage({
         </CardContent>
       </Card>
 
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+      {error && (
+        <p className="text-sm text-destructive mb-4">{error}</p>
+      )}
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
 
       {/* ── Sticky action bar ── */}
       <div className="fixed bottom-0 left-60 right-0 z-10 border-t border-border bg-background/95 backdrop-blur-sm px-8 py-4 flex items-center justify-end gap-3">
@@ -681,7 +691,7 @@ export default function EditEstimatePage({
           type="button"
           variant="outline"
           onClick={() => handleSave('Draft')}
-          disabled={isSaving}
+          disabled={isSaving || trialLoading}
         >
           {saving === 'draft'
             ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
@@ -690,7 +700,7 @@ export default function EditEstimatePage({
         <Button
           type="button"
           onClick={() => handleSave('Sent')}
-          disabled={isSaving}
+          disabled={isSaving || trialLoading}
         >
           {saving === 'sent'
             ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>

@@ -26,7 +26,10 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,13 +64,15 @@ type FormData = {
 const EMPTY_FORM: FormData = { name: '', asset_tag: '', status: 'Available' }
 
 const STATUS_STYLES: Record<EquipStatus, string> = {
-  Available:   'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-500',
-  Deployed:    'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  Maintenance: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400',
+  Available:   'bg-success/15 text-success',
+  Deployed:    'bg-primary/10 text-primary',
+  Maintenance: 'bg-warning/20 text-warning',
 }
 
 export default function EquipmentPage() {
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
   const [items, setItems]           = React.useState<Equipment[]>([])
   const [loading, setLoading]       = React.useState(true)
   const [search, setSearch]         = React.useState('')
@@ -117,6 +122,7 @@ export default function EquipmentPage() {
   }
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.name.trim()) { setFormError('Name is required.'); return }
     setSaving(true)
     setFormError('')
@@ -144,6 +150,7 @@ export default function EquipmentPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     await supabase.from('company_equipment').delete().eq('id', id)
     setItems((prev) => prev.filter((i) => i.id !== id))
@@ -217,11 +224,18 @@ export default function EquipmentPage() {
               <Loader2 className="w-5 h-5 animate-spin" /> Loading equipment…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Wrench className="w-10 h-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                {search || statusFilter !== 'all' ? 'No units match your filters.' : 'No equipment yet. Add your first unit!'}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <Wrench className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {search || statusFilter !== 'all' ? 'No results found' : 'No equipment yet'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {search || statusFilter !== 'all' ? 'Try adjusting your search or filters.' : 'Add company vehicles, tools, and assets to track.'}
+                </p>
+              </div>
               {!search && statusFilter === 'all' && (
                 <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5 mt-1">
                   <Plus className="w-3.5 h-3.5" /> Add Unit
@@ -232,25 +246,25 @@ export default function EquipmentPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
+                  <tr className="border-b border-border bg-muted/50">
                     {['Asset Tag', 'Name', 'Status', 'Reuses', 'Current Job', 'Actions'].map((h) => (
-                      <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                      <th key={h} className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((item) => (
-                    <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{item.asset_tag ?? '—'}</td>
-                      <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
+                    <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-6 py-4font-mono text-xs text-muted-foreground">{item.asset_tag ?? '—'}</td>
+                      <td className="px-6 py-4font-medium text-foreground">{item.name}</td>
                       <td className="px-6 py-3">
                         <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[item.status])}>
                           {item.status}
                         </span>
                       </td>
-                      <td className="px-6 py-3 text-muted-foreground tabular-nums">{item.reuses}</td>
-                      <td className="px-6 py-3 text-muted-foreground">—</td>
-                      <td className="px-6 py-3 text-right whitespace-nowrap">
+                      <td className="px-6 py-4text-muted-foreground tabular-nums">{item.reuses}</td>
+                      <td className="px-6 py-4text-muted-foreground">—</td>
+                      <td className="px-6 py-4text-right whitespace-nowrap">
                         {deleteConfirmId === item.id ? (
                           <span className="inline-flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">Delete?</span>
@@ -304,12 +318,14 @@ export default function EquipmentPage() {
           </div>
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : editingItem ? 'Save changes' : 'Add Unit'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

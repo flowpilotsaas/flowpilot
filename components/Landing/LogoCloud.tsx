@@ -49,7 +49,7 @@ export default function LogoCloud() {
           Trusted by field service teams
         </p>
         <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-          The companies keeping crews moving use PilotWork
+          The companies keeping crews moving use Jobigram
         </h2>
       </div>
 

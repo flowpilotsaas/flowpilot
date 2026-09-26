@@ -3,7 +3,10 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,6 +59,8 @@ export default function CustomersPage() {
   const [deleting, setDeleting] = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -123,6 +128,7 @@ export default function CustomersPage() {
   // ─── Save (insert / update) ──────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.name.trim()) {
       setFormError('Name is required.')
       return
@@ -163,6 +169,7 @@ export default function CustomersPage() {
   // ─── Delete ──────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     const { error } = await supabase.from('customers').delete().eq('id', id)
     if (!error) {
@@ -215,11 +222,18 @@ export default function CustomersPage() {
               Loading customers…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <Users className="w-10 h-10 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
-                {search ? 'No customers match your search.' : 'No customers yet. Add your first one!'}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <Users className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {search ? 'No results found' : 'No customers yet'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {search ? 'Try adjusting your search.' : 'Add your first customer to get started.'}
+                </p>
+              </div>
               {!search && (
                 <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5 mt-1">
                   <Plus className="w-3.5 h-3.5" /> Add Customer
@@ -230,35 +244,35 @@ export default function CustomersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Name</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Email</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Phone</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Address</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Notes</th>
-                    <th className="text-right px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Name</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Email</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Phone</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Address</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Notes</th>
+                    <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((customer) => (
                     <React.Fragment key={customer.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-medium text-foreground whitespace-nowrap">
+                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4font-medium text-foreground whitespace-nowrap">
                           {customer.name}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground">
+                        <td className="px-6 py-4text-muted-foreground">
                           {customer.email ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
                           {customer.phone ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground max-w-[12rem] truncate" title={customer.address ?? ''}>
+                        <td className="px-6 py-4text-muted-foreground max-w-[12rem] truncate" title={customer.address ?? ''}>
                           {customer.address ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground max-w-[14rem] truncate" title={customer.notes ?? ''}>
+                        <td className="px-6 py-4text-muted-foreground max-w-[14rem] truncate" title={customer.notes ?? ''}>
                           {customer.notes ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <td className="px-6 py-4text-right whitespace-nowrap">
                           {deleteConfirmId === customer.id ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">Delete?</span>
@@ -345,9 +359,7 @@ export default function CustomersPage() {
                 className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
-            {formError && (
-              <p className="text-sm text-destructive">{formError}</p>
-            )}
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
@@ -362,7 +374,7 @@ export default function CustomersPage() {
             <Button
               className="flex-1"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || trialLoading}
             >
               {saving ? (
                 <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
@@ -371,6 +383,8 @@ export default function CustomersPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

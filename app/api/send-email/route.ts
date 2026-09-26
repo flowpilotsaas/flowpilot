@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'PilotWork <onboarding@resend.dev>'
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'Jobigram <onboarding@resend.dev>'
 
 // ─── Templates ─────────────────────────────────────────────────────────────
 
@@ -31,9 +31,9 @@ function wrap(title: string, body: string) {
 </head>
 <body>
 <div class="wrapper">
-  <div class="header"><h1>PilotWork</h1></div>
+  <div class="header"><h1>Jobigram</h1></div>
   <div class="body">${body}</div>
-  <div class="footer">Powered by <strong>PilotWork</strong> · Field Service Management</div>
+  <div class="footer">Powered by <strong>Jobigram</strong> · Field Service Management</div>
 </div>
 </body>
 </html>`
@@ -256,7 +256,7 @@ export async function POST(req: NextRequest) {
     }
 
     const html = TEMPLATES[type](data ?? {})
-    const subject = SUBJECTS[type] ?? 'A message from PilotWork'
+    const subject = SUBJECTS[type] ?? 'A message from Jobigram'
     console.log('[send-email] calling Resend. subject:', subject)
 
     // Re-instantiate with the live key (avoids module-level caching of undefined)

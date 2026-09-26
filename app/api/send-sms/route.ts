@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
+import { checkWriteAccess } from '@/lib/trial-gate'
 
 // ─── Phone normalizer ───────────────────────────────────────────────────────
 
@@ -65,6 +66,10 @@ export async function POST(req: NextRequest) {
     const supabase = await createServerSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    const access = await checkWriteAccess(supabase, user.id)
+    if (!access.allowed) {
+      return Response.json({ error: access.message, code: access.code }, { status: 402 })
+    }
   }
 
   console.log('[send-sms] POST hit')

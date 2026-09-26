@@ -3,7 +3,10 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -60,10 +63,10 @@ type FormData = {
 const STATUSES: AgreementStatus[] = ['Active', 'Pending Approval', 'Expired', 'Cancelled']
 
 const STATUS_STYLES: Record<AgreementStatus, string> = {
-  'Active':           'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  'Pending Approval': 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-  'Expired':          'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
-  'Cancelled':        'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  'Active':           'bg-success/15 text-success',
+  'Pending Approval': 'bg-warning/20 text-warning',
+  'Expired':          'bg-muted text-muted-foreground',
+  'Cancelled':        'bg-destructive/10 text-destructive',
 }
 
 const EMPTY_FORM: FormData = {
@@ -108,6 +111,8 @@ export default function AgreementsPage() {
   const [deleting, setDeleting]               = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   // ─── Fetch ───────────────────────────────────────────────────────────────
 
@@ -179,6 +184,7 @@ export default function AgreementsPage() {
   // ─── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.title.trim()) { setFormError('Title is required.'); return }
     setSaving(true)
     setFormError('')
@@ -249,6 +255,7 @@ export default function AgreementsPage() {
   // ─── Delete ───────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     const { error } = await supabase.from('agreements').delete().eq('id', id)
     if (!error) setAgreements((prev) => prev.filter((a) => a.id !== id))
@@ -349,29 +356,28 @@ export default function AgreementsPage() {
               Loading agreements…
             </div>
           ) : agreements.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center">
-                <ClipboardList className="w-7 h-7 text-muted-foreground/40" />
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <ClipboardList className="w-6 h-6 text-muted-foreground/50" />
               </div>
-              <div className="text-center">
+              <div>
                 <p className="text-sm font-medium text-foreground">No agreements yet</p>
-                <p className="text-sm text-muted-foreground mt-1">Create one to link customers and equipment.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Create one to link customers and equipment.</p>
               </div>
               <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5 mt-1">
-                <Plus className="w-3.5 h-3.5" />
-                New Agreement
+                <Plus className="w-3.5 h-3.5" /> New Agreement
               </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
+                  <tr className="border-b border-border bg-muted/50">
                     {['Title', 'Customer', 'Status', 'Start Date', 'End Date', 'Value', 'Actions'].map((h) => (
                       <th
                         key={h}
                         className={cn(
-                          'px-6 py-3 font-medium text-muted-foreground whitespace-nowrap',
+                          'px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap',
                           h === 'Actions' ? 'text-right' : 'text-left',
                         )}
                       >
@@ -383,11 +389,11 @@ export default function AgreementsPage() {
                 <tbody>
                   {agreements.map((agr) => (
                     <React.Fragment key={agr.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-medium text-foreground max-w-[16rem] truncate" title={agr.title}>
+                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4font-medium text-foreground max-w-[16rem] truncate" title={agr.title}>
                           {agr.title}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
                           {agr.customer_name ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
                         <td className="px-6 py-3">
@@ -398,12 +404,12 @@ export default function AgreementsPage() {
                             {agr.status}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(agr.start_date)}</td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(agr.end_date)}</td>
-                        <td className="px-6 py-3 text-muted-foreground tabular-nums whitespace-nowrap">
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(agr.start_date)}</td>
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(agr.end_date)}</td>
+                        <td className="px-6 py-4text-muted-foreground tabular-nums whitespace-nowrap">
                           {fmtCurrency(agr.value)}
                         </td>
-                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <td className="px-6 py-4text-right whitespace-nowrap">
                           {deleteConfirmId === agr.id ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">Delete?</span>
@@ -508,7 +514,7 @@ export default function AgreementsPage() {
             <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
               Cancel
             </Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving
                 ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
                 : editing ? 'Save changes' : 'Create agreement'}
@@ -516,6 +522,8 @@ export default function AgreementsPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

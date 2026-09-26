@@ -4,6 +4,8 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,6 +54,7 @@ function fmtCurrency(n: number) {
 export default function NewEstimatePage() {
   const router = useRouter()
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
 
   // Customer
   const [customers, setCustomers] = React.useState<Customer[]>([])
@@ -87,6 +90,7 @@ export default function NewEstimatePage() {
   // Save state
   const [saving, setSaving] = React.useState<'draft' | 'sent' | null>(null)
   const [error, setError] = React.useState('')
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   // ─── Load data ────────────────────────────────────────────────────────────
 
@@ -174,6 +178,7 @@ export default function NewEstimatePage() {
   // ─── Save ─────────────────────────────────────────────────────────────────
 
   const handleSave = async (status: 'Draft' | 'Sent') => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     setSaving(status === 'Draft' ? 'draft' : 'sent')
     setError('')
 
@@ -633,6 +638,8 @@ export default function NewEstimatePage() {
         </p>
       )}
 
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
+
       {/* ── Sticky action bar ── */}
       <div className="fixed bottom-0 left-60 right-0 z-10 border-t border-border bg-background/95 backdrop-blur-sm px-8 py-4 flex items-center justify-end gap-3">
         <Button
@@ -647,7 +654,7 @@ export default function NewEstimatePage() {
           type="button"
           variant="outline"
           onClick={() => handleSave('Draft')}
-          disabled={isSaving}
+          disabled={isSaving || trialLoading}
         >
           {saving === 'draft'
             ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
@@ -656,7 +663,7 @@ export default function NewEstimatePage() {
         <Button
           type="button"
           onClick={() => handleSave('Sent')}
-          disabled={isSaving}
+          disabled={isSaving || trialLoading}
         >
           {saving === 'sent'
             ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sending…</>

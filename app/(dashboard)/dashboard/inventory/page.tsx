@@ -28,7 +28,10 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,9 +76,9 @@ const EMPTY_FORM: FormData = {
 }
 
 const STATUS_STYLES: Record<ItemStatus, string> = {
-  'In Stock':     'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-500',
-  'Low Stock':    'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400',
-  'Out of Stock': 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  'In Stock':     'bg-success/15 text-success',
+  'Low Stock':    'bg-warning/20 text-warning',
+  'Out of Stock': 'bg-destructive/10 text-destructive',
 }
 
 function fmtCurrency(n: number | null) {
@@ -100,6 +103,8 @@ export default function InventoryPage() {
   const [deleting, setDeleting]               = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   const fetchData = React.useCallback(async () => {
     if (!organizationId) return
@@ -149,6 +154,7 @@ export default function InventoryPage() {
   }
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.name.trim()) { setFormError('Name is required.'); return }
     setSaving(true)
     setFormError('')
@@ -181,6 +187,7 @@ export default function InventoryPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     await supabase.from('inventory').delete().eq('id', id)
     setItems((prev) => prev.filter((i) => i.id !== id))
@@ -266,11 +273,18 @@ export default function InventoryPage() {
               <Loader2 className="w-5 h-5 animate-spin" /> Loading inventory…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Package className="w-10 h-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                {search || catFilter !== 'all' || lowStockOnly ? 'No items match your filters.' : 'No items found. Add your first one!'}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <Package className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {search || catFilter !== 'all' || lowStockOnly ? 'No results found' : 'No inventory yet'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {search || catFilter !== 'all' || lowStockOnly ? 'Try adjusting your search or filters.' : 'Track parts and materials used on your jobs.'}
+                </p>
+              </div>
               {!search && catFilter === 'all' && !lowStockOnly && (
                 <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5 mt-1">
                   <Plus className="w-3.5 h-3.5" /> Add Item
@@ -281,28 +295,28 @@ export default function InventoryPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
+                  <tr className="border-b border-border bg-muted/50">
                     {['Part #', 'Name', 'Category', 'On Hand', 'Cost', 'Location', 'Status', 'Actions'].map((h) => (
-                      <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                      <th key={h} className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((item) => (
                     <React.Fragment key={item.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{item.part_number ?? '—'}</td>
-                        <td className="px-6 py-3 font-medium text-foreground">{item.name}</td>
-                        <td className="px-6 py-3 text-muted-foreground">{item.category ?? '—'}</td>
-                        <td className="px-6 py-3 text-muted-foreground tabular-nums">{item.quantity}</td>
-                        <td className="px-6 py-3 text-muted-foreground tabular-nums">{fmtCurrency(item.cost)}</td>
-                        <td className="px-6 py-3 text-muted-foreground">{item.location ?? '—'}</td>
+                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4font-mono text-xs text-muted-foreground">{item.part_number ?? '—'}</td>
+                        <td className="px-6 py-4font-medium text-foreground">{item.name}</td>
+                        <td className="px-6 py-4text-muted-foreground">{item.category ?? '—'}</td>
+                        <td className="px-6 py-4text-muted-foreground tabular-nums">{item.quantity}</td>
+                        <td className="px-6 py-4text-muted-foreground tabular-nums">{fmtCurrency(item.cost)}</td>
+                        <td className="px-6 py-4text-muted-foreground">{item.location ?? '—'}</td>
                         <td className="px-6 py-3">
                           <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[item.status])}>
                             {item.status}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <td className="px-6 py-4text-right whitespace-nowrap">
                           {deleteConfirmId === item.id ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">Delete?</span>
@@ -376,12 +390,14 @@ export default function InventoryPage() {
           </div>
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : editingItem ? 'Save changes' : 'Add Item'}
             </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }

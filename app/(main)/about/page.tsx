@@ -1,4 +1,4 @@
-export const metadata = { title: "About — PilotWork" };
+export const metadata = { title: "About — Jobigram" };
 
 export default function AboutPage() {
   return (

@@ -3,7 +3,10 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import Link from 'next/link'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -60,6 +63,8 @@ export default function PricebookPage() {
   const [deleting, setDeleting] = React.useState(false)
 
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
   // ─── Data fetching ──────────────────────────────────────────────────────
 
@@ -120,6 +125,7 @@ export default function PricebookPage() {
   // ─── Save ────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.name.trim()) { setFormError('Name is required.'); return }
     const parsedPrice = parseFloat(form.price)
     if (!form.price || isNaN(parsedPrice) || parsedPrice < 0) {
@@ -156,6 +162,7 @@ export default function PricebookPage() {
   // ─── Delete ──────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
     setDeleting(true)
     const { error } = await supabase.from('pricebook').delete().eq('id', id)
     if (!error) setItems((prev) => prev.filter((i) => i.id !== id))
@@ -208,13 +215,18 @@ export default function PricebookPage() {
               Loading pricebook…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
-              <BookOpen className="w-10 h-10 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
-                {search
-                  ? 'No items match your search.'
-                  : 'No items yet. Add your first service or product!'}
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-muted/60 flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {search ? 'No results found' : 'No items yet'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {search ? 'Try adjusting your search.' : 'Add services and products you can attach to jobs.'}
+                </p>
+              </div>
               {!search && (
                 <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5 mt-1">
                   <Plus className="w-3.5 h-3.5" /> Add Item
@@ -225,31 +237,31 @@ export default function PricebookPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Name</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Description</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Unit</th>
-                    <th className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Price</th>
-                    <th className="text-right px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">Actions</th>
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Name</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Description</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Unit</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Price</th>
+                    <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((item) => (
                     <React.Fragment key={item.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3 font-medium text-foreground whitespace-nowrap">
+                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                        <td className="px-6 py-4font-medium text-foreground whitespace-nowrap">
                           {item.name}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground max-w-[20rem] truncate" title={item.description ?? ''}>
+                        <td className="px-6 py-4text-muted-foreground max-w-[20rem] truncate" title={item.description ?? ''}>
                           {item.description ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
+                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
                           {item.unit ?? <span className="text-muted-foreground/40">—</span>}
                         </td>
-                        <td className="px-6 py-3 text-foreground font-medium tabular-nums whitespace-nowrap">
+                        <td className="px-6 py-4text-foreground font-medium tabular-nums whitespace-nowrap">
                           {formatCurrency(item.price)}
                         </td>
-                        <td className="px-6 py-3 text-right whitespace-nowrap">
+                        <td className="px-6 py-4text-right whitespace-nowrap">
                           {deleteConfirmId === item.id ? (
                             <span className="inline-flex items-center gap-2">
                               <span className="text-xs text-muted-foreground">Delete?</span>
@@ -334,16 +346,14 @@ export default function PricebookPage() {
               />
             </Field>
 
-            {formError && (
-              <p className="text-sm text-destructive">{formError}</p>
-            )}
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
               Cancel
             </Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving
                 ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
                 : editingItem ? 'Save changes' : 'Add item'}
@@ -351,6 +361,8 @@ export default function PricebookPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
 }
