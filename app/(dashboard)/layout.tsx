@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
+import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 
 function TrialBanner() {
@@ -59,6 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1">
         <DashboardSidebar />
         <main className="flex-1 ml-60 overflow-auto min-h-screen">
+          <DashboardHeader />
           {children}
         </main>
       </div>

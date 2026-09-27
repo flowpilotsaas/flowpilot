@@ -1,13 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays, LogOut, Zap,
+  LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays, Zap,
   LayoutGrid, ClipboardList, Phone, GitBranch, CheckSquare, Package, Wrench,
   DollarSign, BarChart2, MapPin, MessageSquare, CreditCard, Settings,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
 import { cn } from '@/lib/utils'
 
@@ -89,15 +88,9 @@ const NAV_GROUPS: NavGroup[] = [
 
 export default function DashboardSidebar() {
   const pathname = usePathname()
-  const router   = useRouter()
   const { role } = useOrganization()
 
   const isTechnician = role === 'technician'
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   return (
     <aside className="fixed top-0 left-0 w-60 h-screen flex flex-col bg-card border-r border-border">
@@ -152,18 +145,6 @@ export default function DashboardSidebar() {
           )
         })}
       </nav>
-
-      {/* Sign out */}
-      <div className="px-3 py-3 border-t border-border">
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          Sign out
-        </button>
-      </div>
 
     </aside>
   )
