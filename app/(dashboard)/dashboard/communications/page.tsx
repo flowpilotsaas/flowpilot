@@ -274,11 +274,11 @@ export default function CommunicationsPage() {
 
   const textModal = textModalOpen && mounted && createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={() => setTextModalOpen(false)} />
+      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setTextModalOpen(false)} />
       <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Send a Text</h2>
-          <button onClick={() => setTextModalOpen(false)} className="text-muted-foreground hover:text-foreground">
+          <button onClick={() => setTextModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -336,11 +336,11 @@ export default function CommunicationsPage() {
 
   const quickCallModal = quickCallOpen && mounted && createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={() => setQuickCallOpen(false)} />
+      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setQuickCallOpen(false)} />
       <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Quick Call</h2>
-          <button onClick={() => setQuickCallOpen(false)} className="text-muted-foreground hover:text-foreground">
+          <button onClick={() => setQuickCallOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>

@@ -63,7 +63,7 @@ export default function LeadsHubPage() {
                 key={amt}
                 type="button"
                 onClick={() => { setSelectedAmount(amt); setCustomAmount('') }}
-                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${
                   selectedAmount === amt
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'

@@ -411,7 +411,7 @@ export default function EditEstimatePage({
                     key={item.id}
                     type="button"
                     onMouseDown={() => addFromPricebook(item)}
-                    className="flex w-full items-center justify-between px-3 py-2 hover:bg-muted transition-colors text-left"
+                    className="flex w-full items-center justify-between px-3 py-2 hover:bg-muted transition-colors text-left cursor-pointer"
                   >
                     <div className="min-w-0">
                       <span className="font-medium text-foreground">{item.name}</span>
@@ -491,7 +491,7 @@ export default function EditEstimatePage({
                         <button
                           type="button"
                           onClick={() => removeLineItem(item._id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
+                          className="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
                           aria-label="Remove item"
                         >
                           <Trash2 className="w-4 h-4" />

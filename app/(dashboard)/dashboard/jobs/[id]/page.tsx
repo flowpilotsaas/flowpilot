@@ -641,7 +641,7 @@ function StatusDropdown({ currentStatus, onStatusChange, updating }: {
               type="button"
               onClick={() => { onStatusChange(s); setOpen(false) }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors',
+                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors cursor-pointer',
                 s === currentStatus && 'bg-muted/50'
               )}
             >
@@ -763,7 +763,7 @@ function PaymentModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 cursor-pointer"
       onClick={handleBackdrop}
     >
       <div className="bg-popover rounded-xl border border-border shadow-xl w-full max-w-md mx-4">

@@ -81,6 +81,12 @@ export default function TeamPage() {
   const [inviteAtLimit, setInviteAtLimit]     = React.useState(false)
   const [inviting, setInviting]               = React.useState(false)
 
+  React.useEffect(() => {
+    const h = () => { setInviteOpen(true); setInviteAtLimit(false); setInviteError('') }
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // all setters are stable
+
   const [notificationWarning, setNotificationWarning] = React.useState('')
 
   // Action states
@@ -208,12 +214,6 @@ export default function TeamPage() {
           <h1 className="text-2xl font-semibold text-foreground">Team</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your team members and invites</p>
         </div>
-        {canManage && (
-          <Button onClick={() => { setInviteOpen(true); setInviteAtLimit(false); setInviteError('') }} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Invite Member
-          </Button>
-        )}
       </div>
 
       {notificationWarning && (
@@ -231,7 +231,7 @@ export default function TeamPage() {
               'px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px',
               activeTab === key
                 ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground cursor-pointer'
             )}
           >
             {label}
@@ -546,7 +546,7 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
   return (
     <>
       <button ref={triggerRef} type="button" onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none">
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none cursor-pointer">
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && createPortal(
@@ -554,7 +554,7 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
           className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm">
           <button type="button" role="menuitem"
             onClick={() => { setOpen(false); onRemove() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors">
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer">
             <UserX className="w-3.5 h-3.5" /> Remove
           </button>
         </div>,

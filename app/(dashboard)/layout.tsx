@@ -55,12 +55,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!checked) return null
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <TrialBanner />
-      <div className="flex flex-1">
+      <DashboardHeader />
+      <div className="flex flex-1 min-h-0">
         <DashboardSidebar />
-        <main className="flex-1 ml-60 overflow-auto min-h-screen">
-          <DashboardHeader />
+        <main className="flex-1 min-w-0 overflow-y-auto">
           {children}
         </main>
       </div>

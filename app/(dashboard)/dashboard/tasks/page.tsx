@@ -135,6 +135,12 @@ export default function TasksPage() {
     setSheetOpen(true)
   }
 
+  React.useEffect(() => {
+    const h = () => openSheet()
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // openSheet only calls stable useState setters
+
   const handleSave = async () => {
     if (!trialAllowed) { setTrialModalOpen(true); return }
     if (!form.title.trim()) { setFormError('Title is required.'); return }
@@ -177,10 +183,6 @@ export default function TasksPage() {
           <h1 className="text-2xl font-semibold text-foreground">Tasks &amp; Reminders</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Follow-ups and reminders linked to customers</p>
         </div>
-        <Button onClick={openSheet} className="gap-2">
-          <Plus className="w-4 h-4" />
-          New Task
-        </Button>
       </div>
 
       {/* Filter */}
@@ -191,7 +193,7 @@ export default function TasksPage() {
             type="button"
             onClick={() => setFilter(f)}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize',
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize cursor-pointer',
               filter === f
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-muted'
@@ -248,7 +250,7 @@ export default function TasksPage() {
                     type="button"
                     onClick={() => handleToggle(task)}
                     disabled={toggling === task.id}
-                    className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-input flex items-center justify-center transition-colors hover:border-primary focus:outline-none"
+                    className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-input flex items-center justify-center transition-colors hover:border-primary focus:outline-none cursor-pointer"
                     aria-label={task.completed ? 'Mark incomplete' : 'Mark complete'}
                   >
                     {toggling === task.id ? (

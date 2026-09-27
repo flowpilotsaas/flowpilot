@@ -124,12 +124,6 @@ export default function EstimatesPage() {
           <h1 className="text-2xl font-semibold text-foreground">Estimates</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Create and send estimates to customers</p>
         </div>
-        <Button asChild className="gap-2">
-          <Link href="/dashboard/estimates/new">
-            <Plus className="w-4 h-4" />
-            New Estimate
-          </Link>
-        </Button>
       </div>
 
       {/* Filters */}
@@ -295,7 +289,7 @@ function ActionMenu({ estimateId, onDelete }: { estimateId: string; onDelete: ()
         ref={triggerRef}
         type="button"
         onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         aria-label="Actions"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -323,7 +317,7 @@ function ActionMenu({ estimateId, onDelete }: { estimateId: string; onDelete: ()
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete
@@ -407,7 +401,7 @@ function StatusDropdown({ estimateId, currentStatus, onStatusChange }: {
               type="button"
               onClick={() => { onStatusChange(estimateId, s); setOpen(false) }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors',
+                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors cursor-pointer',
                 s === currentStatus && 'bg-muted/50'
               )}
             >

@@ -114,6 +114,12 @@ export default function EquipmentPage() {
   const totalReuses = items.reduce((sum, i) => sum + i.reuses, 0)
 
   const openAdd = () => { setEditingItem(null); setForm(EMPTY_FORM); setFormError(''); setSheetOpen(true) }
+
+  React.useEffect(() => {
+    const h = () => openAdd()
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // openAdd only calls stable useState setters
   const openEdit = (item: Equipment) => {
     setEditingItem(item)
     setForm({ name: item.name, asset_tag: item.asset_tag ?? '', status: item.status })
@@ -166,10 +172,6 @@ export default function EquipmentPage() {
           <h1 className="text-2xl font-semibold text-foreground">Company Equipment</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track and manage your tools and equipment</p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Unit
-        </Button>
       </div>
 
       {/* Stats */}
@@ -362,18 +364,18 @@ function EquipActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: (
   return (
     <>
       <button ref={triggerRef} type="button" onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none">
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none cursor-pointer">
         <MoreHorizontal className="w-4 h-4" />
       </button>
       {open && createPortal(
         <div ref={menuRef} role="menu" style={{ top: coords.top, left: coords.left }}
           className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm">
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onEdit() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors">
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer">
             <Pencil className="w-3.5 h-3.5 text-muted-foreground" /> Edit
           </button>
           <button type="button" role="menuitem" onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors">
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
         </div>,

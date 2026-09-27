@@ -45,7 +45,7 @@ export default function GooglePage() {
                 'flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px',
                 tab === id
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground cursor-pointer'
               )}
             >
               <Icon className="w-4 h-4" />

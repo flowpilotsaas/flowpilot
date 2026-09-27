@@ -129,7 +129,7 @@ function StatusDropdown({
         type="button"
         onClick={openMenu}
         disabled={updating}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -154,7 +154,7 @@ function StatusDropdown({
               type="button"
               onClick={() => { onStatusChange(s); setOpen(false) }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors',
+                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors cursor-pointer',
                 s === status && 'bg-muted/50'
               )}
             >
@@ -718,7 +718,7 @@ function PaymentLinkModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 cursor-pointer" onClick={onClose} />
       <div className="relative bg-background rounded-xl border border-border shadow-xl w-full max-w-md">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
           <div className="w-7 h-7 rounded-md bg-violet-600 flex items-center justify-center shrink-0">
@@ -737,7 +737,7 @@ function PaymentLinkModal({
             <button
               type="button"
               onClick={onCopy}
-              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors cursor-pointer"
             >
               {copied
                 ? <><Check className="w-3 h-3" /> Copied!</>
@@ -750,7 +750,7 @@ function PaymentLinkModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-8 px-4 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
+            className="h-8 px-4 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted cursor-pointer"
           >
             Done
           </button>

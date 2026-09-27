@@ -160,6 +160,12 @@ export default function AgreementsPage() {
     setSheetOpen(true)
   }
 
+  React.useEffect(() => {
+    const h = () => openAdd()
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // openAdd only calls stable useState setters
+
   const openEdit = (a: Agreement) => {
     setEditing(a)
     setForm({
@@ -311,10 +317,6 @@ export default function AgreementsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Agreements</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage maintenance contracts and service agreements</p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          New Agreement
-        </Button>
       </div>
 
       {notificationWarning && (
@@ -343,10 +345,6 @@ export default function AgreementsPage() {
             <CardTitle className="text-sm text-muted-foreground font-normal">
               {loading ? 'Loading…' : `${agreements.length} agreement${agreements.length !== 1 ? 's' : ''}`}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={openAdd} className="gap-1.5">
-              <Plus className="w-3.5 h-3.5" />
-              New Agreement
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -568,7 +566,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
         ref={triggerRef}
         type="button"
         onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         aria-label="Actions"
       >
         <MoreHorizontal className="w-4 h-4" />
@@ -585,7 +583,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onEdit() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             Edit
@@ -594,7 +592,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete

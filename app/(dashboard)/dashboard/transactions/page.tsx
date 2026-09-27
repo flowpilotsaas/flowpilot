@@ -260,7 +260,7 @@ export default function TransactionsPage() {
               type="button"
               onClick={() => setDateFilter(f)}
               className={cn(
-                'px-3 py-1.5 capitalize transition-colors',
+                'px-3 py-1.5 capitalize transition-colors cursor-pointer',
                 dateFilter === f
                   ? 'bg-primary text-primary-foreground font-medium'
                   : 'text-muted-foreground hover:bg-muted',

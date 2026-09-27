@@ -173,6 +173,12 @@ export default function JobsPage() {
     setSheetOpen(true)
   }
 
+  React.useEffect(() => {
+    const h = () => openAdd()
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // openAdd only calls stable useState setters
+
   const openEdit = (job: Job) => {
     setEditingJob(job)
     setForm({
@@ -375,10 +381,6 @@ export default function JobsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Schedule and track your field service jobs</p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Job
-        </Button>
       </div>
 
       {notificationWarning && (
@@ -642,7 +644,7 @@ function ActionMenu({ jobId, onEdit, onDelete, onMarkPaid }: {
         ref={triggerRef}
         type="button"
         onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         aria-label="Actions"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -670,7 +672,7 @@ function ActionMenu({ jobId, onEdit, onDelete, onMarkPaid }: {
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onEdit() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             Edit
@@ -680,7 +682,7 @@ function ActionMenu({ jobId, onEdit, onDelete, onMarkPaid }: {
               type="button"
               role="menuitem"
               onClick={() => { setOpen(false); onMarkPaid() }}
-              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3 py-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors cursor-pointer"
             >
               <DollarSign className="w-3.5 h-3.5" />
               Mark as Paid
@@ -690,7 +692,7 @@ function ActionMenu({ jobId, onEdit, onDelete, onMarkPaid }: {
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete
@@ -774,7 +776,7 @@ function StatusDropdown({ jobId, currentStatus, onStatusChange }: {
               type="button"
               onClick={() => { onStatusChange(jobId, s); setOpen(false) }}
               className={cn(
-                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors',
+                'flex w-full items-center gap-2 px-3 py-1.5 hover:bg-muted transition-colors cursor-pointer',
                 s === currentStatus && 'bg-muted/50'
               )}
             >

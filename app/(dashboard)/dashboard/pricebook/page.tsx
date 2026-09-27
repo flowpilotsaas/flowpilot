@@ -104,6 +104,12 @@ export default function PricebookPage() {
     setSheetOpen(true)
   }
 
+  React.useEffect(() => {
+    const h = () => openAdd()
+    window.addEventListener('dashboard:new', h as EventListener)
+    return () => window.removeEventListener('dashboard:new', h as EventListener)
+  }, []) // openAdd only calls stable useState setters
+
   const openEdit = (item: PricebookItem) => {
     setEditingItem(item)
     setForm({
@@ -182,10 +188,6 @@ export default function PricebookPage() {
             Standard services and prices you can attach to jobs
           </p>
         </div>
-        <Button onClick={openAdd} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Add Item
-        </Button>
       </div>
 
       {/* Search */}
@@ -405,7 +407,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
         ref={triggerRef}
         type="button"
         onClick={openMenu}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         aria-label="Actions"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -424,7 +426,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onEdit() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
           >
             <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             Edit
@@ -433,7 +435,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
             type="button"
             role="menuitem"
             onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete

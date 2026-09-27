@@ -480,7 +480,7 @@ export default function SchedulePage() {
             <button
               type="button"
               onClick={openWorkingHours}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <Settings className="w-3 h-3" />
               Working Hours
@@ -495,7 +495,7 @@ export default function SchedulePage() {
                 type="button"
                 onClick={() => setView(v)}
                 className={cn(
-                  'px-3 py-1.5 transition-colors capitalize',
+                  'px-3 py-1.5 transition-colors capitalize cursor-pointer',
                   view === v
                     ? 'bg-primary text-primary-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted'
@@ -622,7 +622,7 @@ export default function SchedulePage() {
       {/* ── Update working hours modal (dismissible) ── */}
       {hoursOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setHoursOpen(false)} />
+          <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setHoursOpen(false)} />
           <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-background shadow-2xl p-6 flex flex-col gap-6">
             <h2 className="text-base font-semibold text-foreground">Update Working Hours</h2>
             <WorkHoursFormFields form={whForm} onChange={setWhForm} error={whError} />
@@ -643,7 +643,7 @@ export default function SchedulePage() {
       {/* ── Job-schedule modal ── */}
       {schedulingJob && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
+          <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={closeModal} />
           <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-background shadow-2xl p-6 flex flex-col gap-5">
             <div className="border-b border-border pb-4">
               <h2 className="text-base font-semibold text-foreground">Schedule Job</h2>
@@ -700,7 +700,7 @@ export default function SchedulePage() {
       {/* ── Job detail modal ── */}
       {selectedJob && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={closeDetailModal} />
+          <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={closeDetailModal} />
           <div className="relative z-10 w-full max-w-sm rounded-xl border border-border bg-background shadow-2xl">
 
             {detailEditMode ? (
@@ -712,7 +712,7 @@ export default function SchedulePage() {
                     type="button"
                     onClick={closeDetailModal}
                     aria-label="Close"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -809,7 +809,7 @@ export default function SchedulePage() {
                     <button
                       type="button"
                       onClick={openDetailEdit}
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
                     >
                       <Pencil className="w-3 h-3" />
                       Edit
@@ -818,7 +818,7 @@ export default function SchedulePage() {
                       type="button"
                       onClick={closeDetailModal}
                       aria-label="Close"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -919,7 +919,7 @@ function WeekView({
               key={label}
               type="button"
               onClick={() => onDayClick(date)}
-              className="flex-1 py-2.5 flex flex-col items-center gap-0.5 hover:bg-muted/40 transition-colors"
+              className="flex-1 py-2.5 flex flex-col items-center gap-0.5 hover:bg-muted/40 transition-colors cursor-pointer"
             >
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                 {label}
@@ -987,7 +987,7 @@ function WeekView({
                     onClick={() => onJobClick(job)}
                     title={job.title}
                     className={cn(
-                      'absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-left overflow-hidden hover:opacity-80 transition-opacity z-[1]',
+                      'absolute left-0.5 right-0.5 rounded-md px-1.5 py-0.5 text-left overflow-hidden hover:opacity-80 transition-opacity z-[1] cursor-pointer',
                       JOB_BLOCK[job.status]
                     )}
                     style={{ top, height }}
@@ -1024,7 +1024,7 @@ function AllDayStrip({ days, byDate, onJobClick }: { days: Date[]; byDate: Map<s
                 key={job.id}
                 type="button"
                 onClick={() => onJobClick(job)}
-                className={cn('text-[10px] font-medium px-1 py-0.5 rounded truncate text-left hover:opacity-80', JOB_BLOCK[job.status])}
+                className={cn('text-[10px] font-medium px-1 py-0.5 rounded truncate text-left hover:opacity-80 cursor-pointer', JOB_BLOCK[job.status])}
               >
                 {job.title}
               </button>
@@ -1078,7 +1078,7 @@ function MonthView({
               type="button"
               onClick={() => onDayClick(day)}
               className={cn(
-                'bg-background p-2 text-left hover:bg-muted/40 transition-colors flex flex-col min-h-[88px]',
+                'bg-background p-2 text-left hover:bg-muted/40 transition-colors flex flex-col min-h-[88px] cursor-pointer',
                 !inMonth && 'bg-muted/20'
               )}
             >
@@ -1145,7 +1145,7 @@ function DayView({
                 key={job.id}
                 type="button"
                 onClick={() => onJobClick(job)}
-                className={cn('text-[10px] font-medium px-2 py-0.5 rounded whitespace-nowrap hover:opacity-80', JOB_BLOCK[job.status])}
+                className={cn('text-[10px] font-medium px-2 py-0.5 rounded whitespace-nowrap hover:opacity-80 cursor-pointer', JOB_BLOCK[job.status])}
               >
                 {job.title}
               </button>
@@ -1192,7 +1192,7 @@ function DayView({
                 onClick={() => onJobClick(job)}
                 title={job.title}
                 className={cn(
-                  'absolute left-2 right-2 rounded-lg px-2.5 py-1.5 text-left overflow-hidden hover:opacity-80 transition-opacity z-[1]',
+                  'absolute left-2 right-2 rounded-lg px-2.5 py-1.5 text-left overflow-hidden hover:opacity-80 transition-opacity z-[1] cursor-pointer',
                   JOB_BLOCK[job.status]
                 )}
                 style={{ top, height }}

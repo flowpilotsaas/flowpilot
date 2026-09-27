@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays, Zap,
+  LayoutDashboard, Users, Briefcase, BookOpen, FileText, CalendarDays,
   LayoutGrid, ClipboardList, Phone, GitBranch, CheckSquare, Package, Wrench,
-  DollarSign, BarChart2, MapPin, MessageSquare, CreditCard, Settings,
+  DollarSign, BarChart2, MapPin, MessageSquare, CreditCard, Settings, Zap,
 } from 'lucide-react'
 import { useOrganization } from '@/hooks/useOrganization'
 import { cn } from '@/lib/utils'
@@ -93,21 +93,10 @@ export default function DashboardSidebar() {
   const isTechnician = role === 'technician'
 
   return (
-    <aside className="fixed top-0 left-0 w-60 h-screen flex flex-col bg-card border-r border-border">
-
-      {/* Wordmark */}
-      <div className="px-5 py-5 border-b border-border">
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-lg font-bold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-        >
-          <Zap className="w-4 h-4 text-primary shrink-0" />
-          Jobigram
-        </Link>
-      </div>
+    <aside className="w-60 flex-shrink-0 flex flex-col bg-card border-r border-border overflow-y-auto">
 
       {/* Nav groups */}
-      <nav className="flex-1 px-3 py-3 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3">
         {NAV_GROUPS.map((group, gi) => {
           const visibleItems = group.items.filter(
             (item) => !(isTechnician && item.adminOnly)
