@@ -168,6 +168,66 @@
   --sidebar-ring:               oklch(0.720 0.180 277);
 }
 
+/* ─── Native CSS dark-mode fallback ──────────────────────────────────────── */
+/*
+  next-themes adds .dark / .light to <html> after JS hydration. This block
+  covers the window before that happens (SSR render, pre-hydration paint) and
+  handles visitors on public routes (/e/*) who have no stored theme preference.
+
+  :not(.light):not(.dark) ensures it yields to any explicit class once
+  next-themes has loaded — so a user's dashboard "Light" toggle still wins.
+*/
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) {
+    --background:  oklch(0.120 0.012 275);
+    --foreground:  oklch(0.970 0.003 285);
+
+    --card:               oklch(0.175 0.012 275);
+    --card-foreground:    oklch(0.970 0.003 285);
+    --popover:            oklch(0.175 0.012 275);
+    --popover-foreground: oklch(0.970 0.003 285);
+
+    --primary:            oklch(0.720 0.180 277);
+    --primary-foreground: oklch(0.985 0 0);
+
+    --secondary:            oklch(0.245 0.015 275);
+    --secondary-foreground: oklch(0.970 0.003 285);
+
+    --muted:            oklch(0.220 0.012 275);
+    --muted-foreground: oklch(0.620 0.015 280);
+
+    --accent:            oklch(0.280 0.035 277);
+    --accent-foreground: oklch(0.880 0.050 277);
+
+    --destructive: oklch(0.704 0.191 22.216);
+
+    --success:            oklch(0.620 0.130 148);
+    --success-foreground: oklch(0.985 0 0);
+
+    --warning:            oklch(0.800 0.120  66);
+    --warning-foreground: oklch(0.180 0 0);
+
+    --border: oklch(1 0 0 / 0.10);
+    --input:  oklch(1 0 0 / 0.12);
+    --ring:   oklch(0.720 0.180 277);
+
+    --chart-1: oklch(0.720 0.180 277);
+    --chart-2: oklch(0.620 0.130 148);
+    --chart-3: oklch(0.800 0.120  66);
+    --chart-4: oklch(0.680 0.140 225);
+    --chart-5: oklch(0.720 0.160  15);
+
+    --sidebar:                    oklch(0.150 0.012 275);
+    --sidebar-foreground:         oklch(0.970 0.003 285);
+    --sidebar-primary:            oklch(0.720 0.180 277);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent:             oklch(0.250 0.030 277);
+    --sidebar-accent-foreground:  oklch(0.880 0.050 277);
+    --sidebar-border:             oklch(1 0 0 / 0.10);
+    --sidebar-ring:               oklch(0.720 0.180 277);
+  }
+}
+
 /* ─── Base ────────────────────────────────────────────────────────────────── */
 @layer base {
   * {

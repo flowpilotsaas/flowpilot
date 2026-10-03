@@ -9,6 +9,7 @@ import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { Toaster } from 'sonner'
 import { CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 function ToastSuccessIcon() { return <CheckCircle2 className="w-4 h-4 text-success" /> }
 function ToastErrorIcon()   { return <XCircle className="w-4 h-4 text-destructive" /> }
@@ -62,35 +63,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!checked) return null
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <TrialBanner />
-      <DashboardHeader />
-      <div className="flex flex-1 min-h-0">
-        <DashboardSidebar />
-        <main className="flex-1 min-w-0 overflow-y-auto">
-          {children}
-        </main>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
+        <TrialBanner />
+        <DashboardHeader />
+        <div className="flex flex-1 min-h-0">
+          <DashboardSidebar />
+          <main className="flex-1 min-w-0 overflow-y-auto">
+            {children}
+          </main>
+        </div>
+        <Toaster
+          position="top-right"
+          offset={{ top: 8, right: 104 }}
+          visibleToasts={1}
+          closeButton
+          duration={4000}
+          toastOptions={{
+            classNames: {
+              toast: 'toast-card',
+              title: 'toast-title',
+              description: 'toast-description',
+            },
+          }}
+          icons={{
+            success: <ToastSuccessIcon />,
+            error: <ToastErrorIcon />,
+            warning: <ToastWarningIcon />,
+            info: <ToastInfoIcon />,
+          }}
+        />
       </div>
-      <Toaster
-        position="top-right"
-        offset={{ top: 8, right: 104 }}
-        visibleToasts={1}
-        closeButton
-        duration={4000}
-        toastOptions={{
-          classNames: {
-            toast: 'toast-card',
-            title: 'toast-title',
-            description: 'toast-description',
-          },
-        }}
-        icons={{
-          success: <ToastSuccessIcon />,
-          error: <ToastErrorIcon />,
-          warning: <ToastWarningIcon />,
-          info: <ToastInfoIcon />,
-        }}
-      />
-    </div>
+    </ThemeProvider>
   )
 }
