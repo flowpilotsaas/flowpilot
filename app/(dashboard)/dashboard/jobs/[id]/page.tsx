@@ -29,6 +29,7 @@ type FullJob = {
   id: string
   user_id: string
   customer_id: string | null
+  estimate_id: string | null
   job_number: number | null
   title: string
   description: string | null

@@ -3,14 +3,23 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from '@/components/ui/sheet'
 import Link from 'next/link'
 import {
   Plus, Loader2, Users, Check, X, Mail,
-  MoreHorizontal, UserX, RefreshCw,
+  MoreHorizontal, UserX, RefreshCw, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -30,16 +39,23 @@ type OrgMember = {
   joined_at: string | null
 }
 
+type RemoveTarget =
+  | { kind: 'single-member'; id: string; email: string }
+  | { kind: 'bulk-members'; count: number; ids: string[] }
+  | { kind: 'single-invite'; id: string; email: string }
+  | { kind: 'bulk-invites'; count: number; ids: string[] }
+  | null
+
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const PERMISSIONS = [
-  { label: 'View Jobs',         Owner: true,  Admin: true,  Technician: true  },
-  { label: 'Create / Edit Jobs',Owner: true,  Admin: true,  Technician: false },
-  { label: 'View Estimates',    Owner: true,  Admin: true,  Technician: false },
-  { label: 'Edit Estimates',    Owner: true,  Admin: true,  Technician: false },
-  { label: 'Manage Team',       Owner: true,  Admin: false, Technician: false },
-  { label: 'Billing',           Owner: true,  Admin: false, Technician: false },
-  { label: 'Settings',          Owner: true,  Admin: false, Technician: false },
+  { label: 'View Jobs',          Owner: true,  Admin: true,  Technician: true  },
+  { label: 'Create / Edit Jobs', Owner: true,  Admin: true,  Technician: false },
+  { label: 'View Estimates',     Owner: true,  Admin: true,  Technician: false },
+  { label: 'Edit Estimates',     Owner: true,  Admin: true,  Technician: false },
+  { label: 'Manage Team',        Owner: true,  Admin: false, Technician: false },
+  { label: 'Billing',            Owner: true,  Admin: false, Technician: false },
+  { label: 'Settings',           Owner: true,  Admin: false, Technician: false },
 ]
 
 const ROLE_BADGE: Record<OrgRole, string> = {
@@ -47,8 +63,6 @@ const ROLE_BADGE: Record<OrgRole, string> = {
   admin:      'bg-muted text-muted-foreground',
   technician: 'bg-muted/60 text-muted-foreground/80',
 }
-
-// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function roleLabel(r: OrgRole) {
   return r.charAt(0).toUpperCase() + r.slice(1)
@@ -73,28 +87,21 @@ export default function TeamPage() {
   const [members, setMembers]     = React.useState<OrgMember[]>([])
   const [loading, setLoading]     = React.useState(true)
 
-  // Invite modal
   const [inviteOpen, setInviteOpen]   = React.useState(false)
   const [inviteEmail, setInviteEmail] = React.useState('')
   const [inviteRole, setInviteRole]   = React.useState<'admin' | 'technician'>('technician')
-  const [inviteError, setInviteError]         = React.useState('')
-  const [inviteAtLimit, setInviteAtLimit]     = React.useState(false)
-  const [inviting, setInviting]               = React.useState(false)
-
-  React.useEffect(() => {
-    const h = () => { setInviteOpen(true); setInviteAtLimit(false); setInviteError('') }
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // all setters are stable
-
+  const [inviteError, setInviteError]     = React.useState('')
+  const [inviteAtLimit, setInviteAtLimit] = React.useState(false)
+  const [inviting, setInviting]           = React.useState(false)
   const [notificationWarning, setNotificationWarning] = React.useState('')
 
-  // Action states
-  const [removeConfirmId, setRemoveConfirmId] = React.useState<string | null>(null)
-  const [removingId, setRemovingId]           = React.useState<string | null>(null)
-  const [cancelConfirmId, setCancelConfirmId] = React.useState<string | null>(null)
-  const [cancellingId, setCancellingId]       = React.useState<string | null>(null)
-  const [resendingId, setResendingId]         = React.useState<string | null>(null)
+  const [removeTarget, setRemoveTarget] = React.useState<RemoveTarget>(null)
+  const [removing, setRemoving]         = React.useState(false)
+
+  const [resendingId, setResendingId] = React.useState<string | null>(null)
+
+  const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(new Set())
+  const [selectedInviteIds, setSelectedInviteIds] = React.useState<Set<string>>(new Set())
 
   // ─── Data ────────────────────────────────────────────────────────────────
 
@@ -116,6 +123,26 @@ export default function TeamPage() {
 
   const canManage = currentUserRole === 'owner' || currentUserRole === 'admin'
 
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const removableMembers = activeMembers.filter(m => m.role !== 'owner')
+
+  const allMembersSelected = removableMembers.length > 0 && removableMembers.every(m => selectedMemberIds.has(m.id))
+  const someMembersSelected = removableMembers.some(m => selectedMemberIds.has(m.id))
+
+  const allInvitesSelected = pendingInvites.length > 0 && pendingInvites.every(i => selectedInviteIds.has(i.id))
+  const someInvitesSelected = pendingInvites.some(i => selectedInviteIds.has(i.id))
+
+  const toggleMember = (id: string) =>
+    setSelectedMemberIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const selectAllMembers = () => setSelectedMemberIds(new Set(removableMembers.map(m => m.id)))
+  const deselectAllMembers = () => setSelectedMemberIds(new Set())
+
+  const toggleInvite = (id: string) =>
+    setSelectedInviteIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const selectAllInvites = () => setSelectedInviteIds(new Set(pendingInvites.map(i => i.id)))
+  const deselectAllInvites = () => setSelectedInviteIds(new Set())
+
   // ─── Invite ──────────────────────────────────────────────────────────────
 
   const handleInvite = async () => {
@@ -123,7 +150,6 @@ export default function TeamPage() {
     if (!email) { setInviteError('Email is required.'); return }
     if (!organizationId) { setInviteError('Not authenticated.'); return }
 
-    // Quick client-side duplicate check to avoid an unnecessary round-trip
     const existing = members.find(m => m.email === email)
     if (existing?.status === 'active')  { setInviteError('This person is already a member.'); return }
     if (existing?.status === 'pending') { setInviteError('A pending invite already exists for this email.'); return }
@@ -134,8 +160,7 @@ export default function TeamPage() {
 
     try {
       const r = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, role: inviteRole }),
       })
       const b = await r.json().catch(() => ({})) as { error?: string; code?: string; emailWarning?: string }
@@ -153,10 +178,8 @@ export default function TeamPage() {
       setInviteRole('technician')
       setInviteAtLimit(false)
       await fetchMembers()
-
-      if (b.emailWarning) {
-        setNotificationWarning(`Invite created, but the email failed to send: ${b.emailWarning}`)
-      }
+      toast.success('Invite sent')
+      if (b.emailWarning) setNotificationWarning(`Invite created, but the email failed to send: ${b.emailWarning}`)
     } catch {
       setInviteError('Network error. Please try again.')
       setInviting(false)
@@ -167,13 +190,14 @@ export default function TeamPage() {
     setResendingId(member.id)
     try {
       const r = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: member.email, role: member.role }),
       })
       if (!r.ok) {
         const b = await r.json().catch(() => ({}))
         setNotificationWarning(`Invite email could not be resent: ${(b as { error?: string }).error ?? 'unknown error'}`)
+      } else {
+        toast.success('Invite resent')
       }
     } catch {
       setNotificationWarning('Invite email could not be resent (network error).')
@@ -181,20 +205,57 @@ export default function TeamPage() {
     setResendingId(null)
   }
 
-  const handleCancelInvite = async (id: string) => {
-    setCancellingId(id)
-    await supabase.from('organization_members').delete().eq('id', id)
-    setMembers(prev => prev.filter(m => m.id !== id))
-    setCancellingId(null)
-    setCancelConfirmId(null)
+  // ─── Remove / Cancel ─────────────────────────────────────────────────────
+
+  const confirmAction = async () => {
+    if (!removeTarget) return
+    setRemoving(true)
+
+    if (removeTarget.kind === 'single-member') {
+      await supabase.from('organization_members').delete().eq('id', removeTarget.id)
+      setMembers(prev => prev.filter(m => m.id !== removeTarget.id))
+      setSelectedMemberIds(prev => { const n = new Set(prev); n.delete(removeTarget.id); return n })
+      toast.success('Member removed')
+    } else if (removeTarget.kind === 'bulk-members') {
+      await supabase.from('organization_members').delete().in('id', removeTarget.ids)
+      setMembers(prev => prev.filter(m => !removeTarget.ids.includes(m.id)))
+      setSelectedMemberIds(new Set())
+      toast.success(`${removeTarget.ids.length} member${removeTarget.ids.length > 1 ? 's' : ''} removed`)
+    } else if (removeTarget.kind === 'single-invite') {
+      await supabase.from('organization_members').delete().eq('id', removeTarget.id)
+      setMembers(prev => prev.filter(m => m.id !== removeTarget.id))
+      setSelectedInviteIds(prev => { const n = new Set(prev); n.delete(removeTarget.id); return n })
+      toast.success('Invite cancelled')
+    } else if (removeTarget.kind === 'bulk-invites') {
+      await supabase.from('organization_members').delete().in('id', removeTarget.ids)
+      setMembers(prev => prev.filter(m => !removeTarget.ids.includes(m.id)))
+      setSelectedInviteIds(new Set())
+      toast.success(`${removeTarget.ids.length} invite${removeTarget.ids.length > 1 ? 's' : ''} cancelled`)
+    }
+
+    setRemoving(false)
+    setRemoveTarget(null)
   }
 
-  const handleRemoveMember = async (id: string) => {
-    setRemovingId(id)
-    await supabase.from('organization_members').delete().eq('id', id)
-    setMembers(prev => prev.filter(m => m.id !== id))
-    setRemovingId(null)
-    setRemoveConfirmId(null)
+  const removeModalTitle = () => {
+    if (!removeTarget) return ''
+    if (removeTarget.kind === 'single-member') return `Remove "${removeTarget.email}"?`
+    if (removeTarget.kind === 'bulk-members') return `Remove ${removeTarget.count} member${removeTarget.count !== 1 ? 's' : ''}?`
+    if (removeTarget.kind === 'single-invite') return `Cancel invite to "${removeTarget.email}"?`
+    return `Cancel ${(removeTarget as { count: number }).count} invite${(removeTarget as { count: number }).count !== 1 ? 's' : ''}?`
+  }
+
+  const removeModalMessage = () => {
+    if (!removeTarget) return ''
+    if (removeTarget.kind === 'single-member' || removeTarget.kind === 'bulk-members')
+      return "They'll lose access to your organization."
+    return 'The invite links will stop working.'
+  }
+
+  const removeModalLabel = () => {
+    if (!removeTarget) return 'Confirm'
+    if (removeTarget.kind === 'single-member' || removeTarget.kind === 'bulk-members') return 'Remove'
+    return 'Cancel Invite'
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -207,13 +268,16 @@ export default function TeamPage() {
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
-
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Team</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your team members and invites</p>
         </div>
+        {canManage && (
+          <Button onClick={() => { setInviteOpen(true); setInviteAtLimit(false); setInviteError('') }} className="gap-1.5">
+            <Plus className="w-4 h-4" /> Invite Member
+          </Button>
+        )}
       </div>
 
       {notificationWarning && (
@@ -243,9 +307,22 @@ export default function TeamPage() {
       {activeTab === 'members' && (
         <Card className="py-0 overflow-hidden">
           <CardHeader className="border-b px-6 py-4">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              {loading ? 'Loading…' : `${activeMembers.length} member${activeMembers.length !== 1 ? 's' : ''}`}
-            </CardTitle>
+            {selectedMemberIds.size > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">{selectedMemberIds.size} selected</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={deselectAllMembers} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                  <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                    onClick={() => setRemoveTarget({ kind: 'bulk-members', count: selectedMemberIds.size, ids: Array.from(selectedMemberIds) })}>
+                    <Trash2 className="w-3.5 h-3.5" /> Remove {selectedMemberIds.size}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <CardTitle className="text-sm text-muted-foreground font-normal">
+                {loading ? 'Loading…' : `${activeMembers.length} member${activeMembers.length !== 1 ? 's' : ''}`}
+              </CardTitle>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -267,6 +344,18 @@ export default function TeamPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
+                      {canManage && (
+                        <th className="px-4 py-3.5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={allMembersSelected}
+                            ref={(el) => { if (el) el.indeterminate = someMembersSelected && !allMembersSelected }}
+                            onChange={(e) => e.target.checked ? selectAllMembers() : deselectAllMembers()}
+                            className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                            aria-label="Select all"
+                          />
+                        </th>
+                      )}
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Email</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Role</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Member Since</th>
@@ -276,33 +365,34 @@ export default function TeamPage() {
                   <tbody>
                     {activeMembers.map((member) => (
                       <tr key={member.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4text-foreground">{member.email}</td>
+                        {canManage && (
+                          <td className="px-4 py-4">
+                            {member.role !== 'owner' ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedMemberIds.has(member.id)}
+                                onChange={() => toggleMember(member.id)}
+                                className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                                aria-label={`Select ${member.email}`}
+                              />
+                            ) : (
+                              <span className="block w-4 h-4" />
+                            )}
+                          </td>
+                        )}
+                        <td className="px-6 py-4 text-foreground">{member.email}</td>
                         <td className="px-6 py-4">
                           <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[member.role])}>
                             {roleLabel(member.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
+                        <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
                         {canManage && (
-                          <td className="px-6 py-4text-right whitespace-nowrap">
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
                             {member.role === 'owner' ? (
                               <span className="text-xs text-muted-foreground/40">—</span>
-                            ) : removeConfirmId === member.id ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Remove?</span>
-                                <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                  onClick={() => handleRemoveMember(member.id)}
-                                  disabled={removingId === member.id}>
-                                  {removingId === member.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                  onClick={() => setRemoveConfirmId(null)}
-                                  disabled={removingId === member.id}>
-                                  Cancel
-                                </Button>
-                              </span>
                             ) : (
-                              <MemberActionMenu onRemove={() => setRemoveConfirmId(member.id)} />
+                              <MemberActionMenu onRemove={() => setRemoveTarget({ kind: 'single-member', id: member.id, email: member.email })} />
                             )}
                           </td>
                         )}
@@ -320,9 +410,22 @@ export default function TeamPage() {
       {activeTab === 'pending' && (
         <Card className="py-0 overflow-hidden">
           <CardHeader className="border-b px-6 py-4">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              {loading ? 'Loading…' : `${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`}
-            </CardTitle>
+            {selectedInviteIds.size > 0 ? (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">{selectedInviteIds.size} selected</span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={deselectAllInvites} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                  <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                    onClick={() => setRemoveTarget({ kind: 'bulk-invites', count: selectedInviteIds.size, ids: Array.from(selectedInviteIds) })}>
+                    <Trash2 className="w-3.5 h-3.5" /> Cancel {selectedInviteIds.size}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <CardTitle className="text-sm text-muted-foreground font-normal">
+                {loading ? 'Loading…' : `${pendingInvites.length} pending invite${pendingInvites.length !== 1 ? 's' : ''}`}
+              </CardTitle>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -349,6 +452,18 @@ export default function TeamPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
+                      {canManage && (
+                        <th className="px-4 py-3.5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={allInvitesSelected}
+                            ref={(el) => { if (el) el.indeterminate = someInvitesSelected && !allInvitesSelected }}
+                            onChange={(e) => e.target.checked ? selectAllInvites() : deselectAllInvites()}
+                            className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                            aria-label="Select all invites"
+                          />
+                        </th>
+                      )}
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Email</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Role</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Invited</th>
@@ -358,46 +473,40 @@ export default function TeamPage() {
                   <tbody>
                     {pendingInvites.map((invite) => (
                       <tr key={invite.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4text-foreground">{invite.email}</td>
+                        {canManage && (
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedInviteIds.has(invite.id)}
+                              onChange={() => toggleInvite(invite.id)}
+                              className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                              aria-label={`Select invite for ${invite.email}`}
+                            />
+                          </td>
+                        )}
+                        <td className="px-6 py-4 text-foreground">{invite.email}</td>
                         <td className="px-6 py-4">
                           <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[invite.role])}>
                             {roleLabel(invite.role)}
                           </span>
                         </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(invite.invited_at)}</td>
+                        <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{fmtDate(invite.invited_at)}</td>
                         {canManage && (
-                          <td className="px-6 py-4text-right whitespace-nowrap">
-                            {cancelConfirmId === invite.id ? (
-                              <span className="inline-flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Cancel invite?</span>
-                                <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                  onClick={() => handleCancelInvite(invite.id)}
-                                  disabled={cancellingId === invite.id}>
-                                  {cancellingId === invite.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                  onClick={() => setCancelConfirmId(null)}
-                                  disabled={cancellingId === invite.id}>
-                                  No
-                                </Button>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-2">
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
-                                  onClick={() => handleResend(invite)}
-                                  disabled={resendingId === invite.id}>
-                                  {resendingId === invite.id
-                                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                                    : <RefreshCw className="w-3 h-3" />}
-                                  Resend
-                                </Button>
-                                <Button size="sm" variant="ghost"
-                                  className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                                  onClick={() => setCancelConfirmId(invite.id)}>
-                                  Cancel
-                                </Button>
-                              </span>
-                            )}
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            <span className="inline-flex items-center gap-2">
+                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1"
+                                onClick={() => handleResend(invite)} disabled={resendingId === invite.id}>
+                                {resendingId === invite.id
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <RefreshCw className="w-3 h-3" />}
+                                Resend
+                              </Button>
+                              <Button size="sm" variant="ghost"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                onClick={() => setRemoveTarget({ kind: 'single-invite', id: invite.id, email: invite.email })}>
+                                Cancel
+                              </Button>
+                            </span>
                           </td>
                         )}
                       </tr>
@@ -431,7 +540,7 @@ export default function TeamPage() {
                   <tbody>
                     {PERMISSIONS.map((perm) => (
                       <tr key={perm.label} className="border-b border-border last:border-0">
-                        <td className="px-6 py-4font-medium text-foreground">{perm.label}</td>
+                        <td className="px-6 py-4 font-medium text-foreground">{perm.label}</td>
                         <td className="px-6 py-4"><PermIcon allowed={perm.Owner} /></td>
                         <td className="px-6 py-4"><PermIcon allowed={perm.Admin} /></td>
                         <td className="px-6 py-4"><PermIcon allowed={perm.Technician} /></td>
@@ -448,65 +557,64 @@ export default function TeamPage() {
         </div>
       )}
 
-      {/* ── Invite Modal ── */}
-      {inviteOpen && createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) { setInviteOpen(false); setInviteError(''); setInviteAtLimit(false) } }}
-        >
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative z-10 bg-background border border-border rounded-xl shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-1">Invite Member</h2>
-            <p className="text-sm text-muted-foreground mb-5">
+      {/* Remove / Cancel confirmation modal */}
+      <DeleteConfirmModal
+        open={removeTarget !== null}
+        title={removeModalTitle()}
+        message={removeModalMessage()}
+        confirmLabel={removeModalLabel()}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={confirmAction}
+        loading={removing}
+      />
+
+      {/* ── Invite Sheet ── */}
+      <Sheet open={inviteOpen} onOpenChange={(open) => { if (!open) { setInviteError(''); setInviteAtLimit(false) }; setInviteOpen(open) }}>
+        <SheetContent side="right" className="flex flex-col gap-0 p-0">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <SheetTitle>Invite Member</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground -mt-1">
               They&apos;ll receive an email invite to join your organization.
             </p>
-            <div className="flex flex-col gap-4">
-              <Field label="Email" required>
-                <Input
-                  type="email"
-                  placeholder="jane@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
-                  autoFocus
-                />
-              </Field>
-              <Field label="Role">
-                <NativeSelect
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as 'admin' | 'technician')}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="technician">Technician</option>
-                </NativeSelect>
-              </Field>
-              {inviteError && (
-                <div className="text-sm text-destructive">
-                  {inviteError}
-                  {inviteAtLimit && (
-                    <> <Link href="/dashboard/billing" className="underline font-medium whitespace-nowrap">
-                      Upgrade plan →
-                    </Link></>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-3 mt-6">
-              <Button variant="outline" className="flex-1"
-                onClick={() => { setInviteOpen(false); setInviteError(''); setInviteAtLimit(false) }}
-                disabled={inviting}>
-                Cancel
-              </Button>
-              <Button className="flex-1" onClick={handleInvite} disabled={inviting}>
-                {inviting
-                  ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sending…</>
-                  : 'Send Invite'}
-              </Button>
-            </div>
+            <Field label="Email" required>
+              <Input
+                type="email"
+                placeholder="jane@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
+                autoFocus
+              />
+            </Field>
+            <Field label="Role">
+              <NativeSelect value={inviteRole} onChange={(e) => setInviteRole(e.target.value as 'admin' | 'technician')}>
+                <option value="admin">Admin</option>
+                <option value="technician">Technician</option>
+              </NativeSelect>
+            </Field>
+            {inviteError && (
+              <div className="text-sm text-destructive">
+                {inviteError}
+                {inviteAtLimit && (
+                  <> <Link href="/dashboard/billing" className="underline font-medium whitespace-nowrap">Upgrade plan →</Link></>
+                )}
+              </div>
+            )}
           </div>
-        </div>,
-        document.body
-      )}
+          <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
+            <Button variant="outline" className="flex-1"
+              onClick={() => { setInviteOpen(false); setInviteError(''); setInviteAtLimit(false) }}
+              disabled={inviting}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={handleInvite} disabled={inviting}>
+              {inviting ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sending…</> : 'Send Invite'}
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
@@ -529,8 +637,7 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
   React.useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node))
-        setOpen(false)
+      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -552,8 +659,7 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
       {open && createPortal(
         <div ref={menuRef} role="menu" style={{ top: coords.top, left: coords.left }}
           className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm">
-          <button type="button" role="menuitem"
-            onClick={() => { setOpen(false); onRemove() }}
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onRemove() }}
             className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer">
             <UserX className="w-3.5 h-3.5" /> Remove
           </button>
@@ -563,8 +669,6 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
     </>
   )
 }
-
-// ─── Local helpers ────────────────────────────────────────────────────────────
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (

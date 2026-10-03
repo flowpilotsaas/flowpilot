@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
-import { stripe } from '@/lib/stripe'
 import { createServerSupabase } from '@/lib/supabase-server'
+import { createEstimatePaymentSession } from '@/lib/stripe-estimate-session'
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,47 +26,20 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Estimate not found.' }, { status: 404 })
     }
 
-    const amountCents = Math.round(estimate.total * 100)
-    if (amountCents < 50) {
-      return Response.json({ error: 'Estimate total is too small to process a payment.' }, { status: 400 })
-    }
-
     const origin = req.headers.get('origin') ?? 'http://localhost:3000'
-    const estimateLabel = `EST-${String(estimate.estimate_number).padStart(4, '0')}`
-
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: estimate.customer_email ?? undefined,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: amountCents,
-            product_data: {
-              name: estimateLabel,
-              ...(estimate.customer_name && { description: `Payment for ${estimate.customer_name}` }),
-            },
-          },
-          quantity: 1,
-        },
-      ],
-      success_url: `${origin}/dashboard/estimates/${estimateId}?payment=success`,
-      cancel_url: `${origin}/dashboard/estimates/${estimateId}`,
-      metadata: {
-        type: 'estimate_payment',
-        estimate_id: estimateId,
-        user_id: user.id,
-        customer_name: estimate.customer_name ?? '',
-        customer_email: estimate.customer_email ?? '',
-      },
+    const url = await createEstimatePaymentSession({
+      estimate,
+      successUrl: `${origin}/dashboard/estimates/${estimateId}?payment=success`,
+      cancelUrl: `${origin}/dashboard/estimates/${estimateId}`,
+      userId: user.id,
     })
 
     await supabase
       .from('estimates')
-      .update({ payment_link_url: session.url, payment_link_status: 'sent' })
+      .update({ payment_link_url: url, payment_link_status: 'sent' })
       .eq('id', estimateId)
 
-    return Response.json({ url: session.url })
+    return Response.json({ url })
   } catch (err) {
     console.error('[create-estimate-payment-session]', err)
     return Response.json({ error: (err as Error).message }, { status: 500 })

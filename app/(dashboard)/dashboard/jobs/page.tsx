@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/sheet'
 import { Plus, Search, Pencil, Trash2, Loader2, Briefcase, MoreHorizontal, Eye, DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,7 @@ type Job = {
   id: string
   user_id: string
   customer_id: string | null
+  estimate_id: string | null
   job_number: number | null
   title: string
   description: string | null
@@ -53,6 +56,11 @@ type FormData = {
   description: string
   notes: string
 }
+
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
 
 const STATUSES: JobStatus[] = ['Scheduled', 'In Progress', 'Completed']
 
@@ -117,8 +125,10 @@ export default function JobsPage() {
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const [payModalJob, setPayModalJob] = React.useState<Job | null>(null)
   const [notificationWarning, setNotificationWarning] = React.useState('')
@@ -164,6 +174,20 @@ export default function JobsPage() {
     )
   }, [jobs, search])
 
+  // ─── Bulk select helpers ──────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((j) => selectedIds.has(j.id))
+  const someSelected = filtered.some((j) => selectedIds.has(j.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((j) => j.id)))
+  const deselectAll = () => setSelectedIds(new Set())
+
   // ─── Sheet helpers ────────────────────────────────────────────────────
 
   const openAdd = () => {
@@ -172,12 +196,6 @@ export default function JobsPage() {
     setFormError('')
     setSheetOpen(true)
   }
-
-  React.useEffect(() => {
-    const h = () => openAdd()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openAdd only calls stable useState setters
 
   const openEdit = (job: Job) => {
     setEditingJob(job)
@@ -216,7 +234,8 @@ export default function JobsPage() {
     const payload = {
       title: form.title.trim(),
       customer_id: form.customer_id || null,
-      status: form.status,
+      // Paid can only be set via the PaymentModal — never let the edit form overwrite it
+      status: editingJob?.status === 'Paid' ? ('Paid' as JobStatus) : form.status,
       scheduled_date: form.scheduled_date || null,
       price: form.price !== '' ? parseFloat(form.price) : null,
       description: form.description.trim() || null,
@@ -241,6 +260,7 @@ export default function JobsPage() {
       }
       setSaving(false)
       closeSheet()
+      toast.success('Job created')
       await fetchData()
       const warns: string[] = []
       if (newJob?.customers?.email) {
@@ -261,29 +281,51 @@ export default function JobsPage() {
 
     setSaving(false)
     closeSheet()
+    toast.success('Job updated')
     await fetchData()
   }
 
   // ─── Delete ───────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
     const { error } = await supabase.from('jobs').delete().eq('id', id)
-    if (!error) setJobs((prev) => prev.filter((j) => j.id !== id))
-    setDeleteConfirmId(null)
+    if (error) { toast.error('Failed to delete job'); setDeleting(false); return }
+    setJobs((prev) => prev.filter((j) => j.id !== id))
+    toast.success('Job deleted')
+    setDeleteTarget(null)
     setDeleting(false)
   }
 
-  // ─── Quick status update (inline, no sheet) ──────────────────────────
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('jobs').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete jobs'); setDeleting(false); return }
+    setJobs((prev) => prev.filter((j) => !ids.includes(j.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} job${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkStatusChange = async (newStatus: JobStatus) => {
+    const ids = Array.from(selectedIds)
+    setJobs((prev) => prev.map((j) => ids.includes(j.id) ? { ...j, status: newStatus } : j))
+    const { error } = await supabase.from('jobs').update({ status: newStatus }).in('id', ids)
+    if (error) { fetchData(); toast.error('Failed to update status') }
+    else { setSelectedIds(new Set()); toast.success(`${ids.length} job${ids.length > 1 ? 's' : ''} updated`) }
+  }
+
+  // ─── Quick status update ─────────────────────────────────────────────
 
   const handleStatusChange = async (jobId: string, newStatus: JobStatus) => {
     const job = jobs.find((j) => j.id === jobId)
-    // Optimistic update so the UI responds instantly
     setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, status: newStatus } : j))
     const { error } = await supabase.from('jobs').update({ status: newStatus }).eq('id', jobId)
     if (error) {
-      // Revert on failure
       fetchData()
     } else if (newStatus === 'Completed') {
       const completionData = {
@@ -353,6 +395,7 @@ export default function JobsPage() {
       prev.map((j) => j.id === payModalJob!.id ? { ...j, status: 'Paid' as JobStatus } : j)
     )
     setPayModalJob(null)
+    toast.success('Payment recorded')
 
     const warns: string[] = []
     if (payModalJob.customers?.email) {
@@ -381,6 +424,9 @@ export default function JobsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Schedule and track your field service jobs</p>
         </div>
+        <Button onClick={openAdd} className="gap-1.5">
+          <Plus className="w-4 h-4" /> Add Job
+        </Button>
       </div>
 
       {notificationWarning && (
@@ -401,9 +447,37 @@ export default function JobsPage() {
       {/* Table card */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} job${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">
+                  Clear
+                </Button>
+                <select
+                  defaultValue=""
+                  onChange={(e) => { if (e.target.value) { handleBulkStatusChange(e.target.value as JobStatus); e.target.value = '' } }}
+                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring cursor-pointer"
+                >
+                  <option value="" disabled>Change status…</option>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} job${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -435,6 +509,16 @@ export default function JobsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Title</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Customer</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Status</th>
@@ -445,56 +529,62 @@ export default function JobsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((job) => (
-                    <React.Fragment key={job.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4font-medium text-foreground max-w-[16rem] truncate" title={job.title}>
-                          <Link
-                            href={`/dashboard/jobs/${job.id}`}
-                            className="hover:underline hover:text-primary transition-colors"
-                          >
-                            {job.title}
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
-                          {job.customers?.name ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-3">
-                          <StatusDropdown
-                            jobId={job.id}
-                            currentStatus={job.status}
-                            onStatusChange={handleStatusChange}
-                          />
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
-                          {formatDate(job.scheduled_date)}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap tabular-nums">
-                          {formatCurrency(job.price)}
-                        </td>
-                        <td className="px-6 py-4text-right whitespace-nowrap">
-                          {deleteConfirmId === job.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete?</span>
-                              <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                onClick={() => handleDelete(job.id)} disabled={deleting}>
-                                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
-                                Cancel
-                              </Button>
-                            </span>
-                          ) : (
-                            <ActionMenu
-                              jobId={job.id}
-                              onEdit={() => openEdit(job)}
-                              onDelete={() => setDeleteConfirmId(job.id)}
-                              onMarkPaid={job.status !== 'Paid' ? () => setPayModalJob(job) : undefined}
-                            />
+                    <tr key={job.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(job.id)}
+                          onChange={() => toggleSelect(job.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${job.title}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground max-w-[16rem] truncate" title={job.title}>
+                        <Link
+                          href={`/dashboard/jobs/${job.id}`}
+                          className="hover:underline hover:text-primary transition-colors"
+                        >
+                          {job.title}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {job.customers?.name ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-3">
+                        <StatusDropdown
+                          jobId={job.id}
+                          currentStatus={job.status}
+                          onStatusChange={handleStatusChange}
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {formatDate(job.scheduled_date)}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap tabular-nums">
+                        {formatCurrency(job.price)}
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5">
+                          {job.status !== 'Paid' && (
+                            <button
+                              type="button"
+                              onClick={() => setPayModalJob(job)}
+                              title="Mark as Paid"
+                              className="inline-flex items-center gap-1 h-7 px-2.5 text-xs font-medium rounded-md text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 dark:text-emerald-400 dark:bg-emerald-900/20 dark:border-emerald-800 dark:hover:bg-emerald-900/40 transition-colors cursor-pointer"
+                            >
+                              <DollarSign className="w-3 h-3" />
+                              Mark Paid
+                            </button>
                           )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                          <ActionMenu
+                            jobId={job.id}
+                            onEdit={() => openEdit(job)}
+                            onDelete={() => setDeleteTarget({ kind: 'single', id: job.id, name: job.title })}
+                            onMarkPaid={job.status !== 'Paid' ? () => setPayModalJob(job) : undefined}
+                          />
+                        </span>
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -502,6 +592,22 @@ export default function JobsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} job${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
 
       {/* Payment modal */}
       {payModalJob && (
@@ -538,9 +644,16 @@ export default function JobsPage() {
             </Field>
 
             <Field label="Status">
-              <NativeSelect value={form.status} onChange={setField('status')}>
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </NativeSelect>
+              {editingJob?.status === 'Paid' ? (
+                <div className="flex items-center gap-2 h-9 rounded-md border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground select-none">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success/20 text-success">Paid</span>
+                  <span className="text-xs">— set via "Mark as Paid"</span>
+                </div>
+              ) : (
+                <NativeSelect value={form.status} onChange={setField('status')}>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </NativeSelect>
+              )}
             </Field>
 
             <Field label="Scheduled Date">
@@ -615,7 +728,7 @@ function ActionMenu({ jobId, onEdit, onDelete, onMarkPaid }: {
   const openMenu = () => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setCoords({ top: rect.bottom + 6, left: rect.right - 144 }) // 144 = menu width
+    setCoords({ top: rect.bottom + 6, left: rect.right - 144 })
     setOpen(true)
   }
 
@@ -714,7 +827,7 @@ function StatusDropdown({ jobId, currentStatus, onStatusChange }: {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  const DROPDOWN_HEIGHT = 116 // ~3 items × ~32px + padding
+  const DROPDOWN_HEIGHT = 116
 
   const openMenu = () => {
     if (!triggerRef.current) return
@@ -727,7 +840,6 @@ function StatusDropdown({ jobId, currentStatus, onStatusChange }: {
     setOpen(true)
   }
 
-  // Close on outside click
   React.useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
@@ -740,7 +852,6 @@ function StatusDropdown({ jobId, currentStatus, onStatusChange }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  // Close on any scroll (fixed coords become stale the moment the page moves)
   React.useEffect(() => {
     if (!open) return
     const handler = () => setOpen(false)
@@ -865,7 +976,6 @@ function PaymentModal({
       onClick={handleBackdrop}
     >
       <div className="bg-popover rounded-xl border border-border shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-border flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center shrink-0">
             <DollarSign className="w-5 h-5 text-emerald-600" />
@@ -876,7 +986,6 @@ function PaymentModal({
           </div>
         </div>
 
-        {/* Body */}
         <div className="px-6 py-5 space-y-4">
           <Field label="Amount ($)" required>
             <Input
@@ -909,7 +1018,6 @@ function PaymentModal({
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
-        {/* Footer */}
         <div className="px-6 pb-5 flex gap-3 justify-end border-t border-border pt-4">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleConfirm} disabled={saving} className="gap-2">

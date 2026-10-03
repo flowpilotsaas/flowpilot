@@ -4,9 +4,11 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +28,11 @@ type Estimate = {
   total: number
   created_at: string
 }
+
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -65,8 +72,11 @@ export default function EstimatesPage() {
   const [loading, setLoading] = React.useState(true)
   const [search, setSearch] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState<'all' | EstimateStatus>('all')
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
+
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed } = useTrialStatus()
@@ -96,25 +106,63 @@ export default function EstimatesPage() {
     })
   }, [estimates, search, statusFilter])
 
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id))
+  const someSelected = filtered.some((e) => selectedIds.has(e.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((e) => e.id)))
+  const deselectAll = () => setSelectedIds(new Set())
+
+  // ─── Status change ───────────────────────────────────────────────────────
+
   const handleStatusChange = async (estimateId: string, newStatus: EstimateStatus) => {
-    setEstimates((prev) =>
-      prev.map((e) => e.id === estimateId ? { ...e, status: newStatus } : e)
-    )
-    const { error } = await supabase
-      .from('estimates')
-      .update({ status: newStatus })
-      .eq('id', estimateId)
-    if (error) fetchEstimates()
+    setEstimates((prev) => prev.map((e) => e.id === estimateId ? { ...e, status: newStatus } : e))
+    const { error } = await supabase.from('estimates').update({ status: newStatus }).eq('id', estimateId)
+    if (error) { fetchEstimates(); toast.error('Failed to update status') }
   }
 
+  const handleBulkStatusChange = async (newStatus: EstimateStatus) => {
+    const ids = Array.from(selectedIds)
+    setEstimates((prev) => prev.map((e) => ids.includes(e.id) ? { ...e, status: newStatus } : e))
+    const { error } = await supabase.from('estimates').update({ status: newStatus }).in('id', ids)
+    if (error) { fetchEstimates(); toast.error('Failed to update status') }
+    else { setSelectedIds(new Set()); toast.success(`${ids.length} estimate${ids.length > 1 ? 's' : ''} updated`) }
+  }
+
+  // ─── Delete ──────────────────────────────────────────────────────────────
+
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
-    await supabase.from('estimates').delete().eq('id', id)
+    const { error } = await supabase.from('estimates').delete().eq('id', id)
+    if (error) { toast.error('Failed to delete estimate'); setDeleting(false); return }
     setEstimates((prev) => prev.filter((e) => e.id !== id))
-    setDeleteConfirmId(null)
+    toast.success('Estimate deleted')
+    setDeleteTarget(null)
     setDeleting(false)
   }
+
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('estimates').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete estimates'); setDeleting(false); return }
+    setEstimates((prev) => prev.filter((e) => !ids.includes(e.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} estimate${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -124,6 +172,11 @@ export default function EstimatesPage() {
           <h1 className="text-2xl font-semibold text-foreground">Estimates</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Create and send estimates to customers</p>
         </div>
+        <Button asChild className="gap-1.5">
+          <Link href="/dashboard/estimates/new">
+            <Plus className="w-4 h-4" /> New Estimate
+          </Link>
+        </Button>
       </div>
 
       {/* Filters */}
@@ -150,9 +203,37 @@ export default function EstimatesPage() {
       {/* Table card */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} estimate${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">
+                  Clear
+                </Button>
+                <select
+                  defaultValue=""
+                  onChange={(e) => { if (e.target.value) { handleBulkStatusChange(e.target.value as EstimateStatus); e.target.value = '' } }}
+                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring cursor-pointer"
+                >
+                  <option value="" disabled>Change status…</option>
+                  {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} estimate${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -186,6 +267,16 @@ export default function EstimatesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Estimate #</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Customer</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Status</th>
@@ -196,49 +287,42 @@ export default function EstimatesPage() {
                 </thead>
                 <tbody>
                   {filtered.map((est) => (
-                    <React.Fragment key={est.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4font-mono font-medium text-foreground whitespace-nowrap">
-                          {fmtEstNum(est.estimate_number)}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground">
-                          {est.customer_name ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-3">
-                          <StatusDropdown
-                            estimateId={est.id}
-                            currentStatus={est.status}
-                            onStatusChange={handleStatusChange}
-                          />
-                        </td>
-                        <td className="px-6 py-4text-foreground font-medium tabular-nums whitespace-nowrap">
-                          {fmtCurrency(est.total)}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
-                          {fmtDate(est.created_at)}
-                        </td>
-                        <td className="px-6 py-4text-right whitespace-nowrap">
-                          {deleteConfirmId === est.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete?</span>
-                              <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                onClick={() => handleDelete(est.id)} disabled={deleting}>
-                                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
-                                Cancel
-                              </Button>
-                            </span>
-                          ) : (
-                            <ActionMenu
-                              estimateId={est.id}
-                              onDelete={() => setDeleteConfirmId(est.id)}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                    <tr key={est.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(est.id)}
+                          onChange={() => toggleSelect(est.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${fmtEstNum(est.estimate_number)}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-mono font-medium text-foreground whitespace-nowrap">
+                        {fmtEstNum(est.estimate_number)}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {est.customer_name ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-3">
+                        <StatusDropdown
+                          estimateId={est.id}
+                          currentStatus={est.status}
+                          onStatusChange={handleStatusChange}
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-foreground font-medium tabular-nums whitespace-nowrap">
+                        {fmtCurrency(est.total)}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {fmtDate(est.created_at)}
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <ActionMenu
+                          estimateId={est.id}
+                          onDelete={() => setDeleteTarget({ kind: 'single', id: est.id, name: fmtEstNum(est.estimate_number) })}
+                        />
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -246,6 +330,23 @@ export default function EstimatesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} estimate${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
+
       <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
     </div>
   )
@@ -341,15 +442,13 @@ function StatusDropdown({ estimateId, currentStatus, onStatusChange }: {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const menuRef = React.useRef<HTMLDivElement>(null)
 
-  const DROPDOWN_HEIGHT = 132 // 4 items × ~33px
+  const DROPDOWN_HEIGHT = 132
 
   const openMenu = () => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
-    const top = spaceBelow >= DROPDOWN_HEIGHT
-      ? rect.bottom + 6
-      : rect.top - DROPDOWN_HEIGHT - 6
+    const top = spaceBelow >= DROPDOWN_HEIGHT ? rect.bottom + 6 : rect.top - DROPDOWN_HEIGHT - 6
     setCoords({ top, left: rect.left })
     setOpen(true)
   }
@@ -357,10 +456,8 @@ function StatusDropdown({ estimateId, currentStatus, onStatusChange }: {
   React.useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (
-        !menuRef.current?.contains(e.target as Node) &&
-        !triggerRef.current?.contains(e.target as Node)
-      ) setOpen(false)
+      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node))
+        setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)

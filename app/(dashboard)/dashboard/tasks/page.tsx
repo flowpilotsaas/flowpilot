@@ -27,6 +27,8 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,7 +39,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
-import { Plus, CheckSquare, Loader2 } from 'lucide-react'
+import { Plus, CheckSquare, Loader2, Trash2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
@@ -68,6 +70,11 @@ type FormData = {
   notes: string
 }
 
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
+
 const EMPTY_FORM: FormData = {
   title: '', due_date: '', customer_id: '', priority: 'Medium', notes: '',
 }
@@ -94,9 +101,14 @@ export default function TasksPage() {
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving]       = React.useState(false)
 
-  const [toggling, setToggling]     = React.useState<string | null>(null)
-  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+  const [toggling, setToggling]   = React.useState<string | null>(null)
 
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
+  const [deleting, setDeleting]         = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
 
   const fetchData = React.useCallback(async () => {
@@ -104,16 +116,8 @@ export default function TasksPage() {
     if (!user) return
 
     const [tasksRes, custRes] = await Promise.all([
-      supabase
-        .from('tasks')
-        .select('*, customers(name)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('customers')
-        .select('id, name')
-        .eq('user_id', user.id)
-        .order('name'),
+      supabase.from('tasks').select('*, customers(name)').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('customers').select('id, name').eq('user_id', user.id).order('name'),
     ])
 
     if (tasksRes.data) setTasks(tasksRes.data as Task[])
@@ -129,17 +133,21 @@ export default function TasksPage() {
     return tasks
   }, [tasks, filter])
 
-  const openSheet = () => {
-    setForm(EMPTY_FORM)
-    setFormError('')
-    setSheetOpen(true)
-  }
+  // ─── Bulk select helpers ────────────────────────────────────────────────
 
-  React.useEffect(() => {
-    const h = () => openSheet()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openSheet only calls stable useState setters
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((t) => selectedIds.has(t.id))
+  const someSelected = filtered.some((t) => selectedIds.has(t.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((t) => t.id)))
+  const deselectAll = () => setSelectedIds(new Set())
+
+  const openSheet = () => { setForm(EMPTY_FORM); setFormError(''); setSheetOpen(true) }
 
   const handleSave = async () => {
     if (!trialAllowed) { setTrialModalOpen(true); return }
@@ -161,6 +169,7 @@ export default function TasksPage() {
     })
 
     if (error) { setFormError(error.message); setSaving(false); return }
+    toast.success('Task created')
     setSaving(false)
     setSheetOpen(false)
     await fetchData()
@@ -175,6 +184,36 @@ export default function TasksPage() {
     setToggling(null)
   }
 
+  const handleDelete = async (id: string) => {
+    setDeleting(true)
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) { toast.error('Failed to delete task'); setDeleting(false); return }
+    setTasks((prev) => prev.filter((t) => t.id !== id))
+    toast.success('Task deleted')
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkDelete = async () => {
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('tasks').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete tasks'); setDeleting(false); return }
+    setTasks((prev) => prev.filter((t) => !ids.includes(t.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkComplete = async (completed: boolean) => {
+    const ids = Array.from(selectedIds)
+    setTasks((prev) => prev.map((t) => ids.includes(t.id) ? { ...t, completed } : t))
+    const { error } = await supabase.from('tasks').update({ completed }).in('id', ids)
+    if (error) { fetchData(); toast.error('Failed to update tasks') }
+    else { setSelectedIds(new Set()); toast.success(`${ids.length} task${ids.length > 1 ? 's' : ''} updated`) }
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -183,6 +222,9 @@ export default function TasksPage() {
           <h1 className="text-2xl font-semibold text-foreground">Tasks &amp; Reminders</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Follow-ups and reminders linked to customers</p>
         </div>
+        <Button onClick={openSheet} className="gap-1.5">
+          <Plus className="w-4 h-4" /> New Task
+        </Button>
       </div>
 
       {/* Filter */}
@@ -194,9 +236,7 @@ export default function TasksPage() {
             onClick={() => setFilter(f)}
             className={cn(
               'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize cursor-pointer',
-              filter === f
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-muted'
+              filter === f ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
             )}
           >
             {f}
@@ -207,9 +247,30 @@ export default function TasksPage() {
       {/* Task list */}
       <Card>
         <CardHeader className="border-b pb-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} task${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                <Button size="sm" variant="outline" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => handleBulkComplete(true)}>
+                  <Check className="w-3.5 h-3.5" /> Complete
+                </Button>
+                <Button size="sm" variant="outline" className="h-8 px-3 text-xs cursor-pointer"
+                  onClick={() => handleBulkComplete(false)}>
+                  Incomplete
+                </Button>
+                <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} task${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -237,6 +298,20 @@ export default function TasksPage() {
             </div>
           ) : (
             <div className="divide-y divide-border">
+              {/* Select-all row */}
+              {filtered.length > 0 && (
+                <div className="flex items-center gap-4 px-6 py-2 bg-muted/20 border-b border-border">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                    onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                    className="w-4 h-4 rounded border-input accent-primary cursor-pointer shrink-0"
+                    aria-label="Select all tasks"
+                  />
+                  <span className="text-xs text-muted-foreground">Select all</span>
+                </div>
+              )}
               {filtered.map((task) => (
                 <div
                   key={task.id}
@@ -245,7 +320,16 @@ export default function TasksPage() {
                     task.completed && 'opacity-60'
                   )}
                 >
-                  {/* Checkbox */}
+                  {/* Selection checkbox */}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(task.id)}
+                    onChange={() => toggleSelect(task.id)}
+                    className="mt-0.5 w-4 h-4 rounded border-input accent-primary cursor-pointer shrink-0"
+                    aria-label={`Select ${task.title}`}
+                  />
+
+                  {/* Completion toggle */}
                   <button
                     type="button"
                     onClick={() => handleToggle(task)}
@@ -288,12 +372,38 @@ export default function TasksPage() {
                   )}>
                     {task.priority}
                   </span>
+
+                  {/* Delete button */}
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget({ kind: 'single', id: task.id, name: task.title })}
+                    className="shrink-0 mt-0.5 w-6 h-6 rounded flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors focus:outline-none cursor-pointer"
+                    aria-label={`Delete ${task.title}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} task${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
 
       {/* New Task sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -310,40 +420,22 @@ export default function TasksPage() {
                 onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
               />
             </Field>
-
             <Field label="Due Date">
-              <Input
-                type="date"
-                value={form.due_date}
-                onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))}
-              />
+              <Input type="date" value={form.due_date} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} />
             </Field>
-
             <Field label="Linked Customer">
-              <select
-                value={form.customer_id}
-                onChange={(e) => setForm((p) => ({ ...p, customer_id: e.target.value }))}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
+              <select value={form.customer_id} onChange={(e) => setForm((p) => ({ ...p, customer_id: e.target.value }))}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
                 <option value="">No customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </Field>
-
             <Field label="Priority">
-              <select
-                value={form.priority}
-                onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value as Priority }))}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {(['Low', 'Medium', 'High'] as Priority[]).map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
+              <select value={form.priority} onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value as Priority }))}
+                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                {(['Low', 'Medium', 'High'] as Priority[]).map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </Field>
-
             <Field label="Notes">
               <textarea
                 rows={4}
@@ -353,16 +445,11 @@ export default function TasksPage() {
                 className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
-
-            {formError && (
-              <p className="text-sm text-destructive">{formError}</p>
-            )}
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setSheetOpen(false)} disabled={saving}>Cancel</Button>
             <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
               {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Add Task'}
             </Button>
@@ -375,9 +462,7 @@ export default function TasksPage() {
   )
 }
 
-function Field({ label, required, children }: {
-  label: string; required?: boolean; children: React.ReactNode
-}) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-foreground">

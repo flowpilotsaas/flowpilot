@@ -180,3 +180,84 @@
     @apply font-sans;
   }
 }
+
+/* ─── Sonner toasts ───────────────────────────────────────────────────────── */
+
+/*
+  Geometry (desktop ≥ 1280px):
+    Right cluster: pr-5(20) + avatar w-8(32) + gap-1(4) + bell w-9(36) = 92px from right
+    offset.right = 92 + 12px gap = 104px (set via Toaster prop)
+    offset.top   = 8px (set via Toaster prop) — toast sits inside the 60px header
+
+    Search right edge from right ≈ 50vw − 344px
+    Available width               = (50vw − 344) − 104 − 12gap = 50vw − 460px
+
+    Container width is responsive so it never extends into the search's hit-area.
+*/
+
+/* ── Container sizing (width controls toast card + the hover zone) ── */
+@media (min-width: 1280px) {
+  [data-sonner-toaster][data-y-position="top"][data-x-position="right"] {
+    width: min(240px, calc(50vw - 460px)) !important;
+  }
+}
+
+@media (max-width: 1279px) {
+  /* Narrow viewport: drop below the header instead */
+  [data-sonner-toaster][data-y-position="top"] {
+    top: 68px !important;
+  }
+  [data-sonner-toaster][data-x-position="right"] {
+    right: 24px !important;
+    width: 240px !important;
+  }
+}
+
+/* Inherit Inter from <body> — sonner hard-codes its own system-font stack */
+[data-sonner-toaster] {
+  font-family: inherit !important;
+}
+
+/* ── Card base — 44 px single-row ── */
+[data-sonner-toast].toast-card {
+  background-color: var(--card) !important;
+  color: var(--card-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: calc(var(--radius) * 1.4) !important;
+  box-shadow:
+    0 1px 3px oklch(0 0 0 / 0.06),
+    0 4px 10px oklch(0 0 0 / 0.05),
+    0 12px 24px oklch(0 0 0 / 0.04) !important;
+  height: 44px !important;
+  width: 100% !important;
+  padding: 0 0.75rem !important;
+  align-items: center !important;
+  gap: 3px !important;
+  /* Use spring easing on sonner's native slide-from-top transition */
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* Cancel the extra margin sonner adds to the right of its icon slot */
+[data-sonner-toast].toast-card [data-icon] {
+  margin-right: 0 !important;
+}
+
+/* ── Title ── */
+[data-sonner-toast].toast-card [data-title],
+[data-sonner-toast].toast-card .toast-title {
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--foreground) !important;
+  white-space: nowrap !important;
+  line-height: 1.25 !important;
+}
+
+/* ── Close button — hidden until hover ── */
+[data-sonner-toast].toast-card [data-close-button] {
+  opacity: 0 !important;
+  transition: opacity 0.15s ease !important;
+}
+[data-sonner-toast].toast-card:hover [data-close-button] {
+  opacity: 1 !important;
+}

@@ -26,10 +26,11 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,6 +62,11 @@ type FormData = {
   status: EquipStatus
 }
 
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
+
 const EMPTY_FORM: FormData = { name: '', asset_tag: '', status: 'Available' }
 
 const STATUS_STYLES: Record<EquipStatus, string> = {
@@ -73,27 +79,26 @@ export default function EquipmentPage() {
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
   const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
   const [items, setItems]           = React.useState<Equipment[]>([])
   const [loading, setLoading]       = React.useState(true)
   const [search, setSearch]         = React.useState('')
   const [statusFilter, setStatus]   = React.useState<'all' | EquipStatus>('all')
 
-  const [sheetOpen, setSheetOpen]   = React.useState(false)
+  const [sheetOpen, setSheetOpen]     = React.useState(false)
   const [editingItem, setEditingItem] = React.useState<Equipment | null>(null)
-  const [form, setForm]             = React.useState<FormData>(EMPTY_FORM)
-  const [formError, setFormError]   = React.useState('')
-  const [saving, setSaving]         = React.useState(false)
+  const [form, setForm]               = React.useState<FormData>(EMPTY_FORM)
+  const [formError, setFormError]     = React.useState('')
+  const [saving, setSaving]           = React.useState(false)
 
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
-  const [deleting, setDeleting]               = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
+  const [deleting, setDeleting]         = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const fetchData = React.useCallback(async () => {
     if (!organizationId) return
-    const { data } = await supabase
-      .from('company_equipment')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('company_equipment').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false })
     if (data) setItems(data as Equipment[])
     setLoading(false)
   }, [organizationId])
@@ -109,17 +114,26 @@ export default function EquipmentPage() {
     })
   }, [items, search, statusFilter])
 
-  const registered = items.length
-  const deployed   = items.filter((i) => i.status === 'Deployed').length
-  const totalReuses = items.reduce((sum, i) => sum + i.reuses, 0)
+  const registered   = items.length
+  const deployed     = items.filter((i) => i.status === 'Deployed').length
+  const totalReuses  = items.reduce((sum, i) => sum + i.reuses, 0)
+
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))
+  const someSelected = filtered.some((i) => selectedIds.has(i.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((i) => i.id)))
+  const deselectAll = () => setSelectedIds(new Set())
 
   const openAdd = () => { setEditingItem(null); setForm(EMPTY_FORM); setFormError(''); setSheetOpen(true) }
 
-  React.useEffect(() => {
-    const h = () => openAdd()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openAdd only calls stable useState setters
   const openEdit = (item: Equipment) => {
     setEditingItem(item)
     setForm({ name: item.name, asset_tag: item.asset_tag ?? '', status: item.status })
@@ -136,11 +150,7 @@ export default function EquipmentPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !organizationId) { setSaving(false); return }
 
-    const payload = {
-      name: form.name.trim(),
-      asset_tag: form.asset_tag.trim() || null,
-      status: form.status,
-    }
+    const payload = { name: form.name.trim(), asset_tag: form.asset_tag.trim() || null, status: form.status }
 
     if (editingItem) {
       const { error } = await supabase.from('company_equipment').update(payload).eq('id', editingItem.id)
@@ -150,36 +160,51 @@ export default function EquipmentPage() {
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
+    toast.success(editingItem ? 'Unit updated' : 'Unit added')
     setSaving(false)
     setSheetOpen(false)
     await fetchData()
   }
 
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
-    await supabase.from('company_equipment').delete().eq('id', id)
+    const { error } = await supabase.from('company_equipment').delete().eq('id', id)
+    if (error) { toast.error('Failed to delete unit'); setDeleting(false); return }
     setItems((prev) => prev.filter((i) => i.id !== id))
-    setDeleteConfirmId(null)
+    toast.success('Unit deleted')
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('company_equipment').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete units'); setDeleting(false); return }
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} unit${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
     setDeleting(false)
   }
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Company Equipment</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track and manage your tools and equipment</p>
         </div>
+        <Button onClick={openAdd} className="gap-1.5"><Plus className="w-4 h-4" /> Add Unit</Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Registered Units',    value: loading ? '—' : registered,   color: 'text-blue-500',  bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Currently Deployed',  value: loading ? '—' : deployed,     color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
-          { label: 'Total Reuses',        value: loading ? '—' : totalReuses,  color: 'text-purple-500',bg: 'bg-purple-50 dark:bg-purple-900/20' },
+          { label: 'Registered Units',   value: loading ? '—' : registered,  color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+          { label: 'Currently Deployed', value: loading ? '—' : deployed,    color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
+          { label: 'Total Reuses',       value: loading ? '—' : totalReuses, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
         ].map(({ label, value, color, bg }) => (
           <Card key={label}>
             <CardContent className="p-5 flex items-center gap-4">
@@ -195,30 +220,36 @@ export default function EquipmentPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input className="pl-9" placeholder="Search by name or asset tag…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatus(e.target.value as typeof statusFilter)}
-          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
+        <select value={statusFilter} onChange={(e) => setStatus(e.target.value as typeof statusFilter)}
+          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
           <option value="all">All statuses</option>
-          {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
+          {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
-      {/* Table */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} unit${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} unit${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -249,6 +280,16 @@ export default function EquipmentPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     {['Asset Tag', 'Name', 'Status', 'Reuses', 'Current Job', 'Actions'].map((h) => (
                       <th key={h} className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
@@ -257,31 +298,29 @@ export default function EquipmentPage() {
                 <tbody>
                   {filtered.map((item) => (
                     <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                      <td className="px-6 py-4font-mono text-xs text-muted-foreground">{item.asset_tag ?? '—'}</td>
-                      <td className="px-6 py-4font-medium text-foreground">{item.name}</td>
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${item.name}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{item.asset_tag ?? '—'}</td>
+                      <td className="px-6 py-4 font-medium text-foreground">{item.name}</td>
                       <td className="px-6 py-3">
                         <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[item.status])}>
                           {item.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4text-muted-foreground tabular-nums">{item.reuses}</td>
-                      <td className="px-6 py-4text-muted-foreground">—</td>
-                      <td className="px-6 py-4text-right whitespace-nowrap">
-                        {deleteConfirmId === item.id ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">Delete?</span>
-                            <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                              onClick={() => handleDelete(item.id)} disabled={deleting}>
-                              {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                              onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
-                              Cancel
-                            </Button>
-                          </span>
-                        ) : (
-                          <EquipActionMenu onEdit={() => openEdit(item)} onDelete={() => setDeleteConfirmId(item.id)} />
-                        )}
+                      <td className="px-6 py-4 text-muted-foreground tabular-nums">{item.reuses}</td>
+                      <td className="px-6 py-4 text-muted-foreground">—</td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <EquipActionMenu
+                          onEdit={() => openEdit(item)}
+                          onDelete={() => setDeleteTarget({ kind: 'single', id: item.id, name: item.name })}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -292,7 +331,21 @@ export default function EquipmentPage() {
         </CardContent>
       </Card>
 
-      {/* Sheet */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} unit${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
+
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="flex flex-col gap-0 p-0">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
@@ -308,12 +361,9 @@ export default function EquipmentPage() {
                 onChange={(e) => setForm((p) => ({ ...p, asset_tag: e.target.value }))} />
             </Field>
             <Field label="Status">
-              <select value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as EquipStatus }))}
+              <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as EquipStatus }))}
                 className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
-                {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
             {formError && <p className="text-sm text-destructive">{formError}</p>}

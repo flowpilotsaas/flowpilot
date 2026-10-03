@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
@@ -359,6 +360,7 @@ export default function SchedulePage() {
     if (error) { setModalError(error.message); setSaving(false); return }
     setSaving(false)
     closeModal()
+    toast.success('Job scheduled')
     await fetchJobs()
   }
 
@@ -417,6 +419,7 @@ export default function SchedulePage() {
       notes:          detailForm.notes.trim() || null,
     } : prev)
 
+    toast.success('Job updated')
     setSavingDetail(false)
     setDetailEditMode(false)
     await fetchJobs()
@@ -461,6 +464,7 @@ export default function SchedulePage() {
       setSettings(data)
     }
 
+    toast.success('Working hours saved')
     setSavingWH(false)
     if (isSetup) setSetupOpen(false)
     else setHoursOpen(false)

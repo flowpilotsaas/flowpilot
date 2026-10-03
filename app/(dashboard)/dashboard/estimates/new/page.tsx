@@ -219,7 +219,7 @@ export default function NewEstimatePage() {
         payment_type: paymentType,
         deposit_percent: requirePayment && paymentType === 'deposit' ? parseFloat(depositPct) || 0 : null,
       })
-      .select('id')
+      .select('id, public_token')
       .single()
 
     if (estErr || !est) {
@@ -227,6 +227,8 @@ export default function NewEstimatePage() {
       setSaving(null)
       return
     }
+
+    const estPublicToken = (est as { id: string; public_token?: string | null }).public_token ?? null
 
     if (lineItems.length > 0) {
       const { error: liErr } = await supabase.from('estimate_line_items').insert(
@@ -263,7 +265,13 @@ export default function NewEstimatePage() {
           body: JSON.stringify({
             to: email,
             type: 'estimate_sent',
-            data: { customerName: customerName.trim() || 'there', total },
+            data: {
+              customerName: customerName.trim() || 'there',
+              total,
+              portalUrl: estPublicToken
+                ? `${window.location.origin}/e/${estPublicToken}`
+                : undefined,
+            },
           }),
         })
         if (!emailRes.ok) {

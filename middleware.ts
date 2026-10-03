@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  // Public routes — no auth, no session refresh needed
+  if (request.nextUrl.pathname.startsWith('/e/')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -26,5 +31,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Exclude static assets, images, favicon, and the public estimate portal (/e/*)
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|e/).*)'],
 }

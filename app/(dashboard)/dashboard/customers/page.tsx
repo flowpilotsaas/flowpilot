@@ -3,10 +3,11 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,6 +41,11 @@ type FormData = {
   notes: string
 }
 
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
+
 const EMPTY_FORM: FormData = { name: '', email: '', phone: '', address: '', notes: '' }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -55,8 +61,10 @@ export default function CustomersPage() {
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
@@ -66,20 +74,16 @@ export default function CustomersPage() {
 
   const fetchCustomers = React.useCallback(async () => {
     if (!organizationId) return
-
     const { data, error } = await supabase
       .from('customers')
       .select('*')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
-
     if (!error && data) setCustomers(data)
     setLoading(false)
   }, [organizationId])
 
-  React.useEffect(() => {
-    fetchCustomers()
-  }, [fetchCustomers])
+  React.useEffect(() => { fetchCustomers() }, [fetchCustomers])
 
   // ─── Search filter ──────────────────────────────────────────────────────
 
@@ -94,6 +98,20 @@ export default function CustomersPage() {
     )
   }, [customers, search])
 
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id))
+  const someSelected = filtered.some((c) => selectedIds.has(c.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((c) => c.id)))
+  const deselectAll = () => setSelectedIds(new Set())
+
   // ─── Sheet helpers ───────────────────────────────────────────────────────
 
   const openAdd = () => {
@@ -102,12 +120,6 @@ export default function CustomersPage() {
     setFormError('')
     setSheetOpen(true)
   }
-
-  React.useEffect(() => {
-    const h = () => openAdd()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openAdd only calls stable useState setters
 
   const openEdit = (customer: Customer) => {
     setEditingCustomer(customer)
@@ -122,23 +134,17 @@ export default function CustomersPage() {
     setSheetOpen(true)
   }
 
-  const closeSheet = () => {
-    setSheetOpen(false)
-    setFormError('')
-  }
+  const closeSheet = () => { setSheetOpen(false); setFormError('') }
 
   const setField = (field: keyof FormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
-  // ─── Save (insert / update) ──────────────────────────────────────────────
+  // ─── Save ────────────────────────────────────────────────────────────────
 
   const handleSave = async () => {
     if (!trialAllowed) { setTrialModalOpen(true); return }
-    if (!form.name.trim()) {
-      setFormError('Name is required.')
-      return
-    }
+    if (!form.name.trim()) { setFormError('Name is required.'); return }
     setSaving(true)
     setFormError('')
 
@@ -155,18 +161,14 @@ export default function CustomersPage() {
     }
 
     if (editingCustomer) {
-      const { error } = await supabase
-        .from('customers')
-        .update(payload)
-        .eq('id', editingCustomer.id)
+      const { error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id)
       if (error) { setFormError(error.message); setSaving(false); return }
     } else {
-      const { error } = await supabase
-        .from('customers')
-        .insert({ ...payload, user_id: user.id, organization_id: organizationId })
+      const { error } = await supabase.from('customers').insert({ ...payload, user_id: user.id, organization_id: organizationId })
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
+    toast.success(editingCustomer ? 'Customer updated' : 'Customer created')
     setSaving(false)
     closeSheet()
     await fetchCustomers()
@@ -175,13 +177,26 @@ export default function CustomersPage() {
   // ─── Delete ──────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
     const { error } = await supabase.from('customers').delete().eq('id', id)
-    if (!error) {
-      setCustomers((prev) => prev.filter((c) => c.id !== id))
-    }
-    setDeleteConfirmId(null)
+    if (error) { toast.error('Failed to delete customer'); setDeleting(false); return }
+    setCustomers((prev) => prev.filter((c) => c.id !== id))
+    toast.success('Customer deleted')
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('customers').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete customers'); setDeleting(false); return }
+    setCustomers((prev) => prev.filter((c) => !ids.includes(c.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} customer${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
     setDeleting(false)
   }
 
@@ -193,10 +208,11 @@ export default function CustomersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Customers</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage your customer database
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage your customer database</p>
         </div>
+        <Button onClick={openAdd} className="gap-1.5">
+          <Plus className="w-4 h-4" /> Add Customer
+        </Button>
       </div>
 
       {/* Search */}
@@ -213,9 +229,29 @@ export default function CustomersPage() {
       {/* Table card */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} customer${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">
+                  Clear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} customer${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -247,6 +283,16 @@ export default function CustomersPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Name</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Email</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Phone</th>
@@ -257,55 +303,38 @@ export default function CustomersPage() {
                 </thead>
                 <tbody>
                   {filtered.map((customer) => (
-                    <React.Fragment key={customer.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4font-medium text-foreground whitespace-nowrap">
-                          {customer.name}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground">
-                          {customer.email ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
-                          {customer.phone ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground max-w-[12rem] truncate" title={customer.address ?? ''}>
-                          {customer.address ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground max-w-[14rem] truncate" title={customer.notes ?? ''}>
-                          {customer.notes ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-4text-right whitespace-nowrap">
-                          {deleteConfirmId === customer.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete?</span>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => handleDelete(customer.id)}
-                                disabled={deleting}
-                              >
-                                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 text-xs"
-                                onClick={() => setDeleteConfirmId(null)}
-                                disabled={deleting}
-                              >
-                                Cancel
-                              </Button>
-                            </span>
-                          ) : (
-                            <ActionMenu
-                              onEdit={() => openEdit(customer)}
-                              onDelete={() => setDeleteConfirmId(customer.id)}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                    <tr key={customer.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(customer.id)}
+                          onChange={() => toggleSelect(customer.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${customer.name}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">
+                        {customer.name}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {customer.email ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {customer.phone ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground max-w-[12rem] truncate" title={customer.address ?? ''}>
+                        {customer.address ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground max-w-[14rem] truncate" title={customer.notes ?? ''}>
+                        {customer.notes ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <ActionMenu
+                          onEdit={() => openEdit(customer)}
+                          onDelete={() => setDeleteTarget({ kind: 'single', id: customer.id, name: customer.name })}
+                        />
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -313,6 +342,22 @@ export default function CustomersPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} customer${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
 
       {/* Add / Edit sheet */}
       <Sheet open={sheetOpen} onOpenChange={closeSheet}>
@@ -323,34 +368,16 @@ export default function CustomersPage() {
 
           <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
             <Field label="Name" required>
-              <Input
-                placeholder="Jane Smith"
-                value={form.name}
-                onChange={setField('name')}
-              />
+              <Input placeholder="Jane Smith" value={form.name} onChange={setField('name')} />
             </Field>
             <Field label="Email">
-              <Input
-                type="email"
-                placeholder="jane@example.com"
-                value={form.email}
-                onChange={setField('email')}
-              />
+              <Input type="email" placeholder="jane@example.com" value={form.email} onChange={setField('email')} />
             </Field>
             <Field label="Phone">
-              <Input
-                type="tel"
-                placeholder="+1 (555) 000-0000"
-                value={form.phone}
-                onChange={setField('phone')}
-              />
+              <Input type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={setField('phone')} />
             </Field>
             <Field label="Address">
-              <Input
-                placeholder="123 Main St, Springfield"
-                value={form.address}
-                onChange={setField('address')}
-              />
+              <Input placeholder="123 Main St, Springfield" value={form.address} onChange={setField('address')} />
             </Field>
             <Field label="Notes">
               <textarea
@@ -365,22 +392,13 @@ export default function CustomersPage() {
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={closeSheet}
-              disabled={saving}
-            >
+            <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
               Cancel
             </Button>
-            <Button
-              className="flex-1"
-              onClick={handleSave}
-              disabled={saving || trialLoading}
-            >
-              {saving ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
-              ) : editingCustomer ? 'Save changes' : 'Add customer'}
+            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
+              {saving
+                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
+                : editingCustomer ? 'Save changes' : 'Add customer'}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -469,13 +487,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   )
 }
 
-// ─── Small helper for form field labels ─────────────────────────────────────
-
-function Field({
-  label,
-  required,
-  children,
-}: {
+function Field({ label, required, children }: {
   label: string
   required?: boolean
   children: React.ReactNode
@@ -483,8 +495,7 @@ function Field({
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-foreground">
-        {label}
-        {required && <span className="ml-0.5 text-destructive">*</span>}
+        {label}{required && <span className="ml-0.5 text-destructive">*</span>}
       </label>
       {children}
     </div>

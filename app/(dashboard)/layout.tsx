@@ -7,6 +7,13 @@ import { supabase } from '@/lib/supabase'
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { Toaster } from 'sonner'
+import { CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react'
+
+function ToastSuccessIcon() { return <CheckCircle2 className="w-4 h-4 text-success" /> }
+function ToastErrorIcon()   { return <XCircle className="w-4 h-4 text-destructive" /> }
+function ToastWarningIcon() { return <AlertTriangle className="w-4 h-4 text-warning" /> }
+function ToastInfoIcon()    { return <Info className="w-4 h-4 text-primary" /> }
 
 function TrialBanner() {
   const { isLoading, hasActiveSub, trialDaysLeft, isAllowed } = useTrialStatus()
@@ -64,6 +71,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      <Toaster
+        position="top-right"
+        offset={{ top: 8, right: 104 }}
+        visibleToasts={1}
+        closeButton
+        duration={4000}
+        toastOptions={{
+          classNames: {
+            toast: 'toast-card',
+            title: 'toast-title',
+            description: 'toast-description',
+          },
+        }}
+        icons={{
+          success: <ToastSuccessIcon />,
+          error: <ToastErrorIcon />,
+          warning: <ToastWarningIcon />,
+          info: <ToastInfoIcon />,
+        }}
+      />
     </div>
   )
 }

@@ -5,12 +5,11 @@ import { usePathname, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Bell, Search, Settings, CreditCard, LogOut,
-  Zap, Plus, ChevronRight,
+  Zap, ChevronRight, Loader2,
 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { useOrganization } from '@/hooks/useOrganization'
-import { Button } from '@/components/ui/button'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':               'Dashboard',
@@ -34,19 +33,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/dashboard/appeals':       'Appeals',
   '/dashboard/billing':       'Billing',
   '/dashboard/settings':      'Settings',
-}
-
-// Shown only on exact list-page matches
-const PAGE_NEW_ACTION: Record<string, { label: string; href?: string; adminOnly?: boolean }> = {
-  '/dashboard/estimates':  { label: 'New Estimate', href: '/dashboard/estimates/new' },
-  '/dashboard/jobs':       { label: 'New Job' },
-  '/dashboard/customers':  { label: 'New Customer' },
-  '/dashboard/agreements': { label: 'New Agreement' },
-  '/dashboard/pricebook':  { label: 'Add Item' },
-  '/dashboard/inventory':  { label: 'Add Item' },
-  '/dashboard/equipment':  { label: 'Add Unit' },
-  '/dashboard/tasks':      { label: 'New Task' },
-  '/dashboard/team':       { label: 'Invite Member', adminOnly: true },
 }
 
 function resolveTitle(pathname: string): string {
@@ -83,10 +69,197 @@ function getInitials(email: string): string {
   return local.slice(0, 2).toUpperCase()
 }
 
+// ─── Global search ────────────────────────────────────────────────────────────
+
+type SearchResult = {
+  id: string
+  title: string
+  subtitle?: string
+  href: string
+}
+
+type SearchGroups = {
+  jobs: SearchResult[]
+  customers: SearchResult[]
+  estimates: SearchResult[]
+}
+
+function GlobalSearch() {
+  const router = useRouter()
+  const [query, setQuery]   = useState('')
+  const [groups, setGroups] = useState<SearchGroups>({ jobs: [], customers: [], estimates: [] })
+  const [open, setOpen]     = useState(false)
+  const [loading, setLoading] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const timerRef     = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const total = groups.jobs.length + groups.customers.length + groups.estimates.length
+  const showDropdown = open && query.trim().length >= 2
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const runSearch = async (q: string) => {
+    const trimmed = q.trim()
+    if (trimmed.length < 2) {
+      setGroups({ jobs: [], customers: [], estimates: [] })
+      return
+    }
+    setLoading(true)
+    try {
+      const [{ data: jobs }, { data: customers }] = await Promise.all([
+        supabase
+          .from('jobs')
+          .select('id, title, status, customers(name)')
+          .ilike('title', `%${trimmed}%`)
+          .limit(5),
+        supabase
+          .from('customers')
+          .select('id, name, email')
+          .ilike('name', `%${trimmed}%`)
+          .limit(5),
+      ])
+
+      const custIds = (customers ?? []).map((c: { id: string }) => c.id)
+      const { data: estimates } = custIds.length > 0
+        ? await supabase
+            .from('estimates')
+            .select('id, estimate_number, status, customers(name)')
+            .in('customer_id', custIds)
+            .limit(5)
+        : { data: [] as { id: string; estimate_number: number; status: string; customers: { name: string }[] | null }[] }
+
+      setGroups({
+        jobs: (jobs ?? []).map((j: { id: string; title: string; customers: { name: string }[] | null }) => ({
+          id:       j.id,
+          title:    j.title,
+          subtitle: Array.isArray(j.customers) ? j.customers[0]?.name : (j.customers as { name: string } | null)?.name,
+          href:     `/dashboard/jobs/${j.id}`,
+        })),
+        customers: (customers ?? []).map((c: { id: string; name: string; email: string | null }) => ({
+          id:       c.id,
+          title:    c.name,
+          subtitle: c.email ?? undefined,
+          href:     `/dashboard/customers`,
+        })),
+        estimates: (estimates ?? []).map((e: { id: string; estimate_number: number; customers: { name: string }[] | null }) => ({
+          id:       e.id,
+          title:    `Estimate #${e.estimate_number}`,
+          subtitle: Array.isArray(e.customers) ? e.customers[0]?.name : (e.customers as { name: string } | null)?.name,
+          href:     `/dashboard/estimates/${e.id}`,
+        })),
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value
+    setQuery(q)
+    setOpen(true)
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => runSearch(q), 300)
+  }
+
+  const navigate = (href: string) => {
+    setOpen(false)
+    setQuery('')
+    router.push(href)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { setOpen(false); e.currentTarget.blur() }
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full max-w-md">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          onChange={handleChange}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search jobs, customers, estimates…"
+          className="w-full h-9 pl-9 pr-9 rounded-lg border border-border bg-muted/40 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/60 focus:border-ring focus:bg-background transition-colors"
+        />
+        {loading && (
+          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+        )}
+      </div>
+
+      {showDropdown && (
+        <div className="absolute top-full mt-1.5 left-0 right-0 bg-card border border-border rounded-xl shadow-lg shadow-black/5 z-50 overflow-hidden">
+          {!loading && total === 0 ? (
+            <p className="px-4 py-5 text-center text-sm text-muted-foreground">
+              No results for &ldquo;<span className="text-foreground">{query.trim()}</span>&rdquo;
+            </p>
+          ) : (
+            <div className="py-1 max-h-[22rem] overflow-y-auto">
+              {groups.jobs.length > 0 && (
+                <ResultGroup label="Jobs" items={groups.jobs} onSelect={navigate} />
+              )}
+              {groups.customers.length > 0 && (
+                <ResultGroup label="Customers" items={groups.customers} onSelect={navigate} />
+              )}
+              {groups.estimates.length > 0 && (
+                <ResultGroup label="Estimates" items={groups.estimates} onSelect={navigate} />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResultGroup({
+  label,
+  items,
+  onSelect,
+}: {
+  label: string
+  items: SearchResult[]
+  onSelect: (href: string) => void
+}) {
+  return (
+    <div className="mb-0.5">
+      <p className="px-3.5 pt-2.5 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+        {label}
+      </p>
+      {items.map(item => (
+        <button
+          key={item.id}
+          type="button"
+          onClick={() => onSelect(item.href)}
+          className="flex w-full items-center gap-3 px-3.5 py-2 hover:bg-muted/60 transition-colors cursor-pointer"
+        >
+          <div className="min-w-0 text-left">
+            <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
+            {item.subtitle && (
+              <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
+            )}
+          </div>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────────
+
 export default function DashboardHeader() {
   const pathname = usePathname()
   const router   = useRouter()
-  const { role } = useOrganization()
 
   const [email,    setEmail]    = useState<string | null>(null)
   const [dropOpen, setDropOpen] = useState(false)
@@ -115,11 +288,11 @@ export default function DashboardHeader() {
     router.push('/login')
   }
 
-  const title       = resolveTitle(pathname)
-  const crumbs      = buildBreadcrumbs(pathname)
-  const rawAction   = PAGE_NEW_ACTION[pathname]
-  const quickAction = rawAction?.adminOnly && role === 'technician' ? undefined : rawAction
-  const initials    = email ? getInitials(email) : '…'
+  const { theme, setTheme } = useTheme()
+
+  const title    = resolveTitle(pathname)
+  const crumbs   = buildBreadcrumbs(pathname)
+  const initials = email ? getInitials(email) : '…'
 
   return (
     <header className="flex-shrink-0 flex items-center bg-card border-b border-border/80 z-20" style={{ height: '3.75rem' }}>
@@ -137,15 +310,12 @@ export default function DashboardHeader() {
         </Link>
       </div>
 
-      {/* Separator */}
-      <div className="w-px h-6 bg-border flex-shrink-0" />
-
-      {/* Title / breadcrumb */}
-      <div className="flex items-center px-6 flex-1 min-w-0">
+      {/* Title / breadcrumb — narrow, left-aligned */}
+      <div className="pl-5 pr-2 w-44 flex-shrink-0 min-w-0">
         {crumbs.length > 0 ? (
-          <nav className="flex items-center gap-1.5 text-sm min-w-0">
+          <nav className="flex items-center gap-1 text-sm overflow-hidden">
             {crumbs.map((c, i) => (
-              <span key={i} className="flex items-center gap-1.5">
+              <span key={i} className="flex items-center gap-1 min-w-0">
                 {i > 0 && (
                   <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/40 flex-shrink-0" />
                 )}
@@ -163,46 +333,17 @@ export default function DashboardHeader() {
             ))}
           </nav>
         ) : (
-          <div className="relative">
-            <h1 className="text-[15px] font-semibold tracking-tight text-foreground">{title}</h1>
-            <span className="absolute -bottom-0.5 left-0 right-0 h-0.5 rounded-full bg-primary/50" />
-          </div>
+          <h1 className="text-[15px] font-semibold tracking-tight text-foreground truncate">{title}</h1>
         )}
       </div>
 
+      {/* Center: global search */}
+      <div className="flex-1 flex items-center justify-center px-4">
+        <GlobalSearch />
+      </div>
+
       {/* Right actions */}
-      <div className="flex items-center gap-1 pr-5">
-
-        {/* Contextual new-item button */}
-        {quickAction && (
-          <div className="mr-3">
-            {quickAction.href ? (
-              <Button size="sm" asChild className="gap-1.5 h-8 text-xs font-medium">
-                <Link href={quickAction.href}>
-                  <Plus className="w-3.5 h-3.5" />
-                  {quickAction.label}
-                </Link>
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                className="gap-1.5 h-8 text-xs font-medium"
-                onClick={() => window.dispatchEvent(new CustomEvent('dashboard:new'))}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                {quickAction.label}
-              </Button>
-            )}
-          </div>
-        )}
-
-        <button
-          type="button"
-          aria-label="Search"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-        >
-          <Search className="w-4 h-4" />
-        </button>
+      <div className="flex items-center gap-1 pr-5 flex-shrink-0 justify-end w-44">
 
         <button
           type="button"
@@ -212,7 +353,6 @@ export default function DashboardHeader() {
           <Bell className="w-4 h-4" />
         </button>
 
-        <div className="w-px h-5 bg-border mx-2" />
 
         {/* Avatar + dropdown */}
         <div className="relative" ref={dropRef}>
@@ -252,7 +392,30 @@ export default function DashboardHeader() {
                 <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
                 Billing
               </Link>
-              <div className="border-t border-border mt-1 pt-1">
+              <div className="border-t border-border mx-2 my-1.5" />
+              <div className="px-3 pb-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-1.5">
+                  Theme
+                </p>
+                <div className="flex gap-1">
+                  {(['light', 'dark', 'system'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTheme(t)}
+                      className={cn(
+                        'flex-1 rounded-md px-1.5 py-1 text-[11px] font-medium capitalize transition-colors cursor-pointer',
+                        theme === t
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t border-border mt-0.5 pt-1">
                 <button
                   type="button"
                   onClick={handleSignOut}

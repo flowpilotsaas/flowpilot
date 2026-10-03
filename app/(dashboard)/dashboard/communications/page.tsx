@@ -3,6 +3,7 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -196,6 +197,7 @@ export default function CommunicationsPage() {
       setSearchResults([])
       setAreaCode('')
       await fetchPurchasedNumbers()
+      toast.success('Phone number purchased')
     } catch (err) {
       setSearchError((err as Error).message)
     } finally {
@@ -215,8 +217,9 @@ export default function CommunicationsPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Release failed.')
       await fetchPurchasedNumbers()
+      toast.success('Number released')
     } catch (err) {
-      alert((err as Error).message)
+      toast.error((err as Error).message)
     } finally {
       setReleasing(null)
     }
@@ -255,6 +258,7 @@ export default function CommunicationsPage() {
       setTextTo('')
       setTextBody('')
       await fetchTextMessages()
+      toast.success('Message sent')
     } catch (err) {
       setTextError((err as Error).message)
     } finally {

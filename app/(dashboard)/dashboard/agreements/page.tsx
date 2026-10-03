@@ -3,10 +3,11 @@
 import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -58,6 +59,11 @@ type FormData = {
   notes: string
 }
 
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
+
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const STATUSES: AgreementStatus[] = ['Active', 'Pending Approval', 'Expired', 'Cancelled']
@@ -70,13 +76,8 @@ const STATUS_STYLES: Record<AgreementStatus, string> = {
 }
 
 const EMPTY_FORM: FormData = {
-  title: '',
-  customer_id: '',
-  status: 'Pending Approval',
-  start_date: '',
-  end_date: '',
-  value: '',
-  notes: '',
+  title: '', customer_id: '', status: 'Pending Approval',
+  start_date: '', end_date: '', value: '', notes: '',
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -100,15 +101,17 @@ export default function AgreementsPage() {
   const [customers, setCustomers]   = React.useState<Customer[]>([])
   const [loading, setLoading]       = React.useState(true)
 
-  const [sheetOpen, setSheetOpen]     = React.useState(false)
-  const [editing, setEditing]         = React.useState<Agreement | null>(null)
-  const [form, setForm]               = React.useState<FormData>(EMPTY_FORM)
-  const [formError, setFormError]     = React.useState('')
-  const [saving, setSaving]           = React.useState(false)
+  const [sheetOpen, setSheetOpen]   = React.useState(false)
+  const [editing, setEditing]       = React.useState<Agreement | null>(null)
+  const [form, setForm]             = React.useState<FormData>(EMPTY_FORM)
+  const [formError, setFormError]   = React.useState('')
+  const [saving, setSaving]         = React.useState(false)
   const [notificationWarning, setNotificationWarning] = React.useState('')
 
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
-  const [deleting, setDeleting]               = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
+  const [deleting, setDeleting]         = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
@@ -118,20 +121,10 @@ export default function AgreementsPage() {
 
   const fetchData = React.useCallback(async () => {
     if (!organizationId) return
-
     const [agrRes, custRes] = await Promise.all([
-      supabase
-        .from('agreements')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('customers')
-        .select('id, name')
-        .eq('organization_id', organizationId)
-        .order('name'),
+      supabase.from('agreements').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }),
+      supabase.from('customers').select('id, name').eq('organization_id', organizationId).order('name'),
     ])
-
     if (agrRes.data)  setAgreements(agrRes.data as Agreement[])
     if (custRes.data) setCustomers(custRes.data)
     setLoading(false)
@@ -145,37 +138,34 @@ export default function AgreementsPage() {
   const pendingCount  = agreements.filter((a) => a.status === 'Pending Approval').length
   const totalSites    = agreements.reduce((s, a) => s + a.sites, 0)
   const totalAssets   = agreements.reduce((s, a) => s + a.assets, 0)
-  const activePmPlans = agreements
-    .filter((a) => a.status === 'Active')
-    .reduce((s, a) => s + a.pm_plans, 0)
-  const totalPmDue      = agreements.reduce((s, a) => s + a.pm_due, 0)
-  const totalPmOverdue  = agreements.reduce((s, a) => s + a.pm_overdue, 0)
+  const activePmPlans = agreements.filter((a) => a.status === 'Active').reduce((s, a) => s + a.pm_plans, 0)
+  const totalPmDue    = agreements.reduce((s, a) => s + a.pm_due, 0)
+  const totalPmOverdue = agreements.reduce((s, a) => s + a.pm_overdue, 0)
+
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = agreements.length > 0 && agreements.every((a) => selectedIds.has(a.id))
+  const someSelected = agreements.some((a) => selectedIds.has(a.id))
+  const selectAll = () => setSelectedIds(new Set(agreements.map((a) => a.id)))
+  const deselectAll = () => setSelectedIds(new Set())
 
   // ─── Sheet helpers ────────────────────────────────────────────────────────
 
-  const openAdd = () => {
-    setEditing(null)
-    setForm(EMPTY_FORM)
-    setFormError('')
-    setSheetOpen(true)
-  }
-
-  React.useEffect(() => {
-    const h = () => openAdd()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openAdd only calls stable useState setters
+  const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setFormError(''); setSheetOpen(true) }
 
   const openEdit = (a: Agreement) => {
     setEditing(a)
     setForm({
-      title:       a.title,
-      customer_id: a.customer_id ?? '',
-      status:      a.status,
-      start_date:  a.start_date ?? '',
-      end_date:    a.end_date ?? '',
-      value:       a.value != null ? String(a.value) : '',
-      notes:       a.notes ?? '',
+      title: a.title, customer_id: a.customer_id ?? '', status: a.status,
+      start_date: a.start_date ?? '', end_date: a.end_date ?? '',
+      value: a.value != null ? String(a.value) : '', notes: a.notes ?? '',
     })
     setFormError('')
     setSheetOpen(true)
@@ -200,16 +190,11 @@ export default function AgreementsPage() {
     if (!organizationId) { setSaving(false); setFormError('Organization not found — please refresh the page.'); return }
 
     const selectedCustomer = customers.find((c) => c.id === form.customer_id)
-
     const payload = {
-      title:         form.title.trim(),
-      customer_id:   form.customer_id || null,
-      customer_name: selectedCustomer?.name ?? null,
-      status:        form.status,
-      start_date:    form.start_date || null,
-      end_date:      form.end_date || null,
-      value:         form.value !== '' ? parseFloat(form.value) : null,
-      notes:         form.notes.trim() || null,
+      title: form.title.trim(), customer_id: form.customer_id || null,
+      customer_name: selectedCustomer?.name ?? null, status: form.status,
+      start_date: form.start_date || null, end_date: form.end_date || null,
+      value: form.value !== '' ? parseFloat(form.value) : null, notes: form.notes.trim() || null,
     }
 
     if (editing) {
@@ -220,32 +205,21 @@ export default function AgreementsPage() {
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
+    toast.success(editing ? 'Agreement updated' : 'Agreement created')
     setSaving(false)
     closeSheet()
     await fetchData()
 
     if (form.status === 'Active' && form.customer_id) {
       try {
-        const { data: customer } = await supabase
-          .from('customers')
-          .select('email, name')
-          .eq('id', form.customer_id)
-          .maybeSingle()
+        const { data: customer } = await supabase.from('customers').select('email, name').eq('id', form.customer_id).maybeSingle()
         if (customer?.email) {
           const r = await fetch('/api/send-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: customer.email,
-              type: 'agreement_sent',
-              data: {
-                customerName:   customer.name,
-                agreementTitle: payload.title,
-                startDate:      payload.start_date ?? '—',
-                endDate:        payload.end_date ?? '—',
-                value:          payload.value,
-              },
-            }),
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to: customer.email, type: 'agreement_sent', data: {
+              customerName: customer.name, agreementTitle: payload.title,
+              startDate: payload.start_date ?? '—', endDate: payload.end_date ?? '—', value: payload.value,
+            }}),
           })
           if (!r.ok) {
             const b = await r.json().catch(() => ({}))
@@ -261,52 +235,37 @@ export default function AgreementsPage() {
   // ─── Delete ───────────────────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
     const { error } = await supabase.from('agreements').delete().eq('id', id)
-    if (!error) setAgreements((prev) => prev.filter((a) => a.id !== id))
-    setDeleteConfirmId(null)
+    if (error) { toast.error('Failed to delete agreement'); setDeleting(false); return }
+    setAgreements((prev) => prev.filter((a) => a.id !== id))
+    toast.success('Agreement deleted')
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('agreements').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete agreements'); setDeleting(false); return }
+    setAgreements((prev) => prev.filter((a) => !ids.includes(a.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} agreement${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
     setDeleting(false)
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
   const statCards = [
-    {
-      label: 'Agreements',
-      value: loading ? '—' : totalCount,
-      icon: ClipboardList,
-      color: 'text-blue-500',
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-    },
-    {
-      label: 'Pending Approvals',
-      value: loading ? '—' : pendingCount,
-      icon: FileCheck,
-      color: 'text-yellow-500',
-      bg: 'bg-yellow-50 dark:bg-yellow-900/20',
-    },
-    {
-      label: 'Sites / Assets',
-      value: loading ? '—' : `${totalSites}/${totalAssets}`,
-      icon: MapPin,
-      color: 'text-purple-500',
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
-    },
-    {
-      label: 'Active PM Plans',
-      value: loading ? '—' : activePmPlans,
-      icon: CalendarClock,
-      color: 'text-green-500',
-      bg: 'bg-green-50 dark:bg-green-900/20',
-    },
-    {
-      label: 'PM Due / Overdue',
-      value: loading ? '—' : `${totalPmDue}/${totalPmOverdue}`,
-      icon: AlertTriangle,
-      color: 'text-red-500',
-      bg: 'bg-red-50 dark:bg-red-900/20',
-    },
+    { label: 'Agreements', value: loading ? '—' : totalCount, icon: ClipboardList, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+    { label: 'Pending Approvals', value: loading ? '—' : pendingCount, icon: FileCheck, color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+    { label: 'Sites / Assets', value: loading ? '—' : `${totalSites}/${totalAssets}`, icon: MapPin, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+    { label: 'Active PM Plans', value: loading ? '—' : activePmPlans, icon: CalendarClock, color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
+    { label: 'PM Due / Overdue', value: loading ? '—' : `${totalPmDue}/${totalPmOverdue}`, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
   ]
 
   return (
@@ -317,6 +276,9 @@ export default function AgreementsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Agreements</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage maintenance contracts and service agreements</p>
         </div>
+        <Button onClick={openAdd} className="gap-1.5">
+          <Plus className="w-4 h-4" /> New Agreement
+        </Button>
       </div>
 
       {notificationWarning && (
@@ -341,17 +303,31 @@ export default function AgreementsPage() {
       {/* Table card */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm text-muted-foreground font-normal">
-              {loading ? 'Loading…' : `${agreements.length} agreement${agreements.length !== 1 ? 's' : ''}`}
-            </CardTitle>
-          </div>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                <Button
+                  size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm text-muted-foreground font-normal">
+                {loading ? 'Loading…' : `${agreements.length} agreement${agreements.length !== 1 ? 's' : ''}`}
+              </CardTitle>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Loading agreements…
+              <Loader2 className="w-5 h-5 animate-spin" /> Loading agreements…
             </div>
           ) : agreements.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
@@ -371,14 +347,21 @@ export default function AgreementsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     {['Title', 'Customer', 'Status', 'Start Date', 'End Date', 'Value', 'Actions'].map((h) => (
-                      <th
-                        key={h}
-                        className={cn(
-                          'px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap',
-                          h === 'Actions' ? 'text-right' : 'text-left',
-                        )}
-                      >
+                      <th key={h} className={cn(
+                        'px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap',
+                        h === 'Actions' ? 'text-right' : 'text-left',
+                      )}>
                         {h}
                       </th>
                     ))}
@@ -386,53 +369,37 @@ export default function AgreementsPage() {
                 </thead>
                 <tbody>
                   {agreements.map((agr) => (
-                    <React.Fragment key={agr.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4font-medium text-foreground max-w-[16rem] truncate" title={agr.title}>
-                          {agr.title}
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">
-                          {agr.customer_name ?? <span className="text-muted-foreground/40">—</span>}
-                        </td>
-                        <td className="px-6 py-3">
-                          <span className={cn(
-                            'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                            STATUS_STYLES[agr.status],
-                          )}>
-                            {agr.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(agr.start_date)}</td>
-                        <td className="px-6 py-4text-muted-foreground whitespace-nowrap">{fmtDate(agr.end_date)}</td>
-                        <td className="px-6 py-4text-muted-foreground tabular-nums whitespace-nowrap">
-                          {fmtCurrency(agr.value)}
-                        </td>
-                        <td className="px-6 py-4text-right whitespace-nowrap">
-                          {deleteConfirmId === agr.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete?</span>
-                              <Button
-                                size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                onClick={() => handleDelete(agr.id)} disabled={deleting}
-                              >
-                                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                              </Button>
-                              <Button
-                                size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                onClick={() => setDeleteConfirmId(null)} disabled={deleting}
-                              >
-                                Cancel
-                              </Button>
-                            </span>
-                          ) : (
-                            <ActionMenu
-                              onEdit={() => openEdit(agr)}
-                              onDelete={() => setDeleteConfirmId(agr.id)}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                    <tr key={agr.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(agr.id)}
+                          onChange={() => toggleSelect(agr.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${agr.title}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground max-w-[16rem] truncate" title={agr.title}>
+                        {agr.title}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {agr.customer_name ?? <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[agr.status])}>
+                          {agr.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{fmtDate(agr.start_date)}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{fmtDate(agr.end_date)}</td>
+                      <td className="px-6 py-4 text-muted-foreground tabular-nums whitespace-nowrap">{fmtCurrency(agr.value)}</td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <ActionMenu
+                          onEdit={() => openEdit(agr)}
+                          onDelete={() => setDeleteTarget({ kind: 'single', id: agr.id, name: agr.title })}
+                        />
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -440,6 +407,22 @@ export default function AgreementsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete confirmation modal */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} agreement${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
 
       {/* Add / Edit sheet */}
       <Sheet open={sheetOpen} onOpenChange={closeSheet}>
@@ -450,31 +433,20 @@ export default function AgreementsPage() {
 
           <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
             <Field label="Title" required>
-              <Input
-                placeholder="e.g. Annual HVAC Maintenance Plan"
-                value={form.title}
-                onChange={setField('title')}
-              />
+              <Input placeholder="e.g. Annual HVAC Maintenance Plan" value={form.title} onChange={setField('title')} />
             </Field>
-
             <Field label="Customer">
               <NativeSelect value={form.customer_id} onChange={setField('customer_id')}>
                 <option value="">No customer linked</option>
-                {customers.length === 0 && (
-                  <option disabled>No customers found — add one first</option>
-                )}
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {customers.length === 0 && <option disabled>No customers found — add one first</option>}
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </NativeSelect>
             </Field>
-
             <Field label="Status" required>
               <NativeSelect value={form.status} onChange={setField('status')}>
                 {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </NativeSelect>
             </Field>
-
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start Date">
                 <Input type="date" value={form.start_date} onChange={setField('start_date')} />
@@ -483,18 +455,9 @@ export default function AgreementsPage() {
                 <Input type="date" value={form.end_date} onChange={setField('end_date')} />
               </Field>
             </div>
-
             <Field label="Value ($)">
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={form.value}
-                onChange={setField('value')}
-              />
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.value} onChange={setField('value')} />
             </Field>
-
             <Field label="Notes">
               <textarea
                 rows={4}
@@ -504,18 +467,13 @@ export default function AgreementsPage() {
                 className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
-
             {formError && <p className="text-sm text-destructive">{formError}</p>}
           </div>
 
           <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
-            <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
-              Cancel
-            </Button>
+            <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>Cancel</Button>
             <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
-              {saving
-                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
-                : editing ? 'Save changes' : 'Create agreement'}
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : editing ? 'Save changes' : 'Create agreement'}
             </Button>
           </SheetFooter>
         </SheetContent>
@@ -544,10 +502,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   React.useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (
-        !menuRef.current?.contains(e.target as Node) &&
-        !triggerRef.current?.contains(e.target as Node)
-      ) setOpen(false)
+      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -563,9 +518,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   return (
     <>
       <button
-        ref={triggerRef}
-        type="button"
-        onClick={openMenu}
+        ref={triggerRef} type="button" onClick={openMenu}
         className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         aria-label="Actions"
       >
@@ -574,28 +527,17 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
 
       {open && createPortal(
         <div
-          ref={menuRef}
-          role="menu"
+          ref={menuRef} role="menu"
           style={{ top: coords.top, left: coords.left }}
           className="fixed z-[9999] w-32 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm"
         >
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => { setOpen(false); onEdit() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-            Edit
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onEdit() }}
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer">
+            <Pencil className="w-3.5 h-3.5 text-muted-foreground" /> Edit
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => { setOpen(false); onDelete() }}
-            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onDelete() }}
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-destructive hover:bg-destructive/10 transition-colors cursor-pointer">
+            <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
         </div>,
         document.body,
@@ -604,13 +546,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   )
 }
 
-// ─── Small helpers ─────────────────────────────────────────────────────────────
-
-function Field({ label, required, children }: {
-  label: string
-  required?: boolean
-  children: React.ReactNode
-}) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-foreground">

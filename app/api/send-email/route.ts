@@ -42,6 +42,7 @@ function wrap(title: string, body: string) {
 function estimateSentHtml(d: Record<string, unknown>) {
   const name = d.customerName ?? 'there'
   const total = d.total != null ? `$${Number(d.total).toFixed(2)}` : '—'
+  const portalUrl = d.portalUrl as string | undefined
   return wrap('Your Estimate is Ready', `
     <p>Hi ${name},</p>
     <p>Your service provider has sent you an estimate for your review.</p>
@@ -54,7 +55,15 @@ function estimateSentHtml(d: Record<string, unknown>) {
         </tr>
       </table>
     </div>
-    <p>Please review the estimate and let us know if you have any questions.</p>
+    ${portalUrl ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+      <tr>
+        <td align="center">
+          <a href="${portalUrl}" style="display:inline-block;background:#18181b;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 40px;border-radius:6px;">Review &amp; Approve Estimate</a>
+        </td>
+      </tr>
+    </table>
+    ` : `<p>Please review the estimate and let us know if you have any questions.</p>`}
     <p>Thank you for your business.</p>
   `)
 }

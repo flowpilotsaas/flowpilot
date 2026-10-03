@@ -28,10 +28,11 @@
 
 import * as React from 'react'
 import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { TrialExpiredModal } from '@/components/TrialExpiredModal'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -71,6 +72,11 @@ type FormData = {
   status: ItemStatus
 }
 
+type DeleteTarget =
+  | { kind: 'single'; id: string; name: string }
+  | { kind: 'bulk'; count: number }
+  | null
+
 const EMPTY_FORM: FormData = {
   name: '', part_number: '', category: '', quantity: '0', cost: '', location: '', status: 'In Stock',
 }
@@ -93,14 +99,16 @@ export default function InventoryPage() {
   const [catFilter, setCatFilter]   = React.useState('all')
   const [lowStockOnly, setLowOnly]  = React.useState(false)
 
-  const [sheetOpen, setSheetOpen]   = React.useState(false)
+  const [sheetOpen, setSheetOpen]     = React.useState(false)
   const [editingItem, setEditingItem] = React.useState<InventoryItem | null>(null)
-  const [form, setForm]             = React.useState<FormData>(EMPTY_FORM)
-  const [formError, setFormError]   = React.useState('')
-  const [saving, setSaving]         = React.useState(false)
+  const [form, setForm]               = React.useState<FormData>(EMPTY_FORM)
+  const [formError, setFormError]     = React.useState('')
+  const [saving, setSaving]           = React.useState(false)
 
-  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
-  const [deleting, setDeleting]               = React.useState(false)
+  const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
+  const [deleting, setDeleting]         = React.useState(false)
+
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
 
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
@@ -108,11 +116,7 @@ export default function InventoryPage() {
 
   const fetchData = React.useCallback(async () => {
     if (!organizationId) return
-    const { data } = await supabase
-      .from('inventory')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('inventory').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false })
     if (data) setItems(data as InventoryItem[])
     setLoading(false)
   }, [organizationId])
@@ -127,27 +131,33 @@ export default function InventoryPage() {
   const filtered = React.useMemo(() => {
     return items.filter((item) => {
       const q = search.toLowerCase().trim()
-      const matchSearch = !q
-        || item.name.toLowerCase().includes(q)
-        || (item.part_number ?? '').toLowerCase().includes(q)
+      const matchSearch = !q || item.name.toLowerCase().includes(q) || (item.part_number ?? '').toLowerCase().includes(q)
       const matchCat = catFilter === 'all' || item.category === catFilter
       const matchLow = !lowStockOnly || item.status !== 'In Stock'
       return matchSearch && matchCat && matchLow
     })
   }, [items, search, catFilter, lowStockOnly])
 
-  const totalValue = React.useMemo(() =>
-    items.reduce((sum, i) => sum + (i.cost ?? 0) * i.quantity, 0), [items])
-  const lowStockCount  = items.filter((i) => i.status === 'Low Stock').length
+  const totalValue = React.useMemo(() => items.reduce((sum, i) => sum + (i.cost ?? 0) * i.quantity, 0), [items])
+  const lowStockCount   = items.filter((i) => i.status === 'Low Stock').length
   const outOfStockCount = items.filter((i) => i.status === 'Out of Stock').length
+
+  // ─── Bulk select helpers ────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+
+  const allSelected = filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id))
+  const someSelected = filtered.some((i) => selectedIds.has(i.id))
+  const selectAll = () => setSelectedIds(new Set(filtered.map((i) => i.id)))
+  const deselectAll = () => setSelectedIds(new Set())
 
   const openAdd = () => { setEditingItem(null); setForm(EMPTY_FORM); setFormError(''); setSheetOpen(true) }
 
-  React.useEffect(() => {
-    const h = () => openAdd()
-    window.addEventListener('dashboard:new', h as EventListener)
-    return () => window.removeEventListener('dashboard:new', h as EventListener)
-  }, []) // openAdd only calls stable useState setters
   const openEdit = (item: InventoryItem) => {
     setEditingItem(item)
     setForm({
@@ -170,13 +180,9 @@ export default function InventoryPage() {
     if (!organizationId) { setSaving(false); setFormError('Organization not found — please refresh the page.'); return }
 
     const payload = {
-      name: form.name.trim(),
-      part_number: form.part_number.trim() || null,
-      category: form.category.trim() || null,
-      quantity: parseInt(form.quantity) || 0,
-      cost: form.cost !== '' ? parseFloat(form.cost) : null,
-      location: form.location.trim() || null,
-      status: form.status,
+      name: form.name.trim(), part_number: form.part_number.trim() || null,
+      category: form.category.trim() || null, quantity: parseInt(form.quantity) || 0,
+      cost: form.cost !== '' ? parseFloat(form.cost) : null, location: form.location.trim() || null, status: form.status,
     }
 
     if (editingItem) {
@@ -187,38 +193,53 @@ export default function InventoryPage() {
       if (error) { setFormError(error.message); setSaving(false); return }
     }
 
+    toast.success(editingItem ? 'Item updated' : 'Item created')
     setSaving(false)
     setSheetOpen(false)
     await fetchData()
   }
 
   const handleDelete = async (id: string) => {
-    if (!trialAllowed) { setTrialModalOpen(true); setDeleteConfirmId(null); return }
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
     setDeleting(true)
-    await supabase.from('inventory').delete().eq('id', id)
+    const { error } = await supabase.from('inventory').delete().eq('id', id)
+    if (error) { toast.error('Failed to delete item'); setDeleting(false); return }
     setItems((prev) => prev.filter((i) => i.id !== id))
-    setDeleteConfirmId(null)
+    toast.success('Item deleted')
+    setDeleteTarget(null)
+    setDeleting(false)
+  }
+
+  const handleBulkDelete = async () => {
+    if (!trialAllowed) { setTrialModalOpen(true); setDeleteTarget(null); return }
+    setDeleting(true)
+    const ids = Array.from(selectedIds)
+    const { error } = await supabase.from('inventory').delete().in('id', ids)
+    if (error) { toast.error('Failed to delete items'); setDeleting(false); return }
+    setItems((prev) => prev.filter((i) => !ids.includes(i.id)))
+    setSelectedIds(new Set())
+    toast.success(`${ids.length} item${ids.length > 1 ? 's' : ''} deleted`)
+    setDeleteTarget(null)
     setDeleting(false)
   }
 
   const statCards = [
-    { label: 'Total Items',    value: items.length,                            color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20',   icon: Package },
-    { label: 'Total Value',    value: fmtCurrency(totalValue),                 color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20', icon: Package },
-    { label: 'Low Stock',      value: lowStockCount,                           color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20', icon: AlertTriangle },
-    { label: 'Out of Stock',   value: outOfStockCount,                         color: 'text-red-500',    bg: 'bg-red-50 dark:bg-red-900/20',     icon: XCircle },
+    { label: 'Total Items',  value: items.length,           color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20',   icon: Package },
+    { label: 'Total Value',  value: fmtCurrency(totalValue), color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20', icon: Package },
+    { label: 'Low Stock',    value: lowStockCount,           color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20', icon: AlertTriangle },
+    { label: 'Out of Stock', value: outOfStockCount,         color: 'text-red-500',    bg: 'bg-red-50 dark:bg-red-900/20',     icon: XCircle },
   ]
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Inventory</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Track parts, materials, and supplies</p>
         </div>
+        <Button onClick={openAdd} className="gap-1.5"><Plus className="w-4 h-4" /> Add Item</Button>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon: Icon, color, bg }) => (
           <Card key={label}>
@@ -227,9 +248,7 @@ export default function InventoryPage() {
                 <Icon className={cn('w-5 h-5', color)} />
               </div>
               <div>
-                <p className="text-xl font-bold text-foreground tabular-nums">
-                  {loading ? '—' : value}
-                </p>
+                <p className="text-xl font-bold text-foreground tabular-nums">{loading ? '—' : value}</p>
                 <p className="text-xs text-muted-foreground">{label}</p>
               </div>
             </CardContent>
@@ -237,37 +256,39 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input className="pl-9" placeholder="Search by name or part #…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <select
-          value={catFilter}
-          onChange={(e) => setCatFilter(e.target.value)}
-          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
+        <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
+          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
           <option value="all">All Categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <Button
-          variant={lowStockOnly ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setLowOnly((v) => !v)}
-          className="gap-1.5"
-        >
-          <AlertTriangle className="w-3.5 h-3.5" />
-          Low Stock
+        <Button variant={lowStockOnly ? 'default' : 'outline'} size="sm" onClick={() => setLowOnly((v) => !v)} className="gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5" /> Low Stock
         </Button>
       </div>
 
-      {/* Table */}
       <Card className="py-0 overflow-hidden">
         <CardHeader className="border-b px-6 py-4">
-          <CardTitle className="text-sm text-muted-foreground font-normal">
-            {loading ? 'Loading…' : `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`}
-          </CardTitle>
+          {selectedIds.size > 0 ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={deselectAll} className="h-8 px-3 text-xs cursor-pointer">Clear</Button>
+                <Button size="sm" variant="destructive" className="h-8 px-3 text-xs gap-1.5 cursor-pointer"
+                  onClick={() => setDeleteTarget({ kind: 'bulk', count: selectedIds.size })}>
+                  <Trash2 className="w-3.5 h-3.5" /> Delete {selectedIds.size}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <CardTitle className="text-sm text-muted-foreground font-normal">
+              {loading ? 'Loading…' : `${filtered.length} item${filtered.length !== 1 ? 's' : ''}`}
+            </CardTitle>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -298,6 +319,16 @@ export default function InventoryPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/50">
+                    <th className="px-4 py-3.5 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected }}
+                        onChange={(e) => e.target.checked ? selectAll() : deselectAll()}
+                        className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                        aria-label="Select all"
+                      />
+                    </th>
                     {['Part #', 'Name', 'Category', 'On Hand', 'Cost', 'Location', 'Status', 'Actions'].map((h) => (
                       <th key={h} className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
@@ -305,41 +336,34 @@ export default function InventoryPage() {
                 </thead>
                 <tbody>
                   {filtered.map((item) => (
-                    <React.Fragment key={item.id}>
-                      <tr className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
-                        <td className="px-6 py-4font-mono text-xs text-muted-foreground">{item.part_number ?? '—'}</td>
-                        <td className="px-6 py-4font-medium text-foreground">{item.name}</td>
-                        <td className="px-6 py-4text-muted-foreground">{item.category ?? '—'}</td>
-                        <td className="px-6 py-4text-muted-foreground tabular-nums">{item.quantity}</td>
-                        <td className="px-6 py-4text-muted-foreground tabular-nums">{fmtCurrency(item.cost)}</td>
-                        <td className="px-6 py-4text-muted-foreground">{item.location ?? '—'}</td>
-                        <td className="px-6 py-3">
-                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[item.status])}>
-                            {item.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4text-right whitespace-nowrap">
-                          {deleteConfirmId === item.id ? (
-                            <span className="inline-flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Delete?</span>
-                              <Button size="sm" variant="destructive" className="h-7 px-2 text-xs"
-                                onClick={() => handleDelete(item.id)} disabled={deleting}>
-                                {deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7 px-2 text-xs"
-                                onClick={() => setDeleteConfirmId(null)} disabled={deleting}>
-                                Cancel
-                              </Button>
-                            </span>
-                          ) : (
-                            <ItemActionMenu
-                              onEdit={() => openEdit(item)}
-                              onDelete={() => setDeleteConfirmId(item.id)}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    </React.Fragment>
+                    <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+                      <td className="px-4 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="w-4 h-4 rounded border-input accent-primary cursor-pointer block"
+                          aria-label={`Select ${item.name}`}
+                        />
+                      </td>
+                      <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{item.part_number ?? '—'}</td>
+                      <td className="px-6 py-4 font-medium text-foreground">{item.name}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{item.category ?? '—'}</td>
+                      <td className="px-6 py-4 text-muted-foreground tabular-nums">{item.quantity}</td>
+                      <td className="px-6 py-4 text-muted-foreground tabular-nums">{fmtCurrency(item.cost)}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{item.location ?? '—'}</td>
+                      <td className="px-6 py-3">
+                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', STATUS_STYLES[item.status])}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                        <ItemActionMenu
+                          onEdit={() => openEdit(item)}
+                          onDelete={() => setDeleteTarget({ kind: 'single', id: item.id, name: item.name })}
+                        />
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
@@ -348,7 +372,21 @@ export default function InventoryPage() {
         </CardContent>
       </Card>
 
-      {/* Sheet */}
+      <DeleteConfirmModal
+        open={deleteTarget !== null}
+        title={
+          deleteTarget?.kind === 'single'
+            ? `Delete "${deleteTarget.name}"?`
+            : `Delete ${deleteTarget?.count ?? 0} item${(deleteTarget?.count ?? 0) !== 1 ? 's' : ''}?`
+        }
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget?.kind === 'single') handleDelete(deleteTarget.id)
+          else if (deleteTarget?.kind === 'bulk') handleBulkDelete()
+        }}
+        loading={deleting}
+      />
+
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="flex flex-col gap-0 p-0">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
@@ -380,12 +418,9 @@ export default function InventoryPage() {
                 onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))} />
             </Field>
             <Field label="Status">
-              <select value={form.status}
-                onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ItemStatus }))}
+              <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ItemStatus }))}
                 className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
-                {(['In Stock', 'Low Stock', 'Out of Stock'] as ItemStatus[]).map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
+                {(['In Stock', 'Low Stock', 'Out of Stock'] as ItemStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
@@ -420,8 +455,7 @@ function ItemActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: ()
   React.useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node))
-        setOpen(false)
+      if (!menuRef.current?.contains(e.target as Node) && !triggerRef.current?.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)

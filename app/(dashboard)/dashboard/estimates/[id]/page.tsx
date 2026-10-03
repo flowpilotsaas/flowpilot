@@ -3,12 +3,16 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { use } from 'react'
+import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard } from 'lucide-react'
+import { ArrowLeft, Pencil, Loader2, FileText, ChevronDown, CheckCircle2, Link2, Copy, Check, CreditCard, Briefcase } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -38,6 +42,7 @@ type Estimate = {
   payment_link_url: string | null
   payment_link_status: 'sent' | 'paid' | null
   created_at: string
+  public_token: string | null
 }
 
 type LineItem = {
@@ -177,6 +182,8 @@ export default function EstimateDetailPage({
 }) {
   const { id } = use(params)
 
+  const router = useRouter()
+
   const [estimate, setEstimate] = React.useState<Estimate | null>(null)
   const [lineItems, setLineItems] = React.useState<LineItem[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -190,14 +197,21 @@ export default function EstimateDetailPage({
   const [generatingPaymentLink, setGeneratingPaymentLink] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
+  // Convert to Job
+  // undefined = still loading, null = no linked job, string = linked job id
+  const [linkedJobId, setLinkedJobId] = React.useState<string | null | undefined>(undefined)
+  const [converting, setConverting] = React.useState(false)
+  const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
   const { organizationId } = useOrganization()
+  const { isAllowed: trialAllowed } = useTrialStatus()
 
   // ─── Fetch ──────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
     if (!organizationId) return
     const load = async () => {
-      const [estRes, liRes] = await Promise.all([
+      const [estRes, liRes, jobRes] = await Promise.all([
         supabase
           .from('estimates')
           .select('*')
@@ -209,6 +223,12 @@ export default function EstimateDetailPage({
           .select('id, name, description, quantity, unit_price, total')
           .eq('estimate_id', id)
           .order('id'),
+        supabase
+          .from('jobs')
+          .select('id')
+          .eq('estimate_id', id)
+          .eq('organization_id', organizationId)
+          .maybeSingle(),
       ])
 
       if (!estRes.data) {
@@ -217,6 +237,11 @@ export default function EstimateDetailPage({
         setEstimate(estRes.data)
       }
       if (liRes.data) setLineItems(liRes.data)
+      // jobRes will error if estimate_id column doesn't exist yet — treat that as "no linked job"
+      if (jobRes.error) {
+        console.warn('[estimate detail] linked-job query failed (migration not run yet?):', jobRes.error.message)
+      }
+      setLinkedJobId(jobRes.data?.id ?? null)
       setLoading(false)
     }
     load()
@@ -272,6 +297,9 @@ export default function EstimateDetailPage({
         customerName:   estimate.customer_name,
         estimateNumber: estimate.estimate_number,
         total:          estimate.total,
+        portalUrl:      estimate.public_token
+          ? `${window.location.origin}/e/${estimate.public_token}`
+          : undefined,
       }
       await Promise.all([
         estimate.customer_email ? notify('email', estimate.customer_email, 'estimate_sent', sentData) : Promise.resolve(),
@@ -294,6 +322,7 @@ export default function EstimateDetailPage({
       )
     }
 
+    toast.success('Estimate status updated')
     setUpdatingStatus(false)
   }
 
@@ -312,6 +341,7 @@ export default function EstimateDetailPage({
       setPaymentLinkUrl(data.url)
       setEstimate((prev) => prev ? { ...prev, payment_link_url: data.url, payment_link_status: 'sent' } : prev)
       setPaymentLinkModalOpen(true)
+      toast.success('Payment link generated')
       const linkData = {
         customerName: estimate?.customer_name,
         payUrl:       data.url,
@@ -332,10 +362,108 @@ export default function EstimateDetailPage({
       }
       if (warns.length > 0) setNotificationWarning(`Payment link generated, but the notification failed (${warns.join('; ')}).`)
     } catch (err) {
-      alert((err as Error).message)
+      toast.error((err as Error).message)
     } finally {
       setGeneratingPaymentLink(false)
     }
+  }
+
+  // ─── Convert to Job ─────────────────────────────────────────────────────────
+
+  const handleConvertToJob = async () => {
+    if (!estimate || !organizationId) return
+    if (!trialAllowed) { setTrialModalOpen(true); return }
+    setConverting(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setConverting(false); return }
+
+    // ── Resolve customer_id ──────────────────────────────────────────────────
+    // The estimate may carry a direct FK (customer selected from dropdown) or
+    // only free-text fields (customer typed manually). Jobs require a real FK.
+    let resolvedCustomerId: string | null = estimate.customer_id
+
+    if (!resolvedCustomerId) {
+      if (!estimate.customer_name) {
+        toast.error('This estimate has no customer — add a customer before converting to a job.')
+        setConverting(false)
+        return
+      }
+
+      // Try to match an existing customer by name (case-insensitive)
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .ilike('name', estimate.customer_name)
+        .maybeSingle()
+
+      if (existingCustomer) {
+        resolvedCustomerId = existingCustomer.id
+      } else {
+        // No match — create a customer record from the estimate's free-text fields
+        const { data: newCustomer, error: custError } = await supabase
+          .from('customers')
+          .insert({
+            user_id:         user.id,
+            organization_id: organizationId,
+            name:            estimate.customer_name,
+            email:           estimate.customer_email  ?? null,
+            phone:           estimate.customer_phone  ?? null,
+            address:         estimate.customer_address ?? null,
+          })
+          .select('id')
+          .single()
+
+        if (custError || !newCustomer) {
+          console.error('[handleConvertToJob] customer create failed:', custError)
+          toast.error(`Failed to create customer record: ${custError?.message ?? 'unknown error'}`)
+          setConverting(false)
+          return
+        }
+
+        resolvedCustomerId = newCustomer.id
+      }
+    }
+
+    const title = lineItems.length === 1
+      ? lineItems[0].name
+      : `Job for ${fmtEstNum(estimate.estimate_number)}`
+
+    // Step 1: insert the job without estimate_id (works before migration is run)
+    const { data: newJob, error } = await supabase
+      .from('jobs')
+      .insert({
+        user_id:         user.id,
+        organization_id: organizationId,
+        customer_id:     resolvedCustomerId,
+        title,
+        price:           estimate.total,
+        status:          'Scheduled',
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('[handleConvertToJob] insert failed:', error)
+      toast.error(`Failed to create job: ${error.message}`)
+      setConverting(false)
+      return
+    }
+
+    // Step 2: back-link the job to this estimate (requires migration: alter table jobs add column estimate_id)
+    // Silently skipped if the column doesn't exist yet — the job is still created and usable
+    const { error: linkError } = await supabase
+      .from('jobs')
+      .update({ estimate_id: estimate.id })
+      .eq('id', newJob.id)
+    if (linkError) {
+      console.warn('[handleConvertToJob] estimate_id link failed (migration not run yet?):', linkError.message)
+    }
+
+    toast.success('Job created')
+    setLinkedJobId(newJob.id)
+    router.push(`/dashboard/jobs/${newJob.id}`)
   }
 
   // ─── Derived pricing ────────────────────────────────────────────────────
@@ -393,6 +521,22 @@ export default function EstimateDetailPage({
             onStatusChange={handleStatusChange}
             updating={updatingStatus}
           />
+          {estimate.status === 'Approved' && linkedJobId !== undefined && (
+            linkedJobId ? (
+              <Button variant="outline" size="sm" asChild className="gap-1.5">
+                <Link href={`/dashboard/jobs/${linkedJobId}`}>
+                  <Briefcase className="w-3.5 h-3.5" />
+                  View Job
+                </Link>
+              </Button>
+            ) : (
+              <Button size="sm" className="gap-1.5" onClick={handleConvertToJob} disabled={converting}>
+                {converting
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Converting…</>
+                  : <><Briefcase className="w-3.5 h-3.5" />Convert to Job</>}
+              </Button>
+            )
+          )}
           <Button variant="outline" size="sm" asChild className="gap-1.5">
             <Link href={`/dashboard/estimates/${id}/edit`}>
               <Pencil className="w-3.5 h-3.5" />
@@ -662,6 +806,8 @@ export default function EstimateDetailPage({
           onClose={() => { setPaymentLinkModalOpen(false); setCopied(false) }}
         />
       )}
+
+      <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
 
     </div>
   )
