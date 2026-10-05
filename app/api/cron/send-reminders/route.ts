@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendNotificationEmail } from '@/lib/send-notification-email'
 
 function getSupabase() {
   return createClient(
@@ -8,8 +9,12 @@ function getSupabase() {
   )
 }
 
+function one<T>(v: T | T[] | null | undefined): T | null {
+  if (v == null) return null
+  return Array.isArray(v) ? (v[0] ?? null) : v
+}
+
 export async function GET(req: NextRequest) {
-  // Verify the request comes from Vercel Cron (or an authorized caller)
   const authHeader = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -17,17 +22,16 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabase()
 
-  // Find jobs scheduled within the next 48 hours that haven't had a reminder sent.
-  // Window is 48h (not 24h) because this cron runs once daily — a wider window ensures
-  // nothing is missed if a job falls just outside a 24h window between runs.
-  const now = new Date()
+  const now   = new Date()
   const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
   const todayStr = now.toISOString().split('T')[0]
   const in48hStr = in48h.toISOString().split('T')[0]
 
+  // Supabase many-to-one joins (jobs.customer_id → customers, jobs.organization_id → organizations)
+  // return a single OBJECT per row, not an array.
   const { data: jobs, error } = await supabase
     .from('jobs')
-    .select('id, job_number, title, scheduled_date, organization_id, customers(name, email, phone), organizations(company_name)')
+    .select('id, job_number, title, scheduled_date, organization_id, customers(name, email, phone), organizations(name)')
     .gte('scheduled_date', todayStr)
     .lte('scheduled_date', in48hStr)
     .is('reminder_sent_at', null)
@@ -38,81 +42,115 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 
-  console.log('[send-reminders] Jobs to remind:', jobs?.length ?? 0)
+  const found = jobs?.length ?? 0
+  console.log('[send-reminders] Jobs to remind:', found)
 
-  const results: { jobId: string; email?: string; sms?: string }[] = []
+  type JobResult = { jobId: string; email?: string; sms?: string }
+  const results: JobResult[] = []
+  const allErrors: { jobId: string; errors: string[] }[] = []
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const internalHeaders = {
+    'Content-Type':  'application/json',
+    'Authorization': `Bearer ${process.env.CRON_SECRET}`,
+  }
 
   for (const job of jobs ?? []) {
-    const customersArr = job.customers as { name: string; email: string | null; phone: string | null }[] | null
-    const customer = Array.isArray(customersArr) ? customersArr[0] ?? null : null
-    const orgsArr = job.organizations as { company_name: string | null }[] | null
-    const org = Array.isArray(orgsArr) ? orgsArr[0] ?? null : null
+    type Customer = { name: string; email: string | null; phone: string | null }
+    type Org      = { name: string | null }
+    const customer = one(job.customers as unknown as Customer | Customer[] | null)
+    const org      = one(job.organizations as unknown as Org | Org[] | null)
 
-    if (!customer?.email && !customer?.phone) continue
+    if (!customer?.email && !customer?.phone) {
+      console.log('[send-reminders] Skipping job', job.id, '— no customer contact info')
+      continue
+    }
 
     const reminderData = {
-      customerName: customer?.name ?? 'there',
-      jobNumber:    job.job_number,
-      title:        job.title,
+      customerName:  customer?.name ?? 'there',
+      jobNumber:     job.job_number,
+      title:         job.title,
       scheduledDate: job.scheduled_date,
-      companyName:  org?.company_name ?? 'Your service provider',
+      companyName:   org?.name ?? 'Your service provider',
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const result: { jobId: string; email?: string; sms?: string } = { jobId: job.id }
+    let emailSent = false
+    let smsSent   = false
+    const jobErrors: string[] = []
+    const result: JobResult = { jobId: job.id }
 
-    const internalHeaders = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-    }
-
-    // Send email reminder
+    // ── Email (direct call — no internal HTTP round-trip) ──────────────────
     if (customer?.email) {
       try {
-        const r = await fetch(`${baseUrl}/api/send-email`, {
-          method: 'POST',
-          headers: internalHeaders,
-          body: JSON.stringify({ to: customer.email, type: 'job_reminder', data: reminderData }),
+        const { ok, id, error: emailErr } = await sendNotificationEmail({
+          to:   customer.email,
+          type: 'job_reminder',
+          data: reminderData,
         })
-        result.email = r.ok ? 'sent' : `failed (${r.status})`
-        if (!r.ok) console.error('[send-reminders] Email failed for job', job.id, ':', await r.text().catch(() => ''))
+        if (ok) {
+          emailSent = true
+          result.email = `sent (id: ${id ?? 'unknown'})`
+          console.log('[send-reminders] Email sent for job', job.id, '— Resend id:', id)
+        } else {
+          result.email = `failed: ${emailErr}`
+          jobErrors.push(`email: ${emailErr}`)
+          console.error('[send-reminders] Email failed for job', job.id, ':', emailErr)
+        }
       } catch (err) {
-        result.email = 'network error'
-        console.error('[send-reminders] Email network error for job', job.id, ':', (err as Error).message)
+        const msg = (err as Error).message
+        result.email = `error: ${msg}`
+        jobErrors.push(`email threw: ${msg}`)
+        console.error('[send-reminders] Email threw for job', job.id, ':', msg)
       }
     }
 
-    // Send SMS reminder
+    // ── SMS (HTTP to /api/send-sms which has auth + Twilio logic) ──────────
     if (customer?.phone) {
       try {
         const r = await fetch(`${baseUrl}/api/send-sms`, {
-          method: 'POST',
+          method:  'POST',
           headers: internalHeaders,
-          body: JSON.stringify({ to: customer.phone, type: 'job_reminder', data: reminderData }),
+          body:    JSON.stringify({ to: customer.phone, type: 'job_reminder', data: reminderData }),
         })
-        result.sms = r.ok ? 'sent' : `failed (${r.status})`
-        if (!r.ok) console.error('[send-reminders] SMS failed for job', job.id, ':', await r.text().catch(() => ''))
+        if (r.ok) {
+          smsSent = true
+          result.sms = 'sent'
+          console.log('[send-reminders] SMS sent for job', job.id)
+        } else {
+          const body = await r.text().catch(() => '')
+          result.sms = `failed (${r.status})`
+          jobErrors.push(`sms (${r.status}): ${body}`)
+          console.error('[send-reminders] SMS failed for job', job.id, `— status ${r.status}:`, body)
+        }
       } catch (err) {
-        result.sms = 'network error'
-        console.error('[send-reminders] SMS network error for job', job.id, ':', (err as Error).message)
+        const msg = (err as Error).message
+        result.sms = `error: ${msg}`
+        jobErrors.push(`sms threw: ${msg}`)
+        console.error('[send-reminders] SMS threw for job', job.id, ':', msg)
       }
     }
 
-    // Mark reminder sent regardless of individual channel failures —
-    // avoids flooding customers if one channel consistently fails
-    if (result.email || result.sms) {
+    // ── Only stamp if at least one channel confirmed delivery ──────────────
+    if (emailSent || smsSent) {
       const { error: updateErr } = await supabase
         .from('jobs')
         .update({ reminder_sent_at: new Date().toISOString() })
         .eq('id', job.id)
       if (updateErr) {
-        console.error('[send-reminders] Failed to mark reminder_sent_at for job', job.id, ':', updateErr.message)
+        console.error('[send-reminders] Failed to set reminder_sent_at for job', job.id, ':', updateErr.message)
+        jobErrors.push(`stamp: ${updateErr.message}`)
       }
+    } else {
+      console.warn('[send-reminders] No channel succeeded for job', job.id, '— will retry next run')
     }
 
     results.push(result)
+    if (jobErrors.length) allErrors.push({ jobId: job.id, errors: jobErrors })
   }
 
-  console.log('[send-reminders] Done. Results:', JSON.stringify(results))
-  return Response.json({ processed: results.length, results })
+  const sent   = results.filter(r => r.email?.startsWith('sent') || r.sms === 'sent').length
+  const failed = results.length - sent
+
+  console.log('[send-reminders] Done — found:', found, 'sent:', sent, 'failed:', failed)
+  return Response.json({ found, sent, failed, errors: allErrors.length ? allErrors : undefined })
 }

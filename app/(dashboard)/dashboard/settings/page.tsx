@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = React.useState(false)
   const [companyMsg, setCompanyMsg]   = React.useState('')
   const [settingsId, setSettingsId]   = React.useState<string | null>(null)
+  const [orgId, setOrgId]             = React.useState<string | null>(null)
 
   // ── Password ────────────────────────────────────────────────────────────
   const [currentPw, setCurrentPw]     = React.useState('')
@@ -55,15 +56,33 @@ export default function SettingsPage() {
         })
       )
 
+      // Resolve the user's org, then load the org's name as the authoritative company name
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (membership?.organization_id) {
+        setOrgId(membership.organization_id)
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', membership.organization_id)
+          .maybeSingle()
+        if (org) setCompanyName(org.name ?? '')
+      }
+
+      // user_settings stores industry/timezone only (company name lives on organizations)
       const { data } = await supabase
         .from('user_settings')
-        .select('id, company_name, industry, timezone')
+        .select('id, industry, timezone')
         .eq('user_id', user.id)
         .maybeSingle()
 
       if (data) {
         setSettingsId(data.id)
-        setCompanyName(data.company_name ?? '')
         setIndustry(data.industry ?? '')
         setTimezone(data.timezone ?? '')
       }
@@ -80,14 +99,27 @@ export default function SettingsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSavingCompany(false); return }
 
+    // Write company name to organizations.name — the single source of truth
+    if (orgId) {
+      const { error: orgError } = await supabase
+        .from('organizations')
+        .update({ name: companyName.trim() || null })
+        .eq('id', orgId)
+      if (orgError) {
+        setCompanyMsg(`error:${orgError.message}`)
+        setSavingCompany(false)
+        return
+      }
+    }
+
+    // user_settings stores industry/timezone only
     const { data, error } = await supabase
       .from('user_settings')
       .upsert(
         {
-          user_id:      user.id,
-          company_name: companyName.trim() || null,
-          industry:     industry || null,
-          timezone:     timezone.trim() || null,
+          user_id:  user.id,
+          industry: industry || null,
+          timezone: timezone.trim() || null,
         },
         { onConflict: 'user_id' },
       )
