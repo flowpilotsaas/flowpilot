@@ -83,7 +83,7 @@ function jobConfirmationHtml(d: Record<string, unknown>) {
   const name = d.customerName ?? 'there'
   const num = d.jobNumber ? `#${d.jobNumber}` : ''
   const title = d.title ?? 'Scheduled Job'
-  const date = d.scheduledDate ?? 'TBD'
+  const date = formatDateOnly(d.scheduledDate) ?? 'TBD'
   const company = d.companyName ?? 'Your service provider'
   return wrap('Job Confirmed', `
     <p>Hi ${name},</p>
@@ -99,11 +99,20 @@ function jobConfirmationHtml(d: Record<string, unknown>) {
   `)
 }
 
+function formatDateOnly(dateStr: unknown): string | null {
+  if (typeof dateStr !== 'string' || !dateStr) return null
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  })
+}
+
 function jobReminderHtml(d: Record<string, unknown>) {
   const name = d.customerName ?? 'there'
   const num = d.jobNumber ? `#${d.jobNumber}` : ''
   const title = d.title ?? 'Upcoming Job'
-  const date = d.scheduledDate ?? 'soon'
+  const date = formatDateOnly(d.scheduledDate) ?? 'soon'
   const company = d.companyName ?? 'Your service provider'
   return wrap('Reminder: Upcoming Job', `
     <p>Hi ${name},</p>
@@ -115,7 +124,7 @@ function jobReminderHtml(d: Record<string, unknown>) {
         ${tr('Scheduled Date', date)}
       </table>
     </div>
-    <p>Please ensure someone is available at the scheduled time. Contact us if you need to reschedule.</p>
+    <p>Please make sure someone is available that day. Contact us if you need to reschedule.</p>
   `)
 }
 
@@ -140,8 +149,8 @@ function paymentReceivedHtml(d: Record<string, unknown>) {
 function agreementSentHtml(d: Record<string, unknown>) {
   const name = d.customerName ?? 'there'
   const title = d.agreementTitle ?? 'Service Agreement'
-  const start = d.startDate ?? '—'
-  const end = d.endDate ?? '—'
+  const start = formatDateOnly(d.startDate) ?? '—'
+  const end = formatDateOnly(d.endDate) ?? '—'
   const value = d.value != null ? `$${Number(d.value).toFixed(2)}` : null
   const company = d.companyName ?? 'Your service provider'
   return wrap('Service Agreement Active', `
