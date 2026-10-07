@@ -14,12 +14,20 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2, Lock, Plug, User, CheckCircle2 } from 'lucide-react'
+import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 
 const INDUSTRIES = [
   'HVAC', 'Plumbing', 'Electrical', 'Landscaping', 'Cleaning',
   'Pest Control', 'Appliance Repair', 'General Contractor', 'Other',
 ]
+
+type StripeRow = {
+  stripe_account_id: string | null
+  charges_enabled: boolean
+  details_submitted: boolean
+}
 
 export default function SettingsPage() {
   // ── Company info ────────────────────────────────────────────────────────
@@ -43,6 +51,15 @@ export default function SettingsPage() {
   const [email, setEmail]             = React.useState('')
   const [memberSince, setMemberSince] = React.useState('')
   const [loadingUser, setLoadingUser] = React.useState(true)
+  const [orgRole, setOrgRole]         = React.useState<string | null>(null)
+
+  // ── Stripe Connect ───────────────────────────────────────────────────────
+  const [stripeRow, setStripeRow]         = React.useState<StripeRow>({
+    stripe_account_id: null, charges_enabled: false, details_submitted: false,
+  })
+  const [stripeLoading, setStripeLoading]       = React.useState(false)
+  const [showDisconnect, setShowDisconnect]     = React.useState(false)
+  const [disconnecting, setDisconnecting]       = React.useState(false)
 
   React.useEffect(() => {
     async function load() {
@@ -56,22 +73,66 @@ export default function SettingsPage() {
         })
       )
 
-      // Resolve the user's org, then load the org's name as the authoritative company name
+      // Resolve the user's org + role
       const { data: membership } = await supabase
         .from('organization_members')
-        .select('organization_id')
+        .select('organization_id, role')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
 
       if (membership?.organization_id) {
         setOrgId(membership.organization_id)
+        setOrgRole(membership.role ?? null)
+
         const { data: org } = await supabase
           .from('organizations')
           .select('name')
           .eq('id', membership.organization_id)
           .maybeSingle()
         if (org) setCompanyName(org.name ?? '')
+
+        // Load Stripe Connect status
+        const { data: stripeData } = await supabase
+          .from('organization_stripe_accounts')
+          .select('stripe_account_id, charges_enabled, details_submitted')
+          .eq('organization_id', membership.organization_id)
+          .maybeSingle()
+
+        setStripeRow({
+          stripe_account_id: stripeData?.stripe_account_id ?? null,
+          charges_enabled:   stripeData?.charges_enabled   ?? false,
+          details_submitted: stripeData?.details_submitted ?? false,
+        })
+
+        // Handle Stripe redirect params (?stripe=return|refresh)
+        if (typeof window !== 'undefined') {
+          const params    = new URLSearchParams(window.location.search)
+          const stripeParam = params.get('stripe')
+          if (stripeParam) {
+            window.history.replaceState({}, '', '/dashboard/settings')
+
+            if (stripeParam === 'return') {
+              // Refresh status from Stripe after onboarding
+              const res = await fetch('/api/stripe/connect/status', { method: 'POST' })
+              if (res.ok) {
+                const refreshed = await res.json()
+                setStripeRow(prev => ({ ...prev, ...refreshed }))
+              } else {
+                toast.error('Could not refresh Stripe status.')
+              }
+            } else if (stripeParam === 'refresh') {
+              // Account link expired — get a new one
+              const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
+              if (res.ok) {
+                const { url } = await res.json()
+                if (url) window.location.href = url
+              } else {
+                toast.error('Could not restart Stripe onboarding.')
+              }
+            }
+          }
+        }
       }
 
       // user_settings stores industry/timezone only (company name lives on organizations)
@@ -171,6 +232,41 @@ export default function SettingsPage() {
     setTimeout(() => setPwMsg(''), 4000)
   }
 
+  const handleConnectStripe = async () => {
+    setStripeLoading(true)
+    try {
+      const res  = await fetch('/api/stripe/connect/onboard', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(`Could not start Stripe onboarding: ${data.error ?? 'Unknown error'}`)
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      toast.error('Could not start Stripe onboarding.')
+    } finally {
+      setStripeLoading(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true)
+    try {
+      const res  = await fetch('/api/stripe/connect/disconnect', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not disconnect Stripe.'); return }
+      setStripeRow({ stripe_account_id: null, charges_enabled: false, details_submitted: false })
+      setShowDisconnect(false)
+      toast.success('Stripe account disconnected.')
+    } catch {
+      toast.error('Could not disconnect Stripe.')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  const isPrivileged = orgRole === 'owner' || orgRole === 'admin'
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -220,6 +316,96 @@ export default function SettingsPage() {
               </Button>
               <InlineMsg msg={companyMsg} />
             </div>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Get Paid with Stripe ── */}
+      <Section icon={CreditCard} title="Get Paid with Stripe" subtitle="Accept card payments on estimates">
+        {loadingUser ? (
+          <div className="flex items-center gap-2 text-muted-foreground py-4">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          </div>
+        ) : stripeRow.charges_enabled ? (
+          /* ── State 3: fully connected ── */
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Stripe connected</p>
+                <p className="text-xs text-muted-foreground">Payments are enabled on your estimates</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href="https://dashboard.stripe.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Dashboard <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+              {isPrivileged && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowDisconnect(true)}
+                >
+                  Disconnect
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : stripeRow.stripe_account_id ? (
+          /* ── State 2: account created but onboarding incomplete ── */
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Finish your Stripe setup</p>
+                <p className="text-xs text-muted-foreground">Complete onboarding to enable payments</p>
+              </div>
+            </div>
+            {isPrivileged && (
+              <Button
+                size="sm"
+                onClick={handleConnectStripe}
+                disabled={stripeLoading}
+                className="gap-2"
+              >
+                {stripeLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Finish setup
+              </Button>
+            )}
+          </div>
+        ) : (
+          /* ── State 1: not connected ── */
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center font-bold text-sm text-muted-foreground">
+                S
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Stripe</p>
+                <p className="text-xs text-muted-foreground">Connect Stripe to accept payments on estimates</p>
+              </div>
+            </div>
+            {isPrivileged && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleConnectStripe}
+                disabled={stripeLoading}
+                className="gap-2"
+              >
+                {stripeLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Connect
+              </Button>
+            )}
           </div>
         )}
       </Section>
@@ -303,6 +489,17 @@ export default function SettingsPage() {
           </div>
         )}
       </Section>
+
+      {/* ── Disconnect confirmation modal ── */}
+      <DeleteConfirmModal
+        open={showDisconnect}
+        title="Disconnect Stripe"
+        message="This will unlink your Stripe account. Existing paid invoices are not affected, but new estimate payment links will stop working until you reconnect."
+        confirmLabel="Disconnect"
+        onCancel={() => setShowDisconnect(false)}
+        onConfirm={handleDisconnect}
+        loading={disconnecting}
+      />
     </div>
   )
 }
