@@ -83,15 +83,22 @@ export async function recordEstimatePayment({
   // ── 8. Find a job linked to this estimate ──────────────────────────────────
   const { data: job } = await supabase
     .from('jobs')
-    .select('id')
+    .select('id, job_number, created_at')
     .eq('estimate_id', estimate.id)
     .maybeSingle()
+
+  // Format job number text the same way the jobs page does (JOB-YYYY-NNNNNN)
+  const jobNumberText =
+    job?.job_number != null && job.created_at
+      ? `JOB-${new Date(job.created_at).getFullYear()}-${String(job.job_number).padStart(6, '0')}`
+      : null
 
   // ── 9. Insert transaction ──────────────────────────────────────────────────
   await supabase.from('transactions').insert({
     user_id:                    orgRes.data.owner_id,
     organization_id:            estimate.organization_id,
     job_id:                     job?.id ?? null,
+    job_number:                 jobNumberText,
     customer_id:                estimate.customer_id ?? null,
     customer_name:              estimate.customer_name ?? null,
     amount:                     estimate.total,

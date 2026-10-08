@@ -450,7 +450,7 @@ export default function EstimateDetailPage({
         price:           estimate.total,
         status:          paymentTxn ? 'Paid' : 'Scheduled',
       })
-      .select('id')
+      .select('id, job_number, created_at')
       .single()
 
     if (error) {
@@ -473,9 +473,16 @@ export default function EstimateDetailPage({
     // Step 3: if a payment transaction already exists, link it to the new job
     // (only where job_id is still null — avoids overwriting a prior link)
     if (paymentTxn) {
+      const jobNumberText =
+        newJob.job_number != null && newJob.created_at
+          ? `JOB-${new Date(newJob.created_at).getFullYear()}-${String(newJob.job_number).padStart(6, '0')}`
+          : null
       const { error: txnLinkError } = await supabase
         .from('transactions')
-        .update({ job_id: newJob.id })
+        .update({
+          job_id:     newJob.id,
+          ...(jobNumberText ? { job_number: jobNumberText } : {}),
+        })
         .eq('id', paymentTxn.id)
         .is('job_id', null)
       if (txnLinkError) {
