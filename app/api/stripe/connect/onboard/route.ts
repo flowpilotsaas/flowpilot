@@ -50,20 +50,36 @@ export async function POST(_req: NextRequest) {
     let stripeAccountId = current?.stripe_account_id ?? null
 
     if (!stripeAccountId) {
-      // ── 5. Create the Stripe account ──────────────────────────────────────
-      // For accounts with requirement_collection: 'stripe' (Standard-style),
-      // Stripe manages capability collection during hosted onboarding —
-      // card_payments and transfers do NOT need to be requested explicitly here.
-      const account = await stripe.accounts.create({
-        controller: {
-          losses:                 { payments: 'stripe' },
-          fees:                   { payer: 'account' },
-          requirement_collection: 'stripe',
-          stripe_dashboard:       { type: 'full' },
+      // ── 5. Fetch org name for display_name ────────────────────────────────
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', orgId)
+        .maybeSingle()
+
+      // ── 6. Create the Stripe account via v2 REST API ──────────────────────
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const account = await (stripe.v2.core.accounts as any).create({
+        contact_email: user.email ?? undefined,
+        display_name:  org?.name ?? undefined,
+        dashboard:     'full',
+        identity:      { country: 'us' },
+        defaults: {
+          responsibilities: {
+            fees_collector:   'stripe',
+            losses_collector: 'stripe',
+          },
         },
+        configuration: {
+          merchant: {
+            capabilities: { card_payments: { requested: true } },
+          },
+        },
+        include:  ['configuration.merchant'],
         metadata: { organization_id: orgId },
       })
-      const newId = account.id
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newId = (account as any).id as string
 
       // ── 6. Compare-and-set: only update if stripe_account_id is still null ─
       const { data: saved } = await supabase
@@ -96,11 +112,16 @@ export async function POST(_req: NextRequest) {
 
     // ── 7. Create Account Link for the authoritative ID in the DB ────────────
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-    const accountLink = await stripe.accountLinks.create({
-      account:     stripeAccountId,
-      type:        'account_onboarding',
-      return_url:  `${baseUrl}/dashboard/settings?stripe=return`,
-      refresh_url: `${baseUrl}/dashboard/settings?stripe=refresh`,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const accountLink = await (stripe.v2.core.accountLinks as any).create({
+      account:  stripeAccountId,
+      use_case: {
+        type:                'account_onboarding',
+        account_onboarding: {
+          return_url:  `${baseUrl}/dashboard/settings?stripe=return`,
+          refresh_url: `${baseUrl}/dashboard/settings?stripe=refresh`,
+        },
+      },
     })
 
     return NextResponse.json({ url: accountLink.url })

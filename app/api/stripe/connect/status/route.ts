@@ -36,22 +36,29 @@ export async function POST(_req: NextRequest) {
       return NextResponse.json({ charges_enabled: false, details_submitted: false })
     }
 
-    // ── 4. Retrieve fresh status from Stripe and sync to DB ─────────────────
-    const account = await stripe.accounts.retrieve(row.stripe_account_id)
+    // ── 4. Retrieve fresh status from Stripe v2 API and sync to DB ───────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const account = await (stripe.v2.core.accounts as any).retrieve(
+      row.stripe_account_id,
+      { include: ['configuration.merchant'] },
+    ) as any
+
+    // v2 surfaces capability status instead of top-level boolean fields
+    const cardPayments  = account?.configuration?.merchant?.capabilities?.card_payments
+    const charges_enabled   = cardPayments?.status === 'active'
+    // details_submitted = no blocking requirements (status_details empty)
+    const details_submitted = (cardPayments?.status_details ?? []).length === 0
 
     await supabase
       .from('organization_stripe_accounts')
       .update({
-        charges_enabled:   account.charges_enabled   ?? false,
-        details_submitted: account.details_submitted ?? false,
-        updated_at:        new Date().toISOString(),
+        charges_enabled,
+        details_submitted,
+        updated_at: new Date().toISOString(),
       })
       .eq('organization_id', membership.organization_id)
 
-    return NextResponse.json({
-      charges_enabled:   account.charges_enabled   ?? false,
-      details_submitted: account.details_submitted ?? false,
-    })
+    return NextResponse.json({ charges_enabled, details_submitted })
   } catch (err: unknown) {
     const e = err as Record<string, unknown>
     console.error('[connect/status]', {
