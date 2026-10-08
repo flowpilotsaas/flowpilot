@@ -430,7 +430,16 @@ export default function EstimateDetailPage({
       ? lineItems[0].name
       : `Job for ${fmtEstNum(estimate.estimate_number)}`
 
+    // Check for an existing payment transaction on this estimate
+    const { data: paymentTxn } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('estimate_id', estimate.id)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+
     // Step 1: insert the job without estimate_id (works before migration is run)
+    // If already paid, start the job as Paid rather than Scheduled
     const { data: newJob, error } = await supabase
       .from('jobs')
       .insert({
@@ -439,7 +448,7 @@ export default function EstimateDetailPage({
         customer_id:     resolvedCustomerId,
         title,
         price:           estimate.total,
-        status:          'Scheduled',
+        status:          paymentTxn ? 'Paid' : 'Scheduled',
       })
       .select('id')
       .single()
@@ -459,6 +468,19 @@ export default function EstimateDetailPage({
       .eq('id', newJob.id)
     if (linkError) {
       console.warn('[handleConvertToJob] estimate_id link failed (migration not run yet?):', linkError.message)
+    }
+
+    // Step 3: if a payment transaction already exists, link it to the new job
+    // (only where job_id is still null — avoids overwriting a prior link)
+    if (paymentTxn) {
+      const { error: txnLinkError } = await supabase
+        .from('transactions')
+        .update({ job_id: newJob.id })
+        .eq('id', paymentTxn.id)
+        .is('job_id', null)
+      if (txnLinkError) {
+        console.warn('[handleConvertToJob] transaction job_id link failed:', txnLinkError.message)
+      }
     }
 
     toast.success('Job created')
