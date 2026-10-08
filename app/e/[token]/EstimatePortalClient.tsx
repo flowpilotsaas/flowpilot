@@ -50,19 +50,19 @@ export default function EstimatePortalClient({
   lineItems,
   businessName,
   token,
-  existingPaymentUrl,
+  isPaid,
 }: {
   estimate: PortalEstimate
   lineItems: LineItem[]
   businessName: string | null
   token: string
-  existingPaymentUrl: string | null
+  isPaid: boolean
 }) {
-  const [status, setStatus] = React.useState<EstimateStatus>(initialEstimate.status)
+  const [status, setStatus]     = React.useState<EstimateStatus>(initialEstimate.status)
   const [submitting, setSubmitting] = React.useState<'approve' | 'decline' | null>(null)
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
-  const [paymentUrl, setPaymentUrl] = React.useState<string | null>(existingPaymentUrl)
-  const [paymentAttempted, setPaymentAttempted] = React.useState(false)
+  const [payingNow, setPayingNow]   = React.useState(false)
+  const [payError, setPayError]     = React.useState<string | null>(null)
 
   const hasDecided = status === 'Approved' || status === 'Declined'
 
@@ -86,10 +86,6 @@ export default function EstimatePortalClient({
         return
       }
       setStatus(action === 'approve' ? 'Approved' : 'Declined')
-      if (action === 'approve') {
-        setPaymentAttempted(true)
-        setPaymentUrl(data.paymentUrl ?? null)
-      }
     } catch {
       setErrorMsg('Network error. Please check your connection and try again.')
     } finally {
@@ -97,9 +93,27 @@ export default function EstimatePortalClient({
     }
   }
 
+  const handlePayNow = async () => {
+    setPayingNow(true)
+    setPayError(null)
+    try {
+      const res  = await fetch(`/api/stripe/pay/${token}`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setPayError(data.error ?? 'Could not create a payment session. Please try again.')
+        return
+      }
+      window.location.href = data.url
+    } catch {
+      setPayError('Network error. Please check your connection and try again.')
+    } finally {
+      setPayingNow(false)
+    }
+  }
+
   const markupAmount = initialEstimate.subtotal * (initialEstimate.markup_percent / 100)
-  const taxBase = initialEstimate.subtotal + markupAmount
-  const taxAmount = taxBase * (initialEstimate.tax_percent / 100)
+  const taxBase      = initialEstimate.subtotal + markupAmount
+  const taxAmount    = taxBase * (initialEstimate.tax_percent / 100)
 
   return (
     <div className="min-h-screen bg-background py-12 px-4">
@@ -134,26 +148,35 @@ export default function EstimatePortalClient({
                   : "Your service provider has been notified. Feel free to reach out if you'd like to discuss further."}
               </p>
 
-              {status === 'Approved' && paymentUrl && (
-                <div className="mt-3">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Ready to pay? Complete your payment securely below.
-                  </p>
-                  <a
-                    href={paymentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center h-9 px-5 rounded-lg bg-success hover:bg-success/90 text-success-foreground text-sm font-semibold transition-colors"
-                  >
-                    Pay {fmtCurrency(initialEstimate.total)} Now →
-                  </a>
-                </div>
-              )}
-
-              {status === 'Approved' && !paymentUrl && paymentAttempted && (
-                <p className="text-sm text-muted-foreground mt-1.5">
-                  Your service provider will send you a payment link shortly.
-                </p>
+              {status === 'Approved' && (
+                isPaid ? (
+                  /* Payment confirmed */
+                  <div className="mt-3 flex items-center gap-2 text-sm text-success font-medium">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    Payment received. Thank you!
+                  </div>
+                ) : (
+                  /* Pay now button */
+                  <div className="mt-3">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Ready to pay? Complete your payment securely below.
+                    </p>
+                    {payError && (
+                      <p className="text-sm text-destructive mb-2">{payError}</p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handlePayNow}
+                      disabled={payingNow}
+                      className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg bg-success hover:bg-success/90 text-success-foreground text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {payingNow
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : null}
+                      Pay {fmtCurrency(initialEstimate.total)} Now →
+                    </button>
+                  </div>
+                )
               )}
             </div>
           </div>
