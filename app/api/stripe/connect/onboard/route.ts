@@ -118,8 +118,9 @@ export async function POST(_req: NextRequest) {
       use_case: {
         type:                'account_onboarding',
         account_onboarding: {
-          return_url:  `${baseUrl}/dashboard/settings?stripe=return`,
-          refresh_url: `${baseUrl}/dashboard/settings?stripe=refresh`,
+          configurations: ['merchant'],
+          return_url:     `${baseUrl}/dashboard/settings?stripe=return`,
+          refresh_url:    `${baseUrl}/dashboard/settings?stripe=refresh`,
         },
       },
     })
