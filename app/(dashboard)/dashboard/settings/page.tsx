@@ -15,11 +15,12 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle, RotateCcw } from 'lucide-react'
+import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle, RotateCcw, Briefcase } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
+import { INDUSTRIES as INDUSTRY_OPTS, TEAM_SIZE_OPTS, GOAL_OPTS, SelectCard } from '@/lib/onboarding-options'
 
-const INDUSTRIES = [
+const INDUSTRY_DROPDOWN = [
   'HVAC', 'Plumbing', 'Electrical', 'Landscaping', 'Cleaning',
   'Pest Control', 'Appliance Repair', 'General Contractor', 'Other',
 ]
@@ -56,6 +57,13 @@ export default function SettingsPage() {
   const [loadingUser, setLoadingUser] = React.useState(true)
   const [orgRole, setOrgRole]         = React.useState<string | null>(null)
 
+  // ── Business profile ────────────────────────────────────────────────────
+  const [profilePhone, setProfilePhone]         = React.useState('')
+  const [profileIndustries, setProfileIndustries] = React.useState<string[]>([])
+  const [profileTeamSize, setProfileTeamSize]   = React.useState('')
+  const [profileGoals, setProfileGoals]         = React.useState<string[]>([])
+  const [savingProfile, setSavingProfile]       = React.useState(false)
+
   // ── Stripe Connect ───────────────────────────────────────────────────────
   const [stripeRow, setStripeRow]         = React.useState<StripeRow>({
     stripe_account_id: null, charges_enabled: false, details_submitted: false,
@@ -90,10 +98,16 @@ export default function SettingsPage() {
 
         const { data: org } = await supabase
           .from('organizations')
-          .select('name')
+          .select('name, phone, industries, team_size, goals')
           .eq('id', membership.organization_id)
           .maybeSingle()
-        if (org) setCompanyName(org.name ?? '')
+        if (org) {
+          setCompanyName(org.name ?? '')
+          setProfilePhone(org.phone ?? '')
+          setProfileIndustries(org.industries ?? [])
+          setProfileTeamSize(org.team_size ?? '')
+          setProfileGoals(org.goals ?? [])
+        }
 
         // Load Stripe Connect status
         const { data: stripeData } = await supabase
@@ -270,6 +284,28 @@ export default function SettingsPage() {
 
   const isPrivileged = orgRole === 'owner' || orgRole === 'admin'
 
+  function toggleMulti(arr: string[], id: string, set: (v: string[]) => void) {
+    set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
+  }
+
+  const handleSaveProfile = async () => {
+    if (!orgId) return
+    setSavingProfile(true)
+    const { error } = await supabase
+      .from('organizations')
+      .update({
+        name:       companyName.trim() || null,
+        phone:      profilePhone.trim() || null,
+        industries: profileIndustries,
+        team_size:  profileTeamSize || null,
+        goals:      profileGoals,
+      })
+      .eq('id', orgId)
+    if (error) toast.error(`Could not save: ${error.message}`)
+    else toast.success('Business profile saved.')
+    setSavingProfile(false)
+  }
+
   const handleRestartSetup = async () => {
     if (!orgId) return
     const { error } = await supabase
@@ -310,7 +346,7 @@ export default function SettingsPage() {
                 className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="">Select an industry…</option>
-                {INDUSTRIES.map((ind) => (
+                {INDUSTRY_DROPDOWN.map((ind) => (
                   <option key={ind} value={ind}>{ind}</option>
                 ))}
               </select>
@@ -332,6 +368,87 @@ export default function SettingsPage() {
           </div>
         )}
       </Section>
+
+      {/* ── Business profile ── */}
+      {isPrivileged && (
+        <Section icon={Briefcase} title="Business profile" subtitle="Your trade, team size, and goals — used to personalize your experience">
+          {loadingUser ? (
+            <div className="flex items-center gap-2 text-muted-foreground py-4">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Business name">
+                  <Input
+                    placeholder="e.g. Smith HVAC Services"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                  />
+                </Field>
+                <Field label="Phone" optional>
+                  <Input
+                    type="tel"
+                    placeholder="e.g. (555) 123-4567"
+                    value={profilePhone}
+                    onChange={e => setProfilePhone(e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-foreground mb-3">What kind of work do you do?</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {INDUSTRY_OPTS.map(opt => (
+                    <SelectCard
+                      key={opt.id}
+                      Icon={opt.Icon}
+                      label={opt.label}
+                      selected={profileIndustries.includes(opt.id)}
+                      onClick={() => toggleMulti(profileIndustries, opt.id, setProfileIndustries)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-foreground mb-3">How big is your team?</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {TEAM_SIZE_OPTS.map(opt => (
+                    <SelectCard
+                      key={opt.id}
+                      Icon={opt.Icon}
+                      label={opt.label}
+                      selected={profileTeamSize === opt.id}
+                      onClick={() => setProfileTeamSize(opt.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-foreground mb-3">What are your main goals?</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {GOAL_OPTS.map(opt => (
+                    <SelectCard
+                      key={opt.id}
+                      Icon={opt.Icon}
+                      label={opt.label}
+                      selected={profileGoals.includes(opt.id)}
+                      onClick={() => toggleMulti(profileGoals, opt.id, setProfileGoals)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <Button onClick={handleSaveProfile} disabled={savingProfile} className="gap-2">
+                {savingProfile && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save profile
+              </Button>
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ── Get Paid with Stripe ── */}
       <Section icon={CreditCard} title="Get Paid with Stripe" subtitle="Accept card payments on estimates">
@@ -564,10 +681,13 @@ function Section({
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-foreground">{label}</label>
+      <label className="text-sm font-medium text-foreground">
+        {label}
+        {optional && <span className="text-muted-foreground font-normal ml-1.5">(optional)</span>}
+      </label>
       {children}
     </div>
   )

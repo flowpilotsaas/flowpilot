@@ -5,16 +5,15 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import {
-  Loader2, CheckCircle2, ChevronRight, Check,
-  Snowflake, Droplets, Zap, Leaf, Sparkles, Wrench,
-  User, Users, Building2, Landmark,
-  CalendarDays, FileText, CreditCard, Bell,
-} from 'lucide-react'
+import { Loader2, CheckCircle2, ChevronRight, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  INDUSTRIES, TEAM_SIZE_OPTS, GOAL_OPTS,
+  GOAL_ACTIONS, DEFAULT_ACTIONS, SelectCard,
+} from '@/lib/onboarding-options'
 
-// ─── ambient CSS injected inline so the bg / orbs / transitions work ─────────
+// ─── ambient CSS ──────────────────────────────────────────────────────────────
 
 const AMBIENT_CSS = `
   .ob-bg {
@@ -45,7 +44,6 @@ const AMBIENT_CSS = `
       0 40px 80px rgba(0,0,0,0.22);
   }
 
-  /* ── ambient orbs ─────────────────────────────────────────────────────── */
   .ob-orb {
     position: fixed;
     border-radius: 50%;
@@ -96,7 +94,6 @@ const AMBIENT_CSS = `
     }
   }
 
-  /* ── vignette ─────────────────────────────────────────────────────────── */
   .ob-vignette {
     position: fixed; inset: 0;
     pointer-events: none;
@@ -107,7 +104,6 @@ const AMBIENT_CSS = `
     background: radial-gradient(ellipse 90% 90% at 50% 50%, transparent 38%, rgba(0,0,0,0.28) 100%);
   }
 
-  /* ── step transition ──────────────────────────────────────────────────── */
   .ob-step-enter {
     animation: obStepIn 250ms ease-out both;
   }
@@ -116,7 +112,6 @@ const AMBIENT_CSS = `
     to   { opacity: 1; transform: translateY(0px); }
   }
 
-  /* ── step-5 success icon ──────────────────────────────────────────────── */
   .ob-success-pop {
     animation: obSuccessPop 380ms cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
   }
@@ -125,7 +120,6 @@ const AMBIENT_CSS = `
     to   { opacity: 1; transform: scale(1); }
   }
 
-  /* ── mobile ───────────────────────────────────────────────────────────── */
   @media (max-width: 640px) {
     .ob-card { padding: 28px 20px; }
     .ob-orb-1 { width: 280px; height: 280px; }
@@ -134,55 +128,18 @@ const AMBIENT_CSS = `
   }
 `
 
-// ─── data ─────────────────────────────────────────────────────────────────────
-
 const TOTAL_STEPS = 5
-
-const INDUSTRIES = [
-  { id: 'HVAC',        label: 'HVAC',        Icon: Snowflake },
-  { id: 'Plumbing',    label: 'Plumbing',    Icon: Droplets  },
-  { id: 'Electrical',  label: 'Electrical',  Icon: Zap       },
-  { id: 'Landscaping', label: 'Landscaping', Icon: Leaf      },
-  { id: 'Cleaning',    label: 'Cleaning',    Icon: Sparkles  },
-  { id: 'Other',       label: 'Other',       Icon: Wrench    },
-]
-
-const TEAM_SIZE_OPTS = [
-  { id: 'Just me', label: 'Just me', Icon: User      },
-  { id: '2–5',     label: '2–5',     Icon: Users     },
-  { id: '6–15',    label: '6–15',    Icon: Building2 },
-  { id: '16+',     label: '16+',     Icon: Landmark  },
-]
-
-const GOAL_OPTS = [
-  { id: 'Schedule jobs',    label: 'Schedule jobs',    Icon: CalendarDays },
-  { id: 'Send estimates',   label: 'Send estimates',   Icon: FileText     },
-  { id: 'Get paid',         label: 'Get paid',         Icon: CreditCard   },
-  { id: 'Remind customers', label: 'Remind customers', Icon: Bell         },
-]
-
-const GOAL_ACTIONS: Record<string, { label: string; desc: string; href: string }> = {
-  'Schedule jobs':    { label: 'Add your first job',     desc: 'Create and assign jobs to your team.',     href: '/dashboard/jobs'      },
-  'Send estimates':   { label: 'Create an estimate',     desc: 'Send a professional quote to a customer.', href: '/dashboard/estimates' },
-  'Get paid':         { label: 'Set up Stripe Payments', desc: 'Accept card payments on estimates.',       href: '/dashboard/settings'  },
-  'Remind customers': { label: 'Add a customer',         desc: 'Build your customer list.',                href: '/dashboard/customers' },
-}
-
-const DEFAULT_ACTIONS = [
-  { label: 'Add a customer',   desc: 'Build your customer list.',                  href: '/dashboard/customers' },
-  { label: 'Create a job',     desc: 'Schedule and manage work orders.',            href: '/dashboard/jobs'      },
-  { label: 'Explore Settings', desc: 'Connect Stripe and customize your account.', href: '/dashboard/settings'  },
-]
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter()
 
-  const [orgId,   setOrgId]   = React.useState<string | null>(null)
-  const [step,    setStep]    = React.useState(1)
-  const [loading, setLoading] = React.useState(true)
-  const [saving,  setSaving]  = React.useState(false)
+  const [orgId,     setOrgId]     = React.useState<string | null>(null)
+  const [step,      setStep]      = React.useState(1)
+  const [showIntro, setShowIntro] = React.useState(false)
+  const [loading,   setLoading]   = React.useState(true)
+  const [saving,    setSaving]    = React.useState(false)
 
   // step 1
   const [bizName, setBizName] = React.useState('')
@@ -228,13 +185,21 @@ export default function OnboardingPage() {
       setGoals(org.goals ?? [])
 
       const saved = typeof org.onboarding_step === 'number' ? org.onboarding_step : 0
-      setStep(Math.min(Math.max(saved + 1, 1), TOTAL_STEPS))
+
+      if (saved === 0) {
+        // New user: show intro screen first
+        setShowIntro(true)
+      } else {
+        // Resuming: jump straight to their step
+        setStep(Math.min(Math.max(saved + 1, 1), TOTAL_STEPS))
+      }
+
       setLoading(false)
     }
     init()
   }, [router])
 
-  // ── helpers (logic unchanged) ────────────────────────────────────────────────
+  // ── helpers ─────────────────────────────────────────────────────────────────
 
   async function saveStep(patch: Record<string, unknown>, nextStep: number) {
     if (!orgId) return
@@ -255,7 +220,8 @@ export default function OnboardingPage() {
     router.replace('/dashboard')
   }
 
-  async function skip() {
+  // "I'll do this later" — only on the intro screen
+  async function exitEarly() {
     if (!orgId) return
     const { error } = await supabase
       .from('organizations')
@@ -263,6 +229,22 @@ export default function OnboardingPage() {
       .eq('id', orgId)
     if (error) { toast.error(`Could not skip: ${error.message}`); return }
     router.replace('/dashboard')
+  }
+
+  // "Skip this step" — advances without saving answers; persists progress
+  async function skipStep() {
+    if (!orgId) return
+    setSaving(true)
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ onboarding_step: step })
+        .eq('id', orgId)
+      if (error) { toast.error(`Could not skip: ${error.message}`); return }
+      setStep(s => s + 1)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleNext() {
@@ -333,12 +315,58 @@ export default function OnboardingPage() {
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-12">
           <div className="w-full max-w-[560px]">
 
-            {/* Wordmark */}
             <p className="text-center text-[15px] font-bold tracking-tight text-foreground/80 mb-5 select-none">
               Jobigram
             </p>
 
-            {/* Frosted-glass card */}
+            {/* ── Intro screen (not counted in progress) ─────────────────── */}
+            {showIntro ? (
+              <div key="intro" className="ob-card ob-step-enter">
+                <h1 className="text-[1.4rem] font-bold text-foreground text-center leading-tight">
+                  Let's get to know you
+                </h1>
+                <p className="text-sm text-muted-foreground text-center mt-2 mb-8">
+                  A few quick questions so Jobigram fits the way you work.
+                  It takes about a minute.
+                </p>
+
+                {/* Callout card */}
+                <div className="flex items-start gap-3 rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 mb-8">
+                  <span className="shrink-0 w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
+                    <Info className="w-4 h-4 text-primary" />
+                  </span>
+                  <p className="text-sm text-foreground leading-relaxed">
+                    You can change any of this later in{' '}
+                    <Link
+                      href="/dashboard/settings"
+                      className="font-semibold text-primary hover:underline underline-offset-2"
+                    >
+                      Settings → Business profile
+                    </Link>
+                    .
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col items-center gap-3">
+                  <Button
+                    onClick={() => setShowIntro(false)}
+                    className="w-full rounded-full py-2.5 cursor-pointer"
+                  >
+                    Start personalization
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={exitEarly}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    I'll do this later
+                  </button>
+                </div>
+              </div>
+            ) : (
+
+            /* ── Question steps ────────────────────────────────────────────── */
             <div className="ob-card">
 
               {/* Progress */}
@@ -358,13 +386,13 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              {/* Step content — key re-mounts on change → triggers CSS fade-slide-in */}
+              {/* Step content — key triggers fade-slide-in on change */}
               <div key={step} className="ob-step-enter">
 
                 {step === 1 && (
                   <StepWrap
                     title="Welcome to Jobigram"
-                    subtitle="Let's set up your workspace. It takes about a minute."
+                    subtitle="Let's set up your workspace."
                   >
                     <div className="space-y-4">
                       <Field label="Business name">
@@ -464,6 +492,16 @@ export default function OnboardingPage() {
                         </Link>
                       ))}
                     </div>
+                    <p className="text-xs text-muted-foreground text-center mt-5">
+                      Update your preferences any time in{' '}
+                      <Link
+                        href="/dashboard/settings"
+                        className="text-primary hover:underline underline-offset-2"
+                      >
+                        Settings → Business profile
+                      </Link>
+                      .
+                    </p>
                   </StepWrap>
                 )}
 
@@ -486,14 +524,17 @@ export default function OnboardingPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-5">
-                  <button
-                    type="button"
-                    onClick={skip}
-                    disabled={saving}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    Skip for now
-                  </button>
+                  {/* "Skip this step" only on steps 1–4 */}
+                  {step < TOTAL_STEPS && (
+                    <button
+                      type="button"
+                      onClick={skipStep}
+                      disabled={saving}
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      Skip this step
+                    </button>
+                  )}
                   <Button
                     onClick={handleNext}
                     disabled={saving}
@@ -506,7 +547,8 @@ export default function OnboardingPage() {
               </div>
 
             </div>
-            {/* end card */}
+            /* end question steps card */
+            )}
 
           </div>
         </div>
@@ -532,11 +574,7 @@ function StepWrap({
 }) {
   return (
     <div>
-      {icon && (
-        <div className={centered ? 'text-center' : ''}>
-          {icon}
-        </div>
-      )}
+      {icon && <div className={centered ? 'text-center' : ''}>{icon}</div>}
       <h1 className={`text-[1.35rem] font-bold text-foreground leading-tight ${centered ? 'text-center' : ''}`}>
         {title}
       </h1>
@@ -571,51 +609,5 @@ function Field({
       </label>
       {children}
     </div>
-  )
-}
-
-function SelectCard({
-  Icon,
-  label,
-  selected,
-  onClick,
-}: {
-  Icon?: React.ElementType
-  label: string
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        'relative flex flex-col items-center gap-3 rounded-2xl border p-4 text-sm font-medium',
-        'transition-all duration-150 cursor-pointer select-none',
-        'hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97]',
-        selected
-          ? 'border-primary bg-primary/[0.07] text-foreground shadow-sm ring-1 ring-primary/20'
-          : 'border-border bg-transparent text-muted-foreground hover:border-primary/35 hover:bg-muted/40 hover:text-foreground',
-      ].join(' ')}
-    >
-      {selected && (
-        <span className="absolute top-2.5 right-2.5 w-[18px] h-[18px] rounded-full bg-primary flex items-center justify-center shadow-sm">
-          <Check className="w-2.5 h-2.5 text-primary-foreground" strokeWidth={3} />
-        </span>
-      )}
-      {Icon && (
-        <span
-          className={[
-            'w-11 h-11 rounded-xl flex items-center justify-center transition-colors',
-            selected ? 'bg-primary/15' : 'bg-muted',
-          ].join(' ')}
-        >
-          <Icon
-            className={`w-5 h-5 ${selected ? 'text-primary' : 'text-muted-foreground'}`}
-          />
-        </span>
-      )}
-      {label}
-    </button>
   )
 }
