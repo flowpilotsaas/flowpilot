@@ -21,10 +21,10 @@ export default function OnboardingLayout({ children }: { children: React.ReactNo
           },
         }}
         icons={{
-          success: <CheckCircle2 className="w-4 h-4 text-success" />,
-          error:   <XCircle     className="w-4 h-4 text-destructive" />,
-          warning: <AlertTriangle className="w-4 h-4 text-warning" />,
-          info:    <Info        className="w-4 h-4 text-primary" />,
+          success: <CheckCircle2   className="w-4 h-4 text-success"     />,
+          error:   <XCircle        className="w-4 h-4 text-destructive" />,
+          warning: <AlertTriangle  className="w-4 h-4 text-warning"     />,
+          info:    <Info           className="w-4 h-4 text-primary"     />,
         }}
       />
     </ThemeProvider>
