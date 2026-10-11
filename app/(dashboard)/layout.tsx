@@ -51,12 +51,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         router.replace('/login')
-      } else {
-        setChecked(true)
+        return
       }
+
+      // Check if onboarding is complete before showing the dashboard
+      const { data: membership } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (membership?.organization_id) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('onboarding_completed_at')
+          .eq('id', membership.organization_id)
+          .maybeSingle()
+
+        // Only redirect if the column exists and is explicitly null
+        if (org && org.onboarding_completed_at === null) {
+          router.replace('/onboarding')
+          return
+        }
+      }
+
+      setChecked(true)
     })
   }, [router])
 

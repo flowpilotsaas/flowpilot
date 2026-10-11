@@ -10,11 +10,12 @@
 */
 
 import * as React from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle } from 'lucide-react'
+import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 
@@ -30,6 +31,8 @@ type StripeRow = {
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
+
   // ── Company info ────────────────────────────────────────────────────────
   const [companyName, setCompanyName] = React.useState('')
   const [industry, setIndustry]       = React.useState('')
@@ -267,6 +270,16 @@ export default function SettingsPage() {
 
   const isPrivileged = orgRole === 'owner' || orgRole === 'admin'
 
+  const handleRestartSetup = async () => {
+    if (!orgId) return
+    const { error } = await supabase
+      .from('organizations')
+      .update({ onboarding_completed_at: null, onboarding_step: 0 })
+      .eq('id', orgId)
+    if (error) { toast.error(`Could not restart setup: ${error.message}`); return }
+    router.push('/onboarding')
+  }
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -489,6 +502,20 @@ export default function SettingsPage() {
           </div>
         )}
       </Section>
+
+      {/* ── Setup Wizard ── */}
+      {isPrivileged && (
+        <Section icon={RotateCcw} title="Setup Wizard" subtitle="Re-run the onboarding wizard">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              Restart the setup wizard to update your industry, team size, and goals.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleRestartSetup} className="shrink-0">
+              Restart setup
+            </Button>
+          </div>
+        </Section>
+      )}
 
       {/* ── Disconnect confirmation modal ── */}
       <DeleteConfirmModal
