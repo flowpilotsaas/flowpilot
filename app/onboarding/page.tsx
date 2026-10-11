@@ -3,14 +3,14 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useTheme } from 'next-themes'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
-import { Loader2, CheckCircle2, ChevronRight, Info } from 'lucide-react'
+import { Loader2, CheckCircle2, ChevronRight, Info, Sun, Moon, Monitor } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  INDUSTRIES, TEAM_SIZE_OPTS, GOAL_OPTS,
-  GOAL_ACTIONS, DEFAULT_ACTIONS, SelectCard,
+  INDUSTRIES, TEAM_SIZE_OPTS, CURRENT_TOOL_OPTS, DEFAULT_ACTIONS, SelectCard,
   parseIndustries, serializeIndustries, OtherIndustriesPanel,
 } from '@/lib/onboarding-options'
 
@@ -140,8 +140,8 @@ const AMBIENT_CSS = `
   }
 `
 
-// Steps 1-4 are the real questions. Completion is a separate screen, not a step.
-const QUESTION_STEPS = 4
+// 5 question steps; completion is a separate screen
+const QUESTION_STEPS = 5
 
 const LOADING_MSGS = [
   'Saving your preferences',
@@ -149,10 +149,17 @@ const LOADING_MSGS = [
   'Almost there',
 ]
 
+const THEME_OPTS = [
+  { id: 'light',  label: 'Light',           Icon: Sun     },
+  { id: 'dark',   label: 'Dark',            Icon: Moon    },
+  { id: 'system', label: 'Match my device', Icon: Monitor },
+]
+
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { theme, setTheme } = useTheme()
 
   const [orgId,        setOrgId]        = React.useState<string | null>(null)
   const [step,         setStep]         = React.useState(1)
@@ -163,20 +170,20 @@ export default function OnboardingPage() {
   const [saving,       setSaving]       = React.useState(false)
 
   // Loading-screen state
-  const [loadingMsgIdx,  setLoadingMsgIdx]  = React.useState(0)
-  const [reducedMotion,  setReducedMotion]  = React.useState(false)
+  const [loadingMsgIdx, setLoadingMsgIdx] = React.useState(0)
+  const [reducedMotion, setReducedMotion] = React.useState(false)
 
   // step 1
   const [bizName, setBizName] = React.useState('')
   const [phone,   setPhone]   = React.useState('')
   // step 2 — standard ids + "Other" panel state
-  const [stdIndustries,  setStdIndustries]  = React.useState<string[]>([])
-  const [otherSelected,  setOtherSelected]  = React.useState(false)
-  const [otherTags,      setOtherTags]      = React.useState<string[]>([])
+  const [stdIndustries, setStdIndustries] = React.useState<string[]>([])
+  const [otherSelected, setOtherSelected] = React.useState(false)
+  const [otherTags,     setOtherTags]     = React.useState<string[]>([])
   // step 3
   const [teamSize, setTeamSize] = React.useState('')
   // step 4
-  const [goals, setGoals] = React.useState<string[]>([])
+  const [currentTool, setCurrentTool] = React.useState('')
 
   // Detect reduced-motion once on client
   React.useEffect(() => {
@@ -203,28 +210,27 @@ export default function OnboardingPage() {
 
       const { data: org } = await supabase
         .from('organizations')
-        .select('name, phone, industries, team_size, goals, onboarding_step, onboarding_completed_at')
+        .select('name, phone, industries, team_size, current_tool, onboarding_step, onboarding_completed_at')
         .eq('id', oid)
         .maybeSingle()
 
       if (!org) { router.replace('/dashboard'); return }
       if (org.onboarding_completed_at) { router.replace('/dashboard'); return }
 
-      setBizName(org.name    ?? '')
-      setPhone(org.phone     ?? '')
+      setBizName(org.name  ?? '')
+      setPhone(org.phone   ?? '')
       const parsed = parseIndustries(org.industries ?? [])
       setStdIndustries(parsed.stdIds)
       setOtherSelected(parsed.otherSelected)
       setOtherTags(parsed.otherTags)
-      setTeamSize(org.team_size ?? '')
-      setGoals(org.goals ?? [])
+      setTeamSize(org.team_size    ?? '')
+      setCurrentTool(org.current_tool ?? '')
 
       const saved = typeof org.onboarding_step === 'number' ? org.onboarding_step : 0
 
       if (saved === 0) {
         setShowIntro(true)
       } else if (saved >= QUESTION_STEPS) {
-        // Already answered all questions — skip loading, go straight to completion
         setShowComplete(true)
       } else {
         setStep(Math.min(Math.max(saved + 1, 1), QUESTION_STEPS))
@@ -276,7 +282,7 @@ export default function OnboardingPage() {
     if (!orgId) return
     const { error } = await supabase
       .from('organizations')
-      .update({ onboarding_completed_at: new Date().toISOString(), onboarding_step: 5 })
+      .update({ onboarding_completed_at: new Date().toISOString(), onboarding_step: QUESTION_STEPS })
       .eq('id', orgId)
     if (error) { toast.error(`Could not complete setup: ${error.message}`); return }
     router.replace('/dashboard')
@@ -324,7 +330,11 @@ export default function OnboardingPage() {
         await saveStep({ team_size: teamSize || null }, 4)
         setStep(4)
       } else if (step === 4) {
-        await saveStep({ goals }, 5)
+        await saveStep({ current_tool: currentTool || null }, 5)
+        setStep(5)
+      } else if (step === 5) {
+        // Theme is stored by next-themes; just advance the step counter
+        await saveStep({}, 6)
         setShowLoading(true)
       }
     } finally {
@@ -334,10 +344,6 @@ export default function OnboardingPage() {
 
   function handleBack() {
     setStep(s => Math.max(s - 1, 1))
-  }
-
-  function toggleMulti(arr: string[], id: string, set: (v: string[]) => void) {
-    set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
   }
 
   function toggleIndustry(id: string) {
@@ -352,11 +358,6 @@ export default function OnboardingPage() {
       setStdIndustries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     }
   }
-
-  const suggestedActions = React.useMemo(() => {
-    const matched = goals.map(g => GOAL_ACTIONS[g]).filter(Boolean).slice(0, 3)
-    return matched.length > 0 ? matched : DEFAULT_ACTIONS.slice(0, 3)
-  }, [goals])
 
   // ── render ───────────────────────────────────────────────────────────────────
 
@@ -440,7 +441,7 @@ export default function OnboardingPage() {
 
             ) : showLoading ? (
 
-            /* ── Loading screen (transition polish, no buttons) ──────────── */
+            /* ── Loading screen ──────────────────────────────────────────── */
             <div key="loading" className="ob-card ob-step-enter">
               <div className="flex flex-col items-center justify-center py-10 text-center gap-6">
                 <Loader2
@@ -462,7 +463,7 @@ export default function OnboardingPage() {
 
             ) : showComplete ? (
 
-            /* ── Completion screen (no progress, no nav) ─────────────────── */
+            /* ── Completion screen ───────────────────────────────────────── */
             <div key="complete" className="ob-card ob-step-enter">
               <div className="text-center">
                 <CheckCircle2 className="ob-success-pop w-10 h-10 text-primary mx-auto mb-4" />
@@ -470,12 +471,12 @@ export default function OnboardingPage() {
                   {completionTitle}
                 </h1>
                 <p className="text-sm text-muted-foreground mt-1.5 mb-6">
-                  Here's where to start based on your goals.
+                  Here's where to begin.
                 </p>
               </div>
 
               <div className="space-y-2.5">
-                {suggestedActions.map(action => (
+                {DEFAULT_ACTIONS.map(action => (
                   <Link
                     key={action.href}
                     href={action.href}
@@ -506,10 +507,10 @@ export default function OnboardingPage() {
 
             ) : (
 
-            /* ── Question steps 1–4 ──────────────────────────────────────── */
+            /* ── Question steps 1–5 ──────────────────────────────────────── */
             <div className="ob-card">
 
-              {/* Progress (steps 1–4 only) */}
+              {/* Progress */}
               <div className="mb-8">
                 <p className="text-xs font-medium text-muted-foreground mb-2.5">
                   Step {step} of {QUESTION_STEPS}
@@ -598,17 +599,36 @@ export default function OnboardingPage() {
 
                 {step === 4 && (
                   <StepWrap
-                    title="What would you like to do first?"
-                    subtitle="We'll point you to the right place to start."
+                    title="How did you keep track of jobs before Jobigram?"
+                    subtitle="Pick the closest one."
                   >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {GOAL_OPTS.map(g => (
+                    <div className="grid grid-cols-2 gap-3">
+                      {CURRENT_TOOL_OPTS.map(opt => (
                         <SelectCard
-                          key={g.id}
-                          Icon={g.Icon}
-                          label={g.label}
-                          selected={goals.includes(g.id)}
-                          onClick={() => toggleMulti(goals, g.id, setGoals)}
+                          key={opt.id}
+                          Icon={opt.Icon}
+                          label={opt.label}
+                          selected={currentTool === opt.id}
+                          onClick={() => setCurrentTool(opt.id)}
+                        />
+                      ))}
+                    </div>
+                  </StepWrap>
+                )}
+
+                {step === 5 && (
+                  <StepWrap
+                    title="Pick your look"
+                    subtitle="Light or dark. You can switch any time from the toggle at the top of the dashboard."
+                  >
+                    <div className="grid grid-cols-3 gap-3">
+                      {THEME_OPTS.map(opt => (
+                        <SelectCard
+                          key={opt.id}
+                          Icon={opt.Icon}
+                          label={opt.label}
+                          selected={(theme ?? 'system') === opt.id}
+                          onClick={() => setTheme(opt.id)}
                         />
                       ))}
                     </div>

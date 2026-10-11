@@ -19,7 +19,7 @@ import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, Externa
 import { toast } from 'sonner'
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import {
-  INDUSTRIES as INDUSTRY_OPTS, TEAM_SIZE_OPTS, GOAL_OPTS, SelectCard,
+  INDUSTRIES as INDUSTRY_OPTS, TEAM_SIZE_OPTS, CURRENT_TOOL_OPTS, SelectCard,
   parseIndustries, serializeIndustries, OtherIndustriesPanel,
 } from '@/lib/onboarding-options'
 
@@ -66,7 +66,7 @@ export default function SettingsPage() {
   const [profileOtherSelected, setProfileOtherSelected] = React.useState(false)
   const [profileOtherTags,     setProfileOtherTags]     = React.useState<string[]>([])
   const [profileTeamSize,      setProfileTeamSize]      = React.useState('')
-  const [profileGoals,         setProfileGoals]         = React.useState<string[]>([])
+  const [profileCurrentTool,   setProfileCurrentTool]   = React.useState('')
   const [savingProfile,        setSavingProfile]        = React.useState(false)
 
   // ── Stripe Connect ───────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export default function SettingsPage() {
 
         const { data: org } = await supabase
           .from('organizations')
-          .select('name, phone, industries, team_size, goals')
+          .select('name, phone, industries, team_size, current_tool')
           .eq('id', membership.organization_id)
           .maybeSingle()
         if (org) {
@@ -114,7 +114,7 @@ export default function SettingsPage() {
           setProfileOtherSelected(parsed.otherSelected)
           setProfileOtherTags(parsed.otherTags)
           setProfileTeamSize(org.team_size ?? '')
-          setProfileGoals(org.goals ?? [])
+          setProfileCurrentTool(org.current_tool ?? '')
         }
 
         // Load Stripe Connect status
@@ -317,9 +317,9 @@ export default function SettingsPage() {
       .update({
         name:       companyName.trim() || null,
         phone:      profilePhone.trim() || null,
-        industries: serializeIndustries(profileStdIndustries, profileOtherSelected, profileOtherTags),
-        team_size:  profileTeamSize || null,
-        goals:      profileGoals,
+        industries:   serializeIndustries(profileStdIndustries, profileOtherSelected, profileOtherTags),
+        team_size:    profileTeamSize    || null,
+        current_tool: profileCurrentTool || null,
       })
       .eq('id', orgId)
     if (error) toast.error(`Could not save: ${error.message}`)
@@ -458,15 +458,15 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <p className="text-sm font-medium text-foreground mb-3">What are your main goals?</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {GOAL_OPTS.map(opt => (
+                <p className="text-sm font-medium text-foreground mb-3">How did you keep track of jobs before Jobigram?</p>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {CURRENT_TOOL_OPTS.map(opt => (
                     <SelectCard
                       key={opt.id}
                       Icon={opt.Icon}
                       label={opt.label}
-                      selected={profileGoals.includes(opt.id)}
-                      onClick={() => toggleMulti(profileGoals, opt.id, setProfileGoals)}
+                      selected={profileCurrentTool === opt.id}
+                      onClick={() => setProfileCurrentTool(opt.id)}
                     />
                   ))}
                 </div>

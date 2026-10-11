@@ -2,7 +2,7 @@ import * as React from 'react'
 import {
   Snowflake, Droplets, Zap, Leaf, Sparkles, Wrench,
   User, Users, Building2, Landmark,
-  CalendarDays, FileText, CreditCard, Bell,
+  PenLine, Table2, Laptop, CircleDashed,
   Check, X,
 } from 'lucide-react'
 
@@ -24,24 +24,17 @@ export const TEAM_SIZE_OPTS = [
   { id: '16+',     label: '16+',     Icon: Landmark  },
 ]
 
-export const GOAL_OPTS = [
-  { id: 'Schedule jobs',    label: 'Schedule jobs',    Icon: CalendarDays },
-  { id: 'Send estimates',   label: 'Send estimates',   Icon: FileText     },
-  { id: 'Get paid',         label: 'Get paid',         Icon: CreditCard   },
-  { id: 'Remind customers', label: 'Remind customers', Icon: Bell         },
+export const CURRENT_TOOL_OPTS = [
+  { id: 'paper',       label: 'Pen and paper',          Icon: PenLine      },
+  { id: 'spreadsheet', label: 'Spreadsheets',            Icon: Table2       },
+  { id: 'software',    label: 'Another app',             Icon: Laptop       },
+  { id: 'none',        label: "I wasn't tracking them",  Icon: CircleDashed },
 ]
 
-export const GOAL_ACTIONS: Record<string, { label: string; desc: string; href: string }> = {
-  'Schedule jobs':    { label: 'Add your first job',     desc: 'Create and assign jobs to your team.',     href: '/dashboard/jobs'      },
-  'Send estimates':   { label: 'Create an estimate',     desc: 'Send a professional quote to a customer.', href: '/dashboard/estimates' },
-  'Get paid':         { label: 'Set up Stripe Payments', desc: 'Accept card payments on estimates.',       href: '/dashboard/settings'  },
-  'Remind customers': { label: 'Add a customer',         desc: 'Build your customer list.',                href: '/dashboard/customers' },
-}
-
 export const DEFAULT_ACTIONS = [
-  { label: 'Add a customer',   desc: 'Build your customer list.',                  href: '/dashboard/customers' },
+  { label: 'Add a customer',    desc: 'Build your customer list.',                  href: '/dashboard/customers' },
   { label: 'Create an estimate', desc: 'Send a professional quote to a customer.', href: '/dashboard/estimates' },
-  { label: 'Explore Settings', desc: 'Connect Stripe and customize your account.', href: '/dashboard/settings'  },
+  { label: 'Add your first job', desc: 'Create and assign jobs to your team.',      href: '/dashboard/jobs'      },
 ]
 
 // ─── "Other" industries: suggestions, parse/serialize, panel ─────────────────
