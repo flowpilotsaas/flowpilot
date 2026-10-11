@@ -120,6 +120,17 @@ const AMBIENT_CSS = `
     to   { opacity: 1; transform: scale(1); }
   }
 
+  /* Loading screen rotating subtext fade */
+  @media (prefers-reduced-motion: no-preference) {
+    .ob-msg-enter {
+      animation: obMsgFadeIn 350ms ease-out both;
+    }
+    @keyframes obMsgFadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+  }
+
   @media (max-width: 640px) {
     .ob-card { padding: 28px 20px; }
     .ob-orb-1 { width: 280px; height: 280px; }
@@ -128,18 +139,31 @@ const AMBIENT_CSS = `
   }
 `
 
-const TOTAL_STEPS = 5
+// Steps 1-4 are the real questions. Completion is a separate screen, not a step.
+const QUESTION_STEPS = 4
+
+const LOADING_MSGS = [
+  'Saving your preferences',
+  'Tailoring your suggestions',
+  'Almost there',
+]
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter()
 
-  const [orgId,     setOrgId]     = React.useState<string | null>(null)
-  const [step,      setStep]      = React.useState(1)
-  const [showIntro, setShowIntro] = React.useState(false)
-  const [loading,   setLoading]   = React.useState(true)
-  const [saving,    setSaving]    = React.useState(false)
+  const [orgId,        setOrgId]        = React.useState<string | null>(null)
+  const [step,         setStep]         = React.useState(1)
+  const [showIntro,    setShowIntro]    = React.useState(false)
+  const [showLoading,  setShowLoading]  = React.useState(false)
+  const [showComplete, setShowComplete] = React.useState(false)
+  const [loading,      setLoading]      = React.useState(true)
+  const [saving,       setSaving]       = React.useState(false)
+
+  // Loading-screen state
+  const [loadingMsgIdx,  setLoadingMsgIdx]  = React.useState(0)
+  const [reducedMotion,  setReducedMotion]  = React.useState(false)
 
   // step 1
   const [bizName, setBizName] = React.useState('')
@@ -150,6 +174,11 @@ export default function OnboardingPage() {
   const [teamSize, setTeamSize] = React.useState('')
   // step 4
   const [goals, setGoals] = React.useState<string[]>([])
+
+  // Detect reduced-motion once on client
+  React.useEffect(() => {
+    setReducedMotion(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  }, [])
 
   // ── auth + load org ─────────────────────────────────────────────────────────
   React.useEffect(() => {
@@ -187,11 +216,12 @@ export default function OnboardingPage() {
       const saved = typeof org.onboarding_step === 'number' ? org.onboarding_step : 0
 
       if (saved === 0) {
-        // New user: show intro screen first
         setShowIntro(true)
+      } else if (saved >= QUESTION_STEPS) {
+        // Already answered all questions — skip loading, go straight to completion
+        setShowComplete(true)
       } else {
-        // Resuming: jump straight to their step
-        setStep(Math.min(Math.max(saved + 1, 1), TOTAL_STEPS))
+        setStep(Math.min(Math.max(saved + 1, 1), QUESTION_STEPS))
       }
 
       setLoading(false)
@@ -199,7 +229,33 @@ export default function OnboardingPage() {
     init()
   }, [router])
 
-  // ── helpers ─────────────────────────────────────────────────────────────────
+  // ── loading-screen timer ─────────────────────────────────────────────────────
+  React.useEffect(() => {
+    if (!showLoading) return
+
+    const totalMs = reducedMotion ? 3000 : 6000
+    setLoadingMsgIdx(0)
+
+    let msgTimer: ReturnType<typeof setInterval> | null = null
+    if (!reducedMotion) {
+      msgTimer = setInterval(() => {
+        setLoadingMsgIdx(i => (i + 1) % LOADING_MSGS.length)
+      }, 2000)
+    }
+
+    const finishTimer = setTimeout(() => {
+      if (msgTimer) clearInterval(msgTimer)
+      setShowLoading(false)
+      setShowComplete(true)
+    }, totalMs)
+
+    return () => {
+      clearTimeout(finishTimer)
+      if (msgTimer) clearInterval(msgTimer)
+    }
+  }, [showLoading, reducedMotion])
+
+  // ── helpers (saving logic unchanged) ────────────────────────────────────────
 
   async function saveStep(patch: Record<string, unknown>, nextStep: number) {
     if (!orgId) return
@@ -214,13 +270,12 @@ export default function OnboardingPage() {
     if (!orgId) return
     const { error } = await supabase
       .from('organizations')
-      .update({ onboarding_completed_at: new Date().toISOString(), onboarding_step: TOTAL_STEPS })
+      .update({ onboarding_completed_at: new Date().toISOString(), onboarding_step: 5 })
       .eq('id', orgId)
     if (error) { toast.error(`Could not complete setup: ${error.message}`); return }
     router.replace('/dashboard')
   }
 
-  // "I'll do this later" — only on the intro screen
   async function exitEarly() {
     if (!orgId) return
     const { error } = await supabase
@@ -231,7 +286,6 @@ export default function OnboardingPage() {
     router.replace('/dashboard')
   }
 
-  // "Skip this step" — advances without saving answers; persists progress
   async function skipStep() {
     if (!orgId) return
     setSaving(true)
@@ -241,7 +295,11 @@ export default function OnboardingPage() {
         .update({ onboarding_step: step })
         .eq('id', orgId)
       if (error) { toast.error(`Could not skip: ${error.message}`); return }
-      setStep(s => s + 1)
+      if (step >= QUESTION_STEPS) {
+        setShowLoading(true)
+      } else {
+        setStep(s => s + 1)
+      }
     } finally {
       setSaving(false)
     }
@@ -261,9 +319,7 @@ export default function OnboardingPage() {
         setStep(4)
       } else if (step === 4) {
         await saveStep({ goals }, 5)
-        setStep(5)
-      } else {
-        await finish()
+        setShowLoading(true)
       }
     } finally {
       setSaving(false)
@@ -299,7 +355,7 @@ export default function OnboardingPage() {
     )
   }
 
-  const step5Title = bizName.trim()
+  const completionTitle = bizName.trim()
     ? `You're all set, ${bizName.trim()}`
     : "You're all set"
 
@@ -319,7 +375,7 @@ export default function OnboardingPage() {
               Jobigram
             </p>
 
-            {/* ── Intro screen (not counted in progress) ─────────────────── */}
+            {/* ── Intro screen ───────────────────────────────────────────── */}
             {showIntro ? (
               <div key="intro" className="ob-card ob-step-enter">
                 <h1 className="text-[1.4rem] font-bold text-foreground text-center leading-tight">
@@ -330,7 +386,6 @@ export default function OnboardingPage() {
                   It takes about a minute.
                 </p>
 
-                {/* Callout card */}
                 <div className="flex items-start gap-3 rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 mb-8">
                   <span className="shrink-0 w-9 h-9 rounded-xl bg-primary/12 flex items-center justify-center">
                     <Info className="w-4 h-4 text-primary" />
@@ -347,7 +402,6 @@ export default function OnboardingPage() {
                   </p>
                 </div>
 
-                {/* Actions */}
                 <div className="flex flex-col items-center gap-3">
                   <Button
                     onClick={() => setShowIntro(false)}
@@ -364,18 +418,92 @@ export default function OnboardingPage() {
                   </button>
                 </div>
               </div>
+
+            ) : showLoading ? (
+
+            /* ── Loading screen (transition polish, no buttons) ──────────── */
+            <div key="loading" className="ob-card ob-step-enter">
+              <div className="flex flex-col items-center justify-center py-10 text-center gap-6">
+                <Loader2
+                  className={`w-10 h-10 text-primary ${reducedMotion ? '' : 'animate-spin'}`}
+                />
+                <div>
+                  <h2 className="text-[1.2rem] font-bold text-foreground mb-2">
+                    Getting your workspace ready
+                  </h2>
+                  <p
+                    key={loadingMsgIdx}
+                    className={`text-sm text-muted-foreground ${reducedMotion ? '' : 'ob-msg-enter'}`}
+                  >
+                    {LOADING_MSGS[loadingMsgIdx]}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            ) : showComplete ? (
+
+            /* ── Completion screen (no progress, no nav) ─────────────────── */
+            <div key="complete" className="ob-card ob-step-enter">
+              <div className="text-center">
+                <CheckCircle2 className="ob-success-pop w-10 h-10 text-primary mx-auto mb-4" />
+                <h1 className="text-[1.35rem] font-bold text-foreground leading-tight">
+                  {completionTitle}
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1.5 mb-6">
+                  Here's where to start based on your goals.
+                </p>
+              </div>
+
+              <div className="space-y-2.5">
+                {suggestedActions.map(action => (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-border hover:border-primary/50 hover:bg-primary/[0.04] transition-all duration-150 cursor-pointer group"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{action.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{action.desc}</p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                  </Link>
+                ))}
+              </div>
+
+              <p className="text-xs text-muted-foreground text-center mt-5">
+                Update your preferences any time in{' '}
+                <Link
+                  href="/dashboard/settings"
+                  className="text-primary hover:underline underline-offset-2"
+                >
+                  Settings → Business profile
+                </Link>
+                .
+              </p>
+
+              <div className="mt-6 flex justify-center">
+                <Button
+                  onClick={finish}
+                  className="rounded-full px-8 cursor-pointer"
+                >
+                  Go to dashboard
+                </Button>
+              </div>
+            </div>
+
             ) : (
 
-            /* ── Question steps ────────────────────────────────────────────── */
+            /* ── Question steps 1–4 ──────────────────────────────────────── */
             <div className="ob-card">
 
-              {/* Progress */}
+              {/* Progress (steps 1–4 only) */}
               <div className="mb-8">
                 <p className="text-xs font-medium text-muted-foreground mb-2.5">
-                  Step {step} of {TOTAL_STEPS}
+                  Step {step} of {QUESTION_STEPS}
                 </p>
                 <div className="flex gap-1.5">
-                  {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+                  {Array.from({ length: QUESTION_STEPS }, (_, i) => (
                     <div
                       key={i}
                       className={`h-[3px] flex-1 rounded-full transition-all duration-300 ${
@@ -386,13 +514,13 @@ export default function OnboardingPage() {
                 </div>
               </div>
 
-              {/* Step content — key triggers fade-slide-in on change */}
+              {/* Step content */}
               <div key={step} className="ob-step-enter">
 
                 {step === 1 && (
                   <StepWrap
-                    title="Welcome to Jobigram"
-                    subtitle="Let's set up your workspace."
+                    title="About your business"
+                    subtitle="Your business name appears on estimates and emails your customers receive. Phone is optional."
                   >
                     <div className="space-y-4">
                       <Field label="Business name">
@@ -468,43 +596,6 @@ export default function OnboardingPage() {
                   </StepWrap>
                 )}
 
-                {step === 5 && (
-                  <StepWrap
-                    title={step5Title}
-                    subtitle="Here's where to start based on your goals."
-                    icon={
-                      <CheckCircle2 className="ob-success-pop w-10 h-10 text-primary mx-auto mb-4" />
-                    }
-                    centered
-                  >
-                    <div className="space-y-2.5">
-                      {suggestedActions.map(action => (
-                        <Link
-                          key={action.href}
-                          href={action.href}
-                          className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-border hover:border-primary/50 hover:bg-primary/[0.04] transition-all duration-150 cursor-pointer group"
-                        >
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">{action.label}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{action.desc}</p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                        </Link>
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground text-center mt-5">
-                      Update your preferences any time in{' '}
-                      <Link
-                        href="/dashboard/settings"
-                        className="text-primary hover:underline underline-offset-2"
-                      >
-                        Settings → Business profile
-                      </Link>
-                      .
-                    </p>
-                  </StepWrap>
-                )}
-
               </div>
 
               {/* Navigation */}
@@ -524,30 +615,27 @@ export default function OnboardingPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-5">
-                  {/* "Skip this step" only on steps 1–4 */}
-                  {step < TOTAL_STEPS && (
-                    <button
-                      type="button"
-                      onClick={skipStep}
-                      disabled={saving}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      Skip this step
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={skipStep}
+                    disabled={saving}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Skip this step
+                  </button>
                   <Button
                     onClick={handleNext}
                     disabled={saving}
                     className="gap-2 rounded-full px-6 cursor-pointer"
                   >
                     {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {step === TOTAL_STEPS ? 'Go to dashboard' : 'Next'}
+                    Next
                   </Button>
                 </div>
               </div>
 
             </div>
-            /* end question steps card */
+            /* end question steps */
             )}
 
           </div>
@@ -562,26 +650,17 @@ export default function OnboardingPage() {
 function StepWrap({
   title,
   subtitle,
-  icon,
-  centered,
   children,
 }: {
   title: string
   subtitle?: string
-  icon?: React.ReactNode
-  centered?: boolean
   children: React.ReactNode
 }) {
   return (
     <div>
-      {icon && <div className={centered ? 'text-center' : ''}>{icon}</div>}
-      <h1 className={`text-[1.35rem] font-bold text-foreground leading-tight ${centered ? 'text-center' : ''}`}>
-        {title}
-      </h1>
+      <h1 className="text-[1.35rem] font-bold text-foreground leading-tight">{title}</h1>
       {subtitle ? (
-        <p className={`text-sm text-muted-foreground mt-1.5 mb-6 ${centered ? 'text-center' : ''}`}>
-          {subtitle}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1.5 mb-6">{subtitle}</p>
       ) : (
         <div className="mb-6" />
       )}
