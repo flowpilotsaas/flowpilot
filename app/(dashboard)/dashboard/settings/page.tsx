@@ -18,7 +18,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Building2, Lock, Plug, User, CheckCircle2, CreditCard, ExternalLink, AlertCircle, RotateCcw, Briefcase } from 'lucide-react'
 import { toast } from 'sonner'
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
-import { INDUSTRIES as INDUSTRY_OPTS, TEAM_SIZE_OPTS, GOAL_OPTS, SelectCard } from '@/lib/onboarding-options'
+import {
+  INDUSTRIES as INDUSTRY_OPTS, TEAM_SIZE_OPTS, GOAL_OPTS, SelectCard,
+  parseIndustries, serializeIndustries, OtherIndustriesPanel,
+} from '@/lib/onboarding-options'
 
 const INDUSTRY_DROPDOWN = [
   'HVAC', 'Plumbing', 'Electrical', 'Landscaping', 'Cleaning',
@@ -58,11 +61,13 @@ export default function SettingsPage() {
   const [orgRole, setOrgRole]         = React.useState<string | null>(null)
 
   // ── Business profile ────────────────────────────────────────────────────
-  const [profilePhone, setProfilePhone]         = React.useState('')
-  const [profileIndustries, setProfileIndustries] = React.useState<string[]>([])
-  const [profileTeamSize, setProfileTeamSize]   = React.useState('')
-  const [profileGoals, setProfileGoals]         = React.useState<string[]>([])
-  const [savingProfile, setSavingProfile]       = React.useState(false)
+  const [profilePhone,         setProfilePhone]         = React.useState('')
+  const [profileStdIndustries, setProfileStdIndustries] = React.useState<string[]>([])
+  const [profileOtherSelected, setProfileOtherSelected] = React.useState(false)
+  const [profileOtherTags,     setProfileOtherTags]     = React.useState<string[]>([])
+  const [profileTeamSize,      setProfileTeamSize]      = React.useState('')
+  const [profileGoals,         setProfileGoals]         = React.useState<string[]>([])
+  const [savingProfile,        setSavingProfile]        = React.useState(false)
 
   // ── Stripe Connect ───────────────────────────────────────────────────────
   const [stripeRow, setStripeRow]         = React.useState<StripeRow>({
@@ -104,7 +109,10 @@ export default function SettingsPage() {
         if (org) {
           setCompanyName(org.name ?? '')
           setProfilePhone(org.phone ?? '')
-          setProfileIndustries(org.industries ?? [])
+          const parsed = parseIndustries(org.industries ?? [])
+          setProfileStdIndustries(parsed.stdIds)
+          setProfileOtherSelected(parsed.otherSelected)
+          setProfileOtherTags(parsed.otherTags)
           setProfileTeamSize(org.team_size ?? '')
           setProfileGoals(org.goals ?? [])
         }
@@ -288,6 +296,19 @@ export default function SettingsPage() {
     set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
   }
 
+  function toggleProfileIndustry(id: string) {
+    if (id === 'Other') {
+      if (profileOtherSelected) {
+        setProfileOtherSelected(false)
+        setProfileOtherTags([])
+      } else {
+        setProfileOtherSelected(true)
+      }
+    } else {
+      setProfileStdIndustries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    }
+  }
+
   const handleSaveProfile = async () => {
     if (!orgId) return
     setSavingProfile(true)
@@ -296,7 +317,7 @@ export default function SettingsPage() {
       .update({
         name:       companyName.trim() || null,
         phone:      profilePhone.trim() || null,
-        industries: profileIndustries,
+        industries: serializeIndustries(profileStdIndustries, profileOtherSelected, profileOtherTags),
         team_size:  profileTeamSize || null,
         goals:      profileGoals,
       })
@@ -404,10 +425,20 @@ export default function SettingsPage() {
                       key={opt.id}
                       Icon={opt.Icon}
                       label={opt.label}
-                      selected={profileIndustries.includes(opt.id)}
-                      onClick={() => toggleMulti(profileIndustries, opt.id, setProfileIndustries)}
+                      selected={opt.id === 'Other' ? profileOtherSelected : profileStdIndustries.includes(opt.id)}
+                      onClick={() => toggleProfileIndustry(opt.id)}
                     />
                   ))}
+                </div>
+                <div
+                  className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                    profileOtherSelected ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+                  }`}
+                >
+                  <OtherIndustriesPanel
+                    tags={profileOtherTags}
+                    onChange={setProfileOtherTags}
+                  />
                 </div>
               </div>
 

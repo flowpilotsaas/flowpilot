@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import {
   INDUSTRIES, TEAM_SIZE_OPTS, GOAL_OPTS,
   GOAL_ACTIONS, DEFAULT_ACTIONS, SelectCard,
+  parseIndustries, serializeIndustries, OtherIndustriesPanel,
 } from '@/lib/onboarding-options'
 
 // ─── ambient CSS ──────────────────────────────────────────────────────────────
@@ -168,8 +169,10 @@ export default function OnboardingPage() {
   // step 1
   const [bizName, setBizName] = React.useState('')
   const [phone,   setPhone]   = React.useState('')
-  // step 2
-  const [industries, setIndustries] = React.useState<string[]>([])
+  // step 2 — standard ids + "Other" panel state
+  const [stdIndustries,  setStdIndustries]  = React.useState<string[]>([])
+  const [otherSelected,  setOtherSelected]  = React.useState(false)
+  const [otherTags,      setOtherTags]      = React.useState<string[]>([])
   // step 3
   const [teamSize, setTeamSize] = React.useState('')
   // step 4
@@ -209,7 +212,10 @@ export default function OnboardingPage() {
 
       setBizName(org.name    ?? '')
       setPhone(org.phone     ?? '')
-      setIndustries(org.industries ?? [])
+      const parsed = parseIndustries(org.industries ?? [])
+      setStdIndustries(parsed.stdIds)
+      setOtherSelected(parsed.otherSelected)
+      setOtherTags(parsed.otherTags)
       setTeamSize(org.team_size ?? '')
       setGoals(org.goals ?? [])
 
@@ -312,7 +318,7 @@ export default function OnboardingPage() {
         await saveStep({ name: bizName.trim() || null, phone: phone.trim() || null }, 2)
         setStep(2)
       } else if (step === 2) {
-        await saveStep({ industries }, 3)
+        await saveStep({ industries: serializeIndustries(stdIndustries, otherSelected, otherTags) }, 3)
         setStep(3)
       } else if (step === 3) {
         await saveStep({ team_size: teamSize || null }, 4)
@@ -332,6 +338,19 @@ export default function OnboardingPage() {
 
   function toggleMulti(arr: string[], id: string, set: (v: string[]) => void) {
     set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
+  }
+
+  function toggleIndustry(id: string) {
+    if (id === 'Other') {
+      if (otherSelected) {
+        setOtherSelected(false)
+        setOtherTags([])
+      } else {
+        setOtherSelected(true)
+      }
+    } else {
+      setStdIndustries(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    }
   }
 
   const suggestedActions = React.useMemo(() => {
@@ -472,14 +491,7 @@ export default function OnboardingPage() {
               </div>
 
               <p className="text-xs text-muted-foreground text-center mt-5">
-                Update your preferences any time in{' '}
-                <Link
-                  href="/dashboard/settings"
-                  className="text-primary hover:underline underline-offset-2"
-                >
-                  Settings → Business profile
-                </Link>
-                .
+                Update your preferences any time in Settings → Business profile.
               </p>
 
               <div className="mt-6 flex justify-center">
@@ -553,10 +565,17 @@ export default function OnboardingPage() {
                           key={ind.id}
                           Icon={ind.Icon}
                           label={ind.label}
-                          selected={industries.includes(ind.id)}
-                          onClick={() => toggleMulti(industries, ind.id, setIndustries)}
+                          selected={ind.id === 'Other' ? otherSelected : stdIndustries.includes(ind.id)}
+                          onClick={() => toggleIndustry(ind.id)}
                         />
                       ))}
+                    </div>
+                    <div
+                      className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                        otherSelected ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+                      }`}
+                    >
+                      <OtherIndustriesPanel tags={otherTags} onChange={setOtherTags} />
                     </div>
                   </StepWrap>
                 )}
