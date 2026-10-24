@@ -1,10 +1,16 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
+import { checkWriteAccess } from '@/lib/trial-gate'
 
 export async function GET(req: NextRequest) {
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const access = await checkWriteAccess(supabase, user.id)
+  if (!access.allowed) {
+    return Response.json({ error: access.message, code: access.code }, { status: 402 })
+  }
 
   const areaCode = req.nextUrl.searchParams.get('areaCode') ?? ''
   if (!/^\d{3}$/.test(areaCode)) {

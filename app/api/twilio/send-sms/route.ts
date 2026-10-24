@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
+import { checkWriteAccess } from '@/lib/trial-gate'
 
 function toE164(phone: string): string | null {
   const digits = phone.replace(/\D/g, '')
@@ -12,6 +13,19 @@ export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const access = await checkWriteAccess(supabase, user.id)
+  if (!access.allowed) {
+    return Response.json({ error: access.message, code: access.code }, { status: 402 })
+  }
+
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!membership) return Response.json({ error: 'No organization found.' }, { status: 403 })
 
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
     return Response.json({ error: 'Twilio not configured.' }, { status: 500 })
@@ -38,14 +52,15 @@ export async function POST(req: NextRequest) {
 
     const fromNumber = process.env.TWILIO_PHONE_NUMBER
     await supabase.from('text_messages').insert({
-      user_id:       user.id,
-      to_number:     normalized,
-      from_number:   fromNumber,
-      body:          body.trim(),
-      status:        msg.status,
-      twilio_sid:    msg.sid,
-      customer_id:   customerId ?? null,
-      customer_name: customerName ?? null,
+      user_id:         user.id,
+      organization_id: membership.organization_id,
+      to_number:       normalized,
+      from_number:     fromNumber,
+      body:            body.trim(),
+      status:          msg.status,
+      twilio_sid:      msg.sid,
+      customer_id:     customerId ?? null,
+      customer_name:   customerName ?? null,
     })
 
     return Response.json({ ok: true, sid: msg.sid })

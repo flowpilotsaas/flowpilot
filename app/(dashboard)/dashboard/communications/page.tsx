@@ -76,6 +76,20 @@ export default function CommunicationsPage() {
   const [mounted, setMounted] = React.useState(false)
   React.useEffect(() => setMounted(true), [])
 
+  const [orgId, setOrgId] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+        .then(({ data: mem }) => { if (mem) setOrgId(mem.organization_id) })
+    })
+  }, [])
+
   // ── Phone Numbers ───────────────────────────────────────────────────────
   const [areaCode, setAreaCode]               = React.useState('')
   const [searching, setSearching]             = React.useState(false)
@@ -106,38 +120,35 @@ export default function CommunicationsPage() {
   // ── Data loading ─────────────────────────────────────────────────────────
 
   const fetchPurchasedNumbers = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!orgId) return
     const { data } = await supabase
       .from('phone_numbers')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
     if (data) setPurchasedNumbers(data)
-  }, [])
+  }, [orgId])
 
   const fetchTextMessages = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!orgId) return
     const { data } = await supabase
       .from('text_messages')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('organization_id', orgId)
       .order('created_at', { ascending: false })
       .limit(100)
     if (data) setTextMessages(data)
-  }, [])
+  }, [orgId])
 
   const fetchCustomers = React.useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!orgId) return
     const { data } = await supabase
       .from('customers')
       .select('id, name, phone')
-      .eq('user_id', user.id)
+      .eq('organization_id', orgId)
       .order('name')
     if (data) setCustomers(data)
-  }, [])
+  }, [orgId])
 
   const fetchCalls = React.useCallback(async () => {
     setLoadingCalls(true)

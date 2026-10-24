@@ -12,6 +12,17 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: access.message, code: access.code }, { status: 402 })
   }
 
+  const { data: membership } = await supabase
+    .from('organization_members')
+    .select('organization_id, role')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!membership) return Response.json({ error: 'No organization found.' }, { status: 403 })
+  if (membership.role !== 'owner' && membership.role !== 'admin') {
+    return Response.json({ error: 'Only owners and admins can buy phone numbers.' }, { status: 403 })
+  }
+
   if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
     return Response.json({ error: 'Twilio not configured.' }, { status: 500 })
   }
@@ -25,10 +36,11 @@ export async function POST(req: NextRequest) {
     const purchased = await client.incomingPhoneNumbers.create({ phoneNumber })
 
     const { error: dbError } = await supabase.from('phone_numbers').insert({
-      user_id:       user.id,
-      phone_number:  purchased.phoneNumber,
-      friendly_name: purchased.friendlyName,
-      twilio_sid:    purchased.sid,
+      user_id:         user.id,
+      organization_id: membership.organization_id,
+      phone_number:    purchased.phoneNumber,
+      friendly_name:   purchased.friendlyName,
+      twilio_sid:      purchased.sid,
     })
     if (dbError) console.error('[buy-number] DB insert failed:', dbError.message)
 
