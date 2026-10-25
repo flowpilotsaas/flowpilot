@@ -39,7 +39,7 @@ export default async function EstimatePortalPage({
     notFound()
   }
 
-  const [liRes, orgRes] = await Promise.all([
+  const [liRes, orgRes, stripeRes] = await Promise.all([
     supabase
       .from('estimate_line_items')
       .select('id, name, description, quantity, unit_price, total')
@@ -50,7 +50,14 @@ export default async function EstimatePortalPage({
       .select('name')
       .eq('id', estimate.organization_id)
       .maybeSingle(),
+    supabase
+      .from('organization_stripe_accounts')
+      .select('charges_enabled')
+      .eq('organization_id', estimate.organization_id)
+      .maybeSingle(),
   ])
+
+  const stripeReady = stripeRes.data?.charges_enabled === true
 
   // ── Payment confirmation on return from Stripe ──────────────────────────
   // payment_link_status is the DB's authoritative source; ?paid=1 triggers
@@ -86,6 +93,7 @@ export default async function EstimatePortalPage({
       businessName={orgRes.data?.name ?? null}
       token={token}
       isPaid={isPaid}
+      stripeReady={stripeReady}
     />
   )
 }

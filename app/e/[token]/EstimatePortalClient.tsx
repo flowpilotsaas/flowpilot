@@ -51,12 +51,14 @@ export default function EstimatePortalClient({
   businessName,
   token,
   isPaid,
+  stripeReady,
 }: {
   estimate: PortalEstimate
   lineItems: LineItem[]
   businessName: string | null
   token: string
   isPaid: boolean
+  stripeReady: boolean
 }) {
   const [status, setStatus]     = React.useState<EstimateStatus>(initialEstimate.status)
   const [submitting, setSubmitting] = React.useState<'approve' | 'decline' | null>(null)
@@ -150,13 +152,11 @@ export default function EstimatePortalClient({
 
               {status === 'Approved' && (
                 isPaid ? (
-                  /* Payment confirmed */
                   <div className="mt-3 flex items-center gap-2 text-sm text-success font-medium">
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                     Payment received. Thank you!
                   </div>
-                ) : (
-                  /* Pay now button */
+                ) : stripeReady ? (
                   <div className="mt-3">
                     <p className="text-sm text-muted-foreground mb-2">
                       Ready to pay? Complete your payment securely below.
@@ -170,12 +170,14 @@ export default function EstimatePortalClient({
                       disabled={payingNow}
                       className="inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg bg-success hover:bg-success/90 text-success-foreground text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {payingNow
-                        ? <Loader2 className="w-4 h-4 animate-spin" />
-                        : null}
+                      {payingNow ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                       Pay {fmtCurrency(initialEstimate.total)} Now →
                     </button>
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-3">
+                    Thank you. Your service provider will contact you about payment.
+                  </p>
                 )
               )}
             </div>

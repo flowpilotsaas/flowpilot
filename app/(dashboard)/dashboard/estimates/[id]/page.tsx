@@ -206,6 +206,17 @@ export default function EstimateDetailPage({
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed } = useTrialStatus()
 
+  const [stripeReady, setStripeReady] = React.useState<boolean | null>(null)
+  React.useEffect(() => {
+    if (!organizationId) return
+    supabase
+      .from('organization_stripe_accounts')
+      .select('charges_enabled')
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+      .then(({ data }) => setStripeReady(data?.charges_enabled === true))
+  }, [organizationId])
+
   // ─── Fetch ──────────────────────────────────────────────────────────────
 
   React.useEffect(() => {
@@ -323,6 +334,9 @@ export default function EstimateDetailPage({
     }
 
     toast.success('Estimate status updated')
+    if (newStatus === 'Sent' && stripeReady === false) {
+      toast.info("Online payment isn't set up yet — customers won't see a pay button.", { duration: 6000 })
+    }
     setUpdatingStatus(false)
   }
 

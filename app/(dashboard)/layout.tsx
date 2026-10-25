@@ -8,7 +8,7 @@ import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { Toaster } from 'sonner'
-import { CheckCircle2, XCircle, AlertTriangle, Info } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { ThemeProvider } from '@/components/ThemeProvider'
 
 function ToastSuccessIcon() { return <CheckCircle2 className="w-4 h-4 text-success" /> }
@@ -16,29 +16,88 @@ function ToastErrorIcon()   { return <XCircle className="w-4 h-4 text-destructiv
 function ToastWarningIcon() { return <AlertTriangle className="w-4 h-4 text-warning" /> }
 function ToastInfoIcon()    { return <Info className="w-4 h-4 text-primary" /> }
 
-function TrialBanner() {
-  const { isLoading, hasActiveSub, trialDaysLeft, isAllowed } = useTrialStatus()
+function TopBanner() {
+  const { isLoading: trialLoading, hasActiveSub, trialDaysLeft, isAllowed } = useTrialStatus()
 
-  if (isLoading || hasActiveSub) return null
+  const [role, setRole]                       = useState<string | null>(null)
+  const [stripeConnected, setStripeConnected] = useState<boolean | null>(null)
+  const [dismissed, setDismissed]             = useState(false)
 
-  if (!isAllowed) {
-    return (
-      <div className="w-full bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-sm text-destructive">
-        Your free trial has ended.{' '}
-        <Link href="/dashboard/billing" className="font-semibold underline">
-          Subscribe to continue →
-        </Link>
-      </div>
-    )
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('stripe-nudge-dismissed') === '1') setDismissed(true)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    async function checkStripe() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: mem } = await supabase
+        .from('organization_members')
+        .select('organization_id, role')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+      if (!mem || (mem.role !== 'owner' && mem.role !== 'admin')) return
+      setRole(mem.role)
+      const { data: sa } = await supabase
+        .from('organization_stripe_accounts')
+        .select('charges_enabled')
+        .eq('organization_id', mem.organization_id)
+        .maybeSingle()
+      setStripeConnected(sa?.charges_enabled === true)
+    }
+    checkStripe()
+  }, [])
+
+  const dismissNudge = () => {
+    setDismissed(true)
+    try { localStorage.setItem('stripe-nudge-dismissed', '1') } catch {}
   }
 
-  if (trialDaysLeft <= 7) {
+  // Trial banner always takes priority
+  if (!trialLoading && !hasActiveSub) {
+    if (!isAllowed) {
+      return (
+        <div className="w-full bg-destructive/10 border-b border-destructive/20 px-4 py-2 text-center text-sm text-destructive">
+          Your free trial has ended.{' '}
+          <Link href="/dashboard/billing" className="font-semibold underline">
+            Subscribe to continue →
+          </Link>
+        </div>
+      )
+    }
+    if (trialDaysLeft <= 7) {
+      return (
+        <div className="w-full bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-sm text-amber-700 dark:text-amber-400">
+          Your free trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}.{' '}
+          <Link href="/dashboard/billing" className="font-semibold underline">
+            Subscribe now →
+          </Link>
+        </div>
+      )
+    }
+  }
+
+  // Stripe nudge — only when trial banner is not showing, user is owner/admin, not dismissed
+  if (!trialLoading && role !== null && stripeConnected === false && !dismissed) {
     return (
-      <div className="w-full bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-center text-sm text-amber-700 dark:text-amber-400">
-        Your free trial expires in {trialDaysLeft} day{trialDaysLeft !== 1 ? 's' : ''}.{' '}
-        <Link href="/dashboard/billing" className="font-semibold underline">
-          Subscribe now →
-        </Link>
+      <div className="w-full border-b border-primary/15 bg-primary/5 px-4 py-2 flex items-center justify-between gap-2 text-sm">
+        <span className="text-foreground/80">
+          Connect Stripe to let customers pay estimates online.{' '}
+          <Link href="/dashboard/settings" className="font-semibold text-primary hover:underline">
+            Set up payments →
+          </Link>
+        </span>
+        <button
+          type="button"
+          onClick={dismissNudge}
+          aria-label="Dismiss"
+          className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
     )
   }
@@ -88,7 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <div className="h-screen bg-background flex flex-col overflow-hidden">
-        <TrialBanner />
+        <TopBanner />
         <DashboardHeader />
         <div className="flex flex-1 min-h-0">
           <DashboardSidebar />
