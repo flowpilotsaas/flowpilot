@@ -15,7 +15,7 @@ export default function MainLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className={`marketing-site min-h-screen flex flex-col overflow-x-hidden ${bricolage.variable}`}>
+    <div className={`marketing-site min-h-screen flex flex-col overflow-x-hidden bg-background text-foreground ${bricolage.variable}`}>
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />

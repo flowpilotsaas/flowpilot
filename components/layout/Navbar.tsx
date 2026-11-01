@@ -26,8 +26,8 @@ export default function Navbar() {
       <nav aria-label="Main navigation" className="w-full px-4 pt-3">
         <div
           className={cn(
-            'mx-auto flex max-w-5xl items-center justify-between rounded-2xl px-5 py-3 transition-all duration-200',
-            scrolled ? 'border border-border bg-background shadow-sm' : '',
+            'mx-auto flex max-w-5xl items-center justify-between rounded-2xl bg-background px-5 py-3 transition-all duration-200',
+            scrolled ? 'border border-border shadow-sm' : 'border border-transparent',
           )}
         >
           {/* Logo / wordmark */}

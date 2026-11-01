@@ -8,6 +8,9 @@
 /* ── Design tokens ────────────────────────────────────────────────────── */
 
 .marketing-site {
+  /* Force light rendering — prevents browser dark-mode styling of native UI */
+  color-scheme: light;
+
   /* Tailwind-mapped variables */
   --background:         #F6F4EE;
   --foreground:         #14161B;
