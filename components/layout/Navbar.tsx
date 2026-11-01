@@ -31,7 +31,7 @@ export default function Navbar() {
           className={cn(
             'mx-auto flex max-w-5xl items-center justify-between rounded-2xl px-5 py-3 transition-all duration-300',
             scrolled
-              ? 'border border-border/50 bg-background/80 shadow-sm backdrop-blur-md'
+              ? 'border border-border bg-background shadow-sm'
               : '',
           )}
         >

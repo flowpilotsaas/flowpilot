@@ -2,18 +2,20 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import {
   Calendar, Users, CreditCard, MessageSquare,
-  MapPin, FileText, CheckCircle2, ArrowRight, ChevronDown,
+  MapPin, FileText, ArrowRight, ChevronDown,
 } from 'lucide-react'
 import { PLANS, TRIAL_DAYS } from '@/lib/plans'
+import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
+import HeroDemo from '@/components/marketing/HeroDemo'
 
 export const metadata: Metadata = {
   title: 'Jobigram — Field Service Management for Contractors',
   description:
-    'Scheduling, estimates, dispatch, and online payments for HVAC, plumbing, and electrical contractors. Start your 30-day free trial — no credit card required.',
+    'Scheduling, estimates, and dispatch for HVAC, plumbing, and electrical contractors. Start your 30-day free trial — no credit card required.',
   openGraph: {
     title: 'Jobigram — Field Service Management for Contractors',
     description:
-      'Scheduling, estimates, dispatch, and online payments for HVAC, plumbing, and electrical contractors.',
+      'Scheduling, estimates, and dispatch for HVAC, plumbing, and electrical contractors.',
     type: 'website',
   },
 }
@@ -33,8 +35,8 @@ const STEPS = [
   },
   {
     n: '03',
-    title: 'Get paid',
-    body: 'Once approved, customers pay by card directly from the estimate link. Funds go straight to your Stripe account.',
+    title: 'Schedule the work and send reminders',
+    body: 'Assign the job to a technician, set an appointment time, and let automated email and SMS reminders handle the follow-up.',
   },
 ]
 
@@ -43,31 +45,39 @@ const FEATURES = [
     Icon: Calendar,
     title: 'Job Scheduling',
     body: 'Drag-and-drop calendar for assigning jobs and technicians. No more double-bookings or missed appointments.',
+    comingSoon: false,
   },
   {
     Icon: FileText,
     title: 'Estimates & Approval',
     body: 'Build estimates from your pricebook, send a link, get a signed approval — without picking up the phone.',
+    comingSoon: false,
   },
   {
     Icon: CreditCard,
     title: 'Online Payments',
-    body: 'Customers pay by card from the estimate link. Stripe deposits the money straight to your bank account.',
+    body: ONLINE_PAYMENTS_LIVE
+      ? 'Customers pay by card from the estimate link. Stripe deposits the money straight to your bank account.'
+      : 'Accept card payments directly from estimate links — Stripe-powered, funds go straight to your account.',
+    comingSoon: !ONLINE_PAYMENTS_LIVE,
   },
   {
     Icon: MessageSquare,
     title: 'Email & SMS Reminders',
     body: 'Automated reminders keep customers informed before every appointment so jobs stay on track.',
+    comingSoon: false,
   },
   {
     Icon: MapPin,
     title: 'Dispatch & Teams',
-    body: 'Assign jobs to technicians, track job status in real time, and view your whole crew\'s day at a glance.',
+    body: "Assign jobs to technicians, track job status in real time, and view your whole crew's day at a glance.",
+    comingSoon: false,
   },
   {
     Icon: Users,
     title: 'Customer Portal',
-    body: 'Every estimate gets a secure customer-facing link. Customers approve and pay without creating an account.',
+    body: 'Every estimate gets a secure customer-facing link. Customers approve without creating an account.',
+    comingSoon: false,
   },
 ]
 
@@ -81,8 +91,8 @@ const FAQS = [
     a: 'Yes. Cancel at any time from your billing settings. No contracts, no cancellation fees, no hassle.',
   },
   {
-    q: 'How does online payment work?',
-    a: 'You connect your own Stripe account in Settings. Customers see a Pay Now button on the estimate link and pay by card. The money goes straight to your Stripe balance — Jobigram never holds your funds.',
+    q: 'How does the estimate approval work?',
+    a: 'When you send an estimate, the customer gets an email with a secure link. They can open it on any device, review the line items, and tap Approve or Decline — no account required.',
   },
   {
     q: 'Does Jobigram work on mobile?',
@@ -98,10 +108,13 @@ const FAQS = [
   },
 ]
 
-// ── Shared link style ──────────────────────────────────────────────────
+// ── Shared styles ──────────────────────────────────────────────────────
 
-const primaryLink =
-  'inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+const primaryBtn =
+  'inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+
+const ghostBtn =
+  'inline-flex h-11 items-center gap-1 rounded-lg px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
 
 // ── Page ───────────────────────────────────────────────────────────────
 
@@ -109,103 +122,55 @@ export default function HomePage() {
   return (
     <>
       {/* ── Hero ──────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-6 pb-20 pt-36 sm:pb-28 sm:pt-44">
+      <section className="px-6 pb-20 pt-36 sm:pt-44">
         <div className="mx-auto max-w-5xl">
-          <div className="grid gap-16 lg:grid-cols-2 lg:items-center">
+          <div className="grid gap-14 lg:grid-cols-[1fr,auto] lg:items-center lg:gap-16">
 
-            {/* Copy */}
-            <div>
-              <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-[3.125rem] lg:leading-[1.15]">
-                Run your field service business without the paperwork.
+            {/* Left: copy */}
+            <div className="max-w-xl">
+              <h1 className="text-4xl font-bold leading-[1.12] tracking-tight text-foreground sm:text-5xl lg:text-[3.25rem]">
+                Send the estimate.<br className="hidden sm:block" /> Get the yes.
               </h1>
               <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-                Jobigram handles scheduling, estimates, dispatch, and online payments — so you can focus on the work, not the admin.
+                Jobigram helps HVAC, plumbing, and electrical crews quote jobs, schedule them, and follow up — with estimates customers approve from their phone.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/signup" className={primaryLink}>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link href="/signup" className={primaryBtn}>
                   Start free trial <ArrowRight className="size-4" />
                 </Link>
-                <a
-                  href="#how-it-works"
-                  className="inline-flex h-12 items-center gap-2 rounded-lg border border-border px-6 text-sm font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                >
-                  See how it works
+                <a href="#demo" className={ghostBtn}>
+                  Try the demo →
                 </a>
               </div>
-              <p className="mt-5 text-xs text-muted-foreground/60">
-                {TRIAL_DAYS}-day free trial · No credit card required · Payments powered by Stripe
+              <p className="mt-4 text-xs text-muted-foreground/55">
+                {TRIAL_DAYS}-day free trial · No credit card required · Cancel any time
               </p>
             </div>
 
-            {/* Product visual — three overlapping UI cards with fictional data */}
-            <div className="relative mx-auto w-full max-w-sm lg:max-w-none" aria-hidden="true">
-
-              {/* Card 1: Scheduled job */}
-              <div className="relative z-10 w-56 rounded-xl border border-border bg-card p-4 shadow-md">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="inline-block size-2 rounded-full bg-emerald-500" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Today · 9:30 AM
-                  </span>
-                </div>
-                <p className="text-sm font-semibold text-foreground">HVAC Tune-Up</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">143 Oak Street · Sarah M.</p>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                    Assigned
-                  </span>
-                  <span className="text-xs text-muted-foreground">Mike R.</span>
-                </div>
-              </div>
-
-              {/* Card 2: Approved estimate */}
-              <div className="relative z-20 -mt-4 ml-16 w-56 rounded-xl border border-border bg-card p-4 shadow-lg">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-muted-foreground">EST-0042</span>
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                    Sent
-                  </span>
-                </div>
-                <p className="text-sm font-semibold text-foreground">Water Heater Install</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">$1,240</p>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="size-3.5 shrink-0" />
-                  Customer approved
-                </div>
-              </div>
-
-              {/* Card 3: Payment received */}
-              <div className="relative z-10 -mt-4 ml-8 w-56 rounded-xl border border-border bg-card p-4 shadow-md">
-                <div className="mb-2 flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-950/60">
-                    <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <p className="text-sm font-semibold text-foreground">Payment received</p>
-                </div>
-                <p className="text-2xl font-bold tabular-nums text-foreground">$1,240.00</p>
-                <p className="mt-1 text-xs text-muted-foreground">via Stripe · 2 min ago</p>
-              </div>
-
+            {/* Right: interactive demo */}
+            <div id="demo">
+              <HeroDemo />
             </div>
+
           </div>
         </div>
       </section>
 
       {/* ── How it works ─────────────────────────────────────────── */}
-      <section id="how-it-works" className="bg-muted/30 px-6 py-20 sm:py-28">
+      <section id="how-it-works" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-14 text-center">
+          <div className="mb-14">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               How it works
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              From new job to paid invoice in three steps.
+              From new job to completed work in three steps.
             </p>
           </div>
-          <ol className="grid gap-8 sm:grid-cols-3">
+          <ol className="grid gap-10 sm:grid-cols-3">
             {STEPS.map((step) => (
-              <li key={step.n} className="flex flex-col gap-4">
-                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+              <li key={step.n} className="flex flex-col gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
                   <span className="text-sm font-bold text-primary">{step.n}</span>
                 </div>
                 <div>
@@ -221,25 +186,32 @@ export default function HomePage() {
       {/* ── Features ─────────────────────────────────────────────── */}
       <section id="features" className="px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-14 text-center">
+          <div className="mb-14">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Everything you need, nothing you don&apos;t
+              Everything your crew needs
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
               Built specifically for HVAC, plumbing, and electrical contractors.
             </p>
           </div>
-          <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" role="list">
-            {FEATURES.map(({ Icon, title, body }) => (
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" role="list">
+            {FEATURES.map(({ Icon, title, body, comingSoon }) => (
               <li
                 key={title}
-                className="rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-sm"
+                className="rounded-xl border border-border bg-card p-5"
               >
-                <div className="mb-4 flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="size-5 text-primary" />
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <Icon className="size-4.5 text-primary" />
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{body}</p>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                  {comingSoon && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Soon
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
               </li>
             ))}
           </ul>
@@ -247,16 +219,16 @@ export default function HomePage() {
       </section>
 
       {/* ── Pricing preview ──────────────────────────────────────── */}
-      <section id="pricing" className="bg-muted/30 px-6 py-20 sm:py-28">
+      <section id="pricing" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-10 text-center">
+          <div className="mb-10">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Simple, transparent pricing
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
               Plans from ${PLANS[0].price}/month · {TRIAL_DAYS}-day free trial · No credit card required
             </p>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Every plan includes all features. Plans differ only by team size.
             </p>
           </div>
@@ -264,9 +236,9 @@ export default function HomePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Plan</th>
-                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Team size</th>
-                  <th className="px-6 py-3 text-right font-medium text-muted-foreground">Price / mo</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team size</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Price/mo</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,11 +247,11 @@ export default function HomePage() {
                     key={plan.name}
                     className={i < PLANS.length - 1 ? 'border-b border-border' : ''}
                   >
-                    <td className="px-6 py-3.5 font-medium text-foreground">{plan.name}</td>
-                    <td className="px-6 py-3.5 text-muted-foreground">
+                    <td className="px-5 py-3.5 font-medium text-foreground">{plan.name}</td>
+                    <td className="px-5 py-3.5 text-muted-foreground">
                       {plan.cap >= 10_000 ? 'Unlimited' : `Up to ${plan.cap}`}
                     </td>
-                    <td className="px-6 py-3.5 text-right tabular-nums text-foreground">
+                    <td className="px-5 py-3.5 text-right tabular-nums text-foreground">
                       ${plan.price}
                     </td>
                   </tr>
@@ -287,14 +259,14 @@ export default function HomePage() {
               </tbody>
             </table>
           </div>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+          <div className="mt-7 flex flex-wrap items-center gap-5">
             <Link
               href="/pricing"
               className="text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
             >
               See all plans →
             </Link>
-            <Link href="/signup" className={primaryLink}>
+            <Link href="/signup" className={primaryBtn}>
               Start free trial <ArrowRight className="size-4" />
             </Link>
           </div>
@@ -304,7 +276,7 @@ export default function HomePage() {
       {/* ── FAQ ──────────────────────────────────────────────────── */}
       <section className="px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-2xl">
-          <div className="mb-12 text-center">
+          <div className="mb-12">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Frequently asked questions
             </h2>
@@ -335,13 +307,10 @@ export default function HomePage() {
             Start your {TRIAL_DAYS}-day free trial today. No credit card required.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link href="/signup" className={primaryLink}>
+            <Link href="/signup" className={primaryBtn}>
               Start free trial <ArrowRight className="size-4" />
             </Link>
-            <Link
-              href="/contact"
-              className="inline-flex h-12 items-center rounded-lg px-6 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
+            <Link href="/contact" className={ghostBtn}>
               Talk to us →
             </Link>
           </div>

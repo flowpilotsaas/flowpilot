@@ -1,16 +1,24 @@
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import { Bricolage_Grotesque } from 'next/font/google'
+import Navbar from '@/components/layout/Navbar'
+import Footer from '@/components/layout/Footer'
+import './marketing.css'
+
+const bricolage = Bricolage_Grotesque({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+})
 
 export default function MainLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden">
+    <div className={`marketing-site min-h-screen flex flex-col overflow-x-hidden ${bricolage.variable}`}>
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
     </div>
-  );
+  )
 }

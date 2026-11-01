@@ -1,0 +1,96 @@
+/*
+ * Marketing site token overrides — scoped to .marketing-site
+ *
+ * The root layout uses oklch(0.982 0.004 285) as --background (cool violet-tinted).
+ * Here we swap it for warmer values and set a near-black ink text color.
+ * Tailwind v4 maps utilities like bg-background → var(--background), so overriding
+ * --background here propagates to all Tailwind utilities inside .marketing-site.
+ *
+ * This file does NOT affect the dashboard, which runs under ThemeProvider.
+ */
+
+/* ── Light tokens ─────────────────────────────────────────────────────── */
+
+.marketing-site {
+  /* Warm off-white page background */
+  --background: oklch(0.985 0.007 78);
+  /* Near-black ink */
+  --foreground: oklch(0.118 0.010 270);
+  /* Cards: white, slight warm tint */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.118 0.010 270);
+  /* Popover */
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.118 0.010 270);
+  /* Brand indigo — unchanged from app */
+  --primary: oklch(0.510 0.233 277);
+  --primary-foreground: oklch(0.985 0 0);
+  /* Muted surface */
+  --muted: oklch(0.963 0.009 78);
+  --muted-foreground: oklch(0.495 0.012 270);
+  /* Warm hairline border */
+  --border: oklch(0.872 0.014 78);
+  --input: oklch(0.872 0.014 78);
+  /* Focus ring */
+  --ring: oklch(0.510 0.233 277);
+  /* Secondary */
+  --secondary: oklch(0.955 0.010 78);
+  --secondary-foreground: oklch(0.118 0.010 270);
+  /* Accent */
+  --accent: oklch(0.955 0.010 78);
+  --accent-foreground: oklch(0.118 0.010 270);
+  /* Radius — one modest level */
+  --radius: 0.5rem;
+}
+
+/* ── Dark mode (prefers-color-scheme, no ThemeProvider on marketing pages) */
+
+@media (prefers-color-scheme: dark) {
+  .marketing-site {
+    --background: oklch(0.118 0.010 270);
+    --foreground: oklch(0.970 0.005 80);
+    --card: oklch(0.162 0.012 270);
+    --card-foreground: oklch(0.970 0.005 80);
+    --popover: oklch(0.162 0.012 270);
+    --popover-foreground: oklch(0.970 0.005 80);
+    --primary: oklch(0.690 0.190 277);
+    --primary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.210 0.012 270);
+    --muted-foreground: oklch(0.615 0.012 270);
+    --border: oklch(1 0 0 / 0.10);
+    --input: oklch(1 0 0 / 0.12);
+    --ring: oklch(0.690 0.190 277);
+    --secondary: oklch(0.210 0.012 270);
+    --secondary-foreground: oklch(0.970 0.005 80);
+    --accent: oklch(0.210 0.012 270);
+    --accent-foreground: oklch(0.970 0.005 80);
+  }
+}
+
+/* ── Display font for marketing headings ──────────────────────────────── */
+
+.marketing-site h1,
+.marketing-site h2 {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* ── Pulse animation for hero demo hint ───────────────────────────────── */
+
+@keyframes demo-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
+.demo-pulse {
+  animation: demo-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-pulse {
+    animation: none;
+  }
+}
+
+/* ── Suppress backdrop-blur on marketing nav ──────────────────────────── */
+/* (Inline styles on Navbar override this; kept here as documentation.) */
