@@ -1,14 +1,22 @@
 // Server component — pure CSS animation, no JS required
 
+// C1 uses a swap wrapper — plane visible during phase 1, check during merge
+const C1_ICON = (
+  <span className="pv-icon-wrap">
+    <svg className="pv-c1-plane" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22 2L11 13" />
+      <path d="M22 2L15 22L11 13L2 9z" />
+    </svg>
+    <svg className="pv-c1-check" viewBox="0 0 24 24" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  </span>
+)
+
 const STEPS = [
   {
     title: 'Send the estimate',
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M22 2L11 13" />
-        <path d="M22 2L15 22L11 13L2 9z" />
-      </svg>
-    ),
+    icon: C1_ICON,
   },
   {
     title: 'Customer approves',

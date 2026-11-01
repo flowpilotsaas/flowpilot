@@ -71,6 +71,14 @@
   gap: 0.625rem;
 }
 
+/* C1 stays put and sits above the sliding circles */
+.pv-steps .pv-step:nth-child(1) { z-index: 2; }
+
+/* C2/C3/C4 slide left onto C1 during MERGE, reverse for SPLIT */
+.pv-steps .pv-step:nth-child(2) { animation: pv-step2 16s linear infinite; }
+.pv-steps .pv-step:nth-child(3) { animation: pv-step3 16s linear infinite; }
+.pv-steps .pv-step:nth-child(4) { animation: pv-step4 16s linear infinite; }
+
 .pv-circle {
   width: 68px;
   height: 68px;
@@ -94,6 +102,27 @@
   stroke-linejoin: round;
 }
 
+/* Icon-swap wrapper in C1: plane and check overlap; animate each separately */
+.pv-icon-wrap {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.pv-icon-wrap svg {
+  position: absolute;
+  inset: 0;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pv-c1-plane { animation: pv-c1-plane 16s linear infinite; }
+.pv-c1-check { opacity: 0; animation: pv-c1-check 16s linear infinite; }
+
 .pv-label {
   font-family: var(--font-display), ui-sans-serif, sans-serif;
   font-size: 0.6875rem;
@@ -103,9 +132,10 @@
   max-width: 72px;
   line-height: 1.3;
   letter-spacing: -0.01em;
+  animation: pv-label-vis 16s linear infinite;
 }
 
-/* Rail track */
+/* Rail track — shrinks toward its left origin during MERGE, grows during SPLIT */
 .pv-rail {
   position: absolute;
   left: 12.5%;
@@ -114,6 +144,8 @@
   height: 2px;
   background: #DDD9CE;
   z-index: 0;
+  transform-origin: left center;
+  animation: pv-rail-scale 16s linear infinite;
 }
 
 .pv-fill {
@@ -248,7 +280,7 @@
   position: absolute;
   left: calc(12.5% + 34px);
   right: calc(12.5% + 34px);
-  top: 20px;  /* 33px rail center − 13px (half of 26px van height) */
+  top: 20px;
   height: 26px;
 }
 
@@ -262,7 +294,7 @@
   animation: pv-van-drive 16s linear infinite;
 }
 
-/* ── Phase 1 keyframes (16s loop; C1–C4 light at 0/15/30/46%) ────────── */
+/* ── Phase 1 keyframes ────────────────────────────────────────────────── */
 
 @keyframes pv-phase1-vis {
   0%   { opacity: 1; }
@@ -270,6 +302,66 @@
   57%  { opacity: 0; }
   95%  { opacity: 0; }
   100% { opacity: 1; }
+}
+
+/* Labels fade out at start of MERGE, fade in near end of SPLIT */
+@keyframes pv-label-vis {
+  0%   { opacity: 1; }
+  50%  { opacity: 1; }
+  51%  { opacity: 0; }
+  95%  { opacity: 0; }
+  97%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* Rail shrinks left during MERGE, grows back during SPLIT */
+@keyframes pv-rail-scale {
+  0%   { transform: scaleX(1); }
+  50%  { transform: scaleX(1); animation-timing-function: ease-in-out; }
+  56%  { transform: scaleX(0); }
+  95%  { transform: scaleX(0); animation-timing-function: ease-in-out; }
+  100% { transform: scaleX(1); }
+}
+
+/* C2/C3/C4 translateX: 100%/200%/300% = exactly 1/2/3 column widths */
+@keyframes pv-step2 {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(0);     animation-timing-function: ease-in-out; }
+  56%  { transform: translateX(-100%); }
+  95%  { transform: translateX(-100%); animation-timing-function: ease-in-out; }
+  100% { transform: translateX(0); }
+}
+@keyframes pv-step3 {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(0);     animation-timing-function: ease-in-out; }
+  56%  { transform: translateX(-200%); }
+  95%  { transform: translateX(-200%); animation-timing-function: ease-in-out; }
+  100% { transform: translateX(0); }
+}
+@keyframes pv-step4 {
+  0%   { transform: translateX(0); }
+  50%  { transform: translateX(0);     animation-timing-function: ease-in-out; }
+  56%  { transform: translateX(-300%); }
+  95%  { transform: translateX(-300%); animation-timing-function: ease-in-out; }
+  100% { transform: translateX(0); }
+}
+
+/* C1 icon swap: plane → check at merge, check → plane at split */
+@keyframes pv-c1-plane {
+  0%   { opacity: 1; }
+  55%  { opacity: 1; }
+  56%  { opacity: 0; }
+  95%  { opacity: 0; }
+  96%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+@keyframes pv-c1-check {
+  0%    { opacity: 0; }
+  55.5% { opacity: 0; }
+  56.5% { opacity: 1; }
+  95%   { opacity: 1; }
+  95.5% { opacity: 0; }
+  100%  { opacity: 0; }
 }
 
 @keyframes pv-fill {
@@ -288,46 +380,55 @@
   100% { left: 0%;   opacity: 0; }
 }
 
-/* C1 activates at 0% */
+/* C1: lights at 0%, scale pop at merge (~55%), unlit at 95% */
 @keyframes pv-c1 {
   0%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
   2%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  54%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  55%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.12); }
+  56%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
   57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
   95%  { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
   100% { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
 }
 
-/* C2 activates at 15% */
+/* C2: lights at 15%, fades at end of slide (55→57%), re-emerges at 96% for split */
 @keyframes pv-c2 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  14%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  15%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  17%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  14%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  15%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); opacity: 1; }
+  17%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  55%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 0; }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 0; }
+  96%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
 }
 
-/* C3 activates at 30% */
+/* C3: lights at 30%, same fade/emerge pattern */
 @keyframes pv-c3 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  29%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  30%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  32%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  29%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  30%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); opacity: 1; }
+  32%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  55%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 0; }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 0; }
+  96%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
 }
 
-/* C4 activates at 46% */
+/* C4: lights at 46%, same fade/emerge pattern */
 @keyframes pv-c4 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  45%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  46%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  48%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  45%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  46%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); opacity: 1; }
+  48%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  55%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 1; }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    opacity: 0; }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 0; }
+  96%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    opacity: 1; }
 }
 
 /* ── Phase 2+ keyframes ───────────────────────────────────────────────── */
@@ -347,15 +448,14 @@
   100% { transform: scaleX(1); }
 }
 
-/* Van: ease-in-out for DRIVE phase (64%→82%), linear hold, fade on LEAVE */
 @keyframes pv-van-drive {
-  0%   { left: 0;                    opacity: 0; }
-  63%  { left: 0;                    opacity: 0; }
-  64%  { left: 0;                    opacity: 1; animation-timing-function: ease-in-out; }
-  82%  { left: calc(100% - 44px);   opacity: 1; animation-timing-function: linear; }
-  91%  { left: calc(100% - 44px);   opacity: 1; }
-  95%  { left: calc(100% + 20px);   opacity: 0; }
-  100% { left: 0;                    opacity: 0; }
+  0%   { left: 0;                  opacity: 0; }
+  63%  { left: 0;                  opacity: 0; }
+  64%  { left: 0;                  opacity: 1; animation-timing-function: ease-in-out; }
+  82%  { left: calc(100% - 44px); opacity: 1; animation-timing-function: linear; }
+  91%  { left: calc(100% - 44px); opacity: 1; }
+  95%  { left: calc(100% + 20px); opacity: 0; }
+  100% { left: 0;                  opacity: 0; }
 }
 
 @keyframes pv-badge-show {
@@ -384,6 +484,9 @@
   .pv-label { font-size: 0.625rem; max-width: 60px; }
   .pv-rail { top: 26px; }
 
+  .pv-icon-wrap { width: 18px; height: 18px; }
+  .pv-icon-wrap svg { width: 18px; height: 18px; }
+
   .pv-merged { width: 54px; height: 54px; }
   .pv-merged svg { width: 18px; height: 18px; }
   .pv-road { top: 26px; left: calc(12.5% + 27px); right: calc(12.5% + 27px); }
@@ -395,6 +498,13 @@
 @media (prefers-reduced-motion: reduce) {
   .pv-phase1-group { animation: none; opacity: 1; }
   .pv-scene { display: none; }
+  .pv-steps .pv-step:nth-child(2),
+  .pv-steps .pv-step:nth-child(3),
+  .pv-steps .pv-step:nth-child(4) { animation: none; transform: none; }
+  .pv-label { animation: none; opacity: 1; }
+  .pv-rail { animation: none; transform: none; }
+  .pv-c1-plane { animation: none; opacity: 1; }
+  .pv-c1-check { animation: none; opacity: 0; }
   .pv-steps .pv-step:nth-child(1) .pv-circle,
   .pv-steps .pv-step:nth-child(2) .pv-circle,
   .pv-steps .pv-step:nth-child(3) .pv-circle,
@@ -403,6 +513,7 @@
     background: #2457F5;
     color: #fff;
     border-color: #2457F5;
+    opacity: 1;
   }
   .pv-fill { animation: none; width: 100%; }
   .pv-dot  { animation: none; display: none; }
