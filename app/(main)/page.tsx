@@ -6,16 +6,16 @@ import {
 } from 'lucide-react'
 import { PLANS, TRIAL_DAYS } from '@/lib/plans'
 import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
-import HeroDemo from '@/components/marketing/HeroDemo'
+import ProcessVisual from '@/components/marketing/ProcessVisual'
 
 export const metadata: Metadata = {
-  title: 'Jobigram — Field Service Management for Contractors',
+  title: 'Jobigram — Field Service Management Software',
   description:
-    'Scheduling, estimates, and dispatch for HVAC, plumbing, and electrical contractors. Start your 30-day free trial — no credit card required.',
+    'Send estimates, get online approvals, schedule jobs, and automate follow-up reminders. Start your 30-day free trial — no credit card required.',
   openGraph: {
-    title: 'Jobigram — Field Service Management for Contractors',
+    title: 'Jobigram — Field Service Management Software',
     description:
-      'Scheduling, estimates, and dispatch for HVAC, plumbing, and electrical contractors.',
+      'Send estimates, get online approvals, schedule jobs, and automate follow-up reminders.',
     type: 'website',
   },
 }
@@ -30,7 +30,7 @@ const STEPS = [
   },
   {
     n: '02',
-    title: 'Send an estimate they approve online',
+    title: 'Send an estimate for online approval',
     body: 'Build a line-item estimate and send a secure link. Customers review, approve, and sign off from any device — no phone tag.',
   },
   {
@@ -111,10 +111,10 @@ const FAQS = [
 // ── Shared styles ──────────────────────────────────────────────────────
 
 const primaryBtn =
-  'inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
+  'inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
 
-const ghostBtn =
-  'inline-flex h-11 items-center gap-1 rounded-lg px-4 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+const quietLink =
+  'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded'
 
 // ── Page ───────────────────────────────────────────────────────────────
 
@@ -124,32 +124,30 @@ export default function HomePage() {
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <section className="px-6 pb-20 pt-36 sm:pt-44">
         <div className="mx-auto max-w-5xl">
-          <div className="grid gap-14 lg:grid-cols-[1fr,auto] lg:items-center lg:gap-16">
+          <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-16">
 
             {/* Left: copy */}
-            <div className="max-w-xl">
-              <h1 className="text-4xl font-bold leading-[1.12] tracking-tight text-foreground sm:text-5xl lg:text-[3.25rem]">
-                Send the estimate.<br className="hidden sm:block" /> Get the yes.
+            <div>
+              <h1 className="text-4xl font-extrabold leading-[1.1] text-foreground sm:text-5xl lg:text-[3.25rem]">
+                Run your whole service business{' '}
+                <span className="text-primary">from one place</span>
               </h1>
               <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
-                Jobigram helps HVAC, plumbing, and electrical crews quote jobs, schedule them, and follow up — with estimates customers approve from their phone.
+                Send an estimate, get it approved from your customer&apos;s phone, put the job on the calendar, and let reminders handle the follow-up. All in one place.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
+              <div className="mt-8">
                 <Link href="/signup" className={primaryBtn}>
                   Start free trial <ArrowRight className="size-4" />
                 </Link>
-                <a href="#demo" className={ghostBtn}>
-                  Try the demo →
-                </a>
               </div>
-              <p className="mt-4 text-xs text-muted-foreground/55">
+              <p className="mt-4 text-xs text-muted-foreground/70">
                 {TRIAL_DAYS}-day free trial · No credit card required · Cancel any time
               </p>
             </div>
 
-            {/* Right: interactive demo */}
-            <div id="demo">
-              <HeroDemo />
+            {/* Right: animated process visual */}
+            <div className="w-full">
+              <ProcessVisual />
             </div>
 
           </div>
@@ -160,7 +158,7 @@ export default function HomePage() {
       <section id="how-it-works" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
           <div className="mb-14">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
               How it works
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
@@ -170,7 +168,7 @@ export default function HomePage() {
           <ol className="grid gap-10 sm:grid-cols-3">
             {STEPS.map((step) => (
               <li key={step.n} className="flex flex-col gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/8">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
                   <span className="text-sm font-bold text-primary">{step.n}</span>
                 </div>
                 <div>
@@ -187,23 +185,23 @@ export default function HomePage() {
       <section id="features" className="px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
           <div className="mb-14">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
               Everything your crew needs
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Built specifically for HVAC, plumbing, and electrical contractors.
+              Built for service businesses that run on jobs, schedules, and estimates.
             </p>
           </div>
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" role="list">
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list">
             {FEATURES.map(({ Icon, title, body, comingSoon }) => (
               <li
                 key={title}
                 className="rounded-xl border border-border bg-card p-5"
               >
                 <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="size-4.5 text-primary" />
+                  <Icon className="size-[18px] text-primary" />
                 </div>
-                <div className="flex items-center gap-2 mb-1.5">
+                <div className="mb-1.5 flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-foreground">{title}</h3>
                   {comingSoon && (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -222,7 +220,7 @@ export default function HomePage() {
       <section id="pricing" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
               Simple, transparent pricing
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
@@ -260,10 +258,7 @@ export default function HomePage() {
             </table>
           </div>
           <div className="mt-7 flex flex-wrap items-center gap-5">
-            <Link
-              href="/pricing"
-              className="text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
-            >
+            <Link href="/pricing" className={quietLink}>
               See all plans →
             </Link>
             <Link href="/signup" className={primaryBtn}>
@@ -277,7 +272,7 @@ export default function HomePage() {
       <section className="px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-2xl">
           <div className="mb-12">
-            <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
               Frequently asked questions
             </h2>
           </div>
@@ -300,17 +295,17 @@ export default function HomePage() {
       {/* ── CTA band ─────────────────────────────────────────────── */}
       <section className="px-6 pb-20">
         <div className="mx-auto max-w-2xl rounded-2xl border border-primary/15 bg-primary/5 px-8 py-14 text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
             Ready to cut the paperwork?
           </h2>
           <p className="mt-3 text-base text-muted-foreground">
             Start your {TRIAL_DAYS}-day free trial today. No credit card required.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link href="/signup" className={primaryBtn}>
               Start free trial <ArrowRight className="size-4" />
             </Link>
-            <Link href="/contact" className={ghostBtn}>
+            <Link href="/contact" className={quietLink}>
               Talk to us →
             </Link>
           </div>

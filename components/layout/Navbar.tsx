@@ -3,12 +3,12 @@
 import React from 'react'
 import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
-  { name: 'Features', href: '/#features' },
+  { name: 'Features', href: '/features' },
   { name: 'Pricing', href: '/pricing' },
+  { name: 'About', href: '/about' },
 ]
 
 export default function Navbar() {
@@ -23,25 +23,20 @@ export default function Navbar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30">
-      <nav
-        aria-label="Main navigation"
-        className="w-full px-4 pt-3"
-      >
+      <nav aria-label="Main navigation" className="w-full px-4 pt-3">
         <div
           className={cn(
-            'mx-auto flex max-w-5xl items-center justify-between rounded-2xl px-5 py-3 transition-all duration-300',
-            scrolled
-              ? 'border border-border bg-background shadow-sm'
-              : '',
+            'mx-auto flex max-w-5xl items-center justify-between rounded-2xl px-5 py-3 transition-all duration-200',
+            scrolled ? 'border border-border bg-background shadow-sm' : '',
           )}
         >
-          {/* Logo */}
+          {/* Logo / wordmark */}
           <Link href="/" aria-label="Jobigram home" className="flex items-center">
             <span className="text-lg font-bold tracking-tight text-foreground">Jobigram</span>
           </Link>
 
-          {/* Desktop nav */}
-          <ul className="hidden items-center gap-8 lg:flex" role="list">
+          {/* Desktop links */}
+          <ul className="hidden items-center gap-7 lg:flex" role="list">
             {NAV_LINKS.map((l) => (
               <li key={l.href}>
                 <Link
@@ -55,13 +50,19 @@ export default function Navbar() {
           </ul>
 
           {/* Desktop CTAs */}
-          <div className="hidden items-center gap-3 lg:flex">
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/login">Log in</Link>
-            </Button>
-            <Button asChild variant="cta" size="sm">
-              <Link href="/signup">Start free trial</Link>
-            </Button>
+          <div className="hidden items-center gap-4 lg:flex">
+            <Link
+              href="/login"
+              className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              className="inline-flex h-9 items-center rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Start free trial
+            </Link>
           </div>
 
           {/* Mobile hamburger */}
@@ -89,7 +90,7 @@ export default function Navbar() {
                   <Link
                     href={l.href}
                     onClick={() => setOpen(false)}
-                    className="block text-sm font-medium text-foreground hover:text-primary transition-colors"
+                    className="block text-sm font-medium text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
                   >
                     {l.name}
                   </Link>
@@ -97,12 +98,20 @@ export default function Navbar() {
               ))}
             </ul>
             <div className="flex flex-col gap-3">
-              <Button asChild variant="outline" className="w-full">
-                <Link href="/login" onClick={() => setOpen(false)}>Log in</Link>
-              </Button>
-              <Button asChild variant="cta" className="w-full">
-                <Link href="/signup" onClick={() => setOpen(false)}>Start free trial</Link>
-              </Button>
+              <Link
+                href="/login"
+                onClick={() => setOpen(false)}
+                className="block w-full rounded-xl border border-border py-2.5 text-center text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/signup"
+                onClick={() => setOpen(false)}
+                className="block w-full rounded-full bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Start free trial
+              </Link>
             </div>
           </div>
         )}

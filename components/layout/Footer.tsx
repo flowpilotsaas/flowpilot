@@ -17,7 +17,7 @@ export default function Footer() {
           <div className="max-w-xs">
             <span className="text-base font-bold text-foreground">Jobigram</span>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Field service management for HVAC, plumbing, and electrical contractors.
+              Field service management software for service businesses.
             </p>
           </div>
           <nav aria-label="Footer navigation">

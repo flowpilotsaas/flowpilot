@@ -1,96 +1,223 @@
 /*
- * Marketing site token overrides — scoped to .marketing-site
- *
- * The root layout uses oklch(0.982 0.004 285) as --background (cool violet-tinted).
- * Here we swap it for warmer values and set a near-black ink text color.
- * Tailwind v4 maps utilities like bg-background → var(--background), so overriding
- * --background here propagates to all Tailwind utilities inside .marketing-site.
- *
- * This file does NOT affect the dashboard, which runs under ThemeProvider.
+ * Marketing site tokens — scoped to .marketing-site
+ * Light only. Tailwind v4 maps utilities like bg-background → var(--background),
+ * so overriding --background here propagates to all utilities inside .marketing-site.
+ * Does NOT affect the dashboard (ThemeProvider / .dark class).
  */
 
-/* ── Light tokens ─────────────────────────────────────────────────────── */
+/* ── Design tokens ────────────────────────────────────────────────────── */
 
 .marketing-site {
-  /* Warm off-white page background */
-  --background: oklch(0.985 0.007 78);
-  /* Near-black ink */
-  --foreground: oklch(0.118 0.010 270);
-  /* Cards: white, slight warm tint */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.118 0.010 270);
-  /* Popover */
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.118 0.010 270);
-  /* Brand indigo — unchanged from app */
-  --primary: oklch(0.510 0.233 277);
-  --primary-foreground: oklch(0.985 0 0);
-  /* Muted surface */
-  --muted: oklch(0.963 0.009 78);
-  --muted-foreground: oklch(0.495 0.012 270);
-  /* Warm hairline border */
-  --border: oklch(0.872 0.014 78);
-  --input: oklch(0.872 0.014 78);
-  /* Focus ring */
-  --ring: oklch(0.510 0.233 277);
-  /* Secondary */
-  --secondary: oklch(0.955 0.010 78);
-  --secondary-foreground: oklch(0.118 0.010 270);
-  /* Accent */
-  --accent: oklch(0.955 0.010 78);
-  --accent-foreground: oklch(0.118 0.010 270);
-  /* Radius — one modest level */
-  --radius: 0.5rem;
+  /* Tailwind-mapped variables */
+  --background:         #F6F4EE;
+  --foreground:         #14161B;
+  --card:               #FFFFFF;
+  --card-foreground:    #14161B;
+  --popover:            #FFFFFF;
+  --popover-foreground: #14161B;
+  --primary:            #2457F5;
+  --primary-foreground: #FFFFFF;
+  --secondary:          #EEE9DF;
+  --secondary-foreground: #14161B;
+  --muted:              #EEE9DF;
+  --muted-foreground:   #5B6068;
+  --accent:             #EEE9DF;
+  --accent-foreground:  #14161B;
+  --destructive:        #DC2626;
+  --destructive-foreground: #FFFFFF;
+  --border:             #DDD9CE;
+  --input:              #DDD9CE;
+  --ring:               #2457F5;
+  --radius:             0.5rem;
 }
 
-/* ── Dark mode (prefers-color-scheme, no ThemeProvider on marketing pages) */
-
-@media (prefers-color-scheme: dark) {
-  .marketing-site {
-    --background: oklch(0.118 0.010 270);
-    --foreground: oklch(0.970 0.005 80);
-    --card: oklch(0.162 0.012 270);
-    --card-foreground: oklch(0.970 0.005 80);
-    --popover: oklch(0.162 0.012 270);
-    --popover-foreground: oklch(0.970 0.005 80);
-    --primary: oklch(0.690 0.190 277);
-    --primary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.210 0.012 270);
-    --muted-foreground: oklch(0.615 0.012 270);
-    --border: oklch(1 0 0 / 0.10);
-    --input: oklch(1 0 0 / 0.12);
-    --ring: oklch(0.690 0.190 277);
-    --secondary: oklch(0.210 0.012 270);
-    --secondary-foreground: oklch(0.970 0.005 80);
-    --accent: oklch(0.210 0.012 270);
-    --accent-foreground: oklch(0.970 0.005 80);
-  }
-}
-
-/* ── Display font for marketing headings ──────────────────────────────── */
+/* ── Heading font ─────────────────────────────────────────────────────── */
 
 .marketing-site h1,
 .marketing-site h2 {
   font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
-/* ── Pulse animation for hero demo hint ───────────────────────────────── */
+/* ── Process Visual ───────────────────────────────────────────────────── */
+
+.pv-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.pv-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  position: relative;
+  z-index: 1;
+}
+
+.pv-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.pv-circle {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  border: 1.5px solid #DDD9CE;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5B6068;
+  flex-shrink: 0;
+}
+
+.pv-circle svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pv-label {
+  font-family: var(--font-display), ui-sans-serif, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #5B6068;
+  text-align: center;
+  max-width: 72px;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+/* Rail track */
+.pv-rail {
+  position: absolute;
+  left: 12.5%;   /* center of 1st of 4 equal columns */
+  right: 12.5%;  /* center of 4th of 4 equal columns */
+  top: 33px;     /* (68px ÷ 2) − 1px: centers 2px rail on circle centers */
+  height: 2px;
+  background: #DDD9CE;
+  z-index: 0;
+}
+
+.pv-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: #2457F5;
+  animation: pv-fill 9s linear infinite;
+}
+
+.pv-dot {
+  position: absolute;
+  top: -4px;       /* (2px rail − 10px dot) / 2: vertically centers dot */
+  left: 0;
+  margin-left: -5px; /* horizontally centers dot on its animated left value */
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2457F5;
+  animation: pv-dot 9s linear infinite;
+}
+
+/* Per-circle animations */
+.pv-steps .pv-step:nth-child(1) .pv-circle { animation: pv-c1 9s linear infinite; }
+.pv-steps .pv-step:nth-child(2) .pv-circle { animation: pv-c2 9s linear infinite; }
+.pv-steps .pv-step:nth-child(3) .pv-circle { animation: pv-c3 9s linear infinite; }
+.pv-steps .pv-step:nth-child(4) .pv-circle { animation: pv-c4 9s linear infinite; }
+
+@keyframes pv-fill {
+  0%   { width: 0%;   }
+  81%  { width: 100%; }
+  86%  { width: 100%; }
+  92%  { width: 0%;   }
+  100% { width: 0%;   }
+}
+
+@keyframes pv-dot {
+  0%   { left: 0%;   opacity: 1; }
+  81%  { left: 100%; opacity: 1; }
+  86%  { left: 100%; opacity: 0; }
+  91%  { left: 0%;   opacity: 0; }
+  100% { left: 0%;   opacity: 0; }
+}
+
+/* Activates at 0% */
+@keyframes pv-c1 {
+  0%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  3%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  92%  { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  100% { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+}
+
+/* Activates at 27% */
+@keyframes pv-c2 {
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  26%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  27%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  30%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+}
+
+/* Activates at 54% */
+@keyframes pv-c3 {
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  53%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  54%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+}
+
+/* Activates at 81% */
+@keyframes pv-c4 {
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  80%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  81%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  84%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+}
+
+/* Mobile: 54px circles */
+@media (max-width: 640px) {
+  .pv-circle { width: 54px; height: 54px; }
+  .pv-circle svg { width: 18px; height: 18px; }
+  .pv-label { font-size: 0.625rem; max-width: 60px; }
+  .pv-rail { top: 26px; } /* (54 ÷ 2) − 1 */
+}
+
+/* prefers-reduced-motion: all circles lit, rail filled, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .pv-steps .pv-step:nth-child(1) .pv-circle,
+  .pv-steps .pv-step:nth-child(2) .pv-circle,
+  .pv-steps .pv-step:nth-child(3) .pv-circle,
+  .pv-steps .pv-step:nth-child(4) .pv-circle {
+    animation: none;
+    background: #2457F5;
+    color: #fff;
+    border-color: #2457F5;
+  }
+  .pv-fill { animation: none; width: 100%; }
+  .pv-dot  { animation: none; display: none; }
+}
+
+/* ── Demo pulse (kept for compatibility, no longer used) ──────────────── */
 
 @keyframes demo-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.45; }
 }
-
-.demo-pulse {
-  animation: demo-pulse 2.4s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .demo-pulse {
-    animation: none;
-  }
-}
-
-/* ── Suppress backdrop-blur on marketing nav ──────────────────────────── */
-/* (Inline styles on Navbar override this; kept here as documentation.) */
