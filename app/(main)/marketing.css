@@ -50,6 +50,13 @@
   width: 100%;
 }
 
+/* Phase 1 wrapper — fades out/in between phases */
+.pv-phase1-group {
+  position: relative;
+  width: 100%;
+  animation: pv-phase1-vis 16s linear infinite;
+}
+
 .pv-steps {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -101,9 +108,9 @@
 /* Rail track */
 .pv-rail {
   position: absolute;
-  left: 12.5%;   /* center of 1st of 4 equal columns */
-  right: 12.5%;  /* center of 4th of 4 equal columns */
-  top: 33px;     /* (68px ÷ 2) − 1px: centers 2px rail on circle centers */
+  left: 12.5%;
+  right: 12.5%;
+  top: 33px;
   height: 2px;
   background: #DDD9CE;
   z-index: 0;
@@ -116,95 +123,278 @@
   height: 100%;
   width: 0%;
   background: #2457F5;
-  animation: pv-fill 9s linear infinite;
+  animation: pv-fill 16s linear infinite;
 }
 
 .pv-dot {
   position: absolute;
-  top: -4px;       /* (2px rail − 10px dot) / 2: vertically centers dot */
+  top: -4px;
   left: 0;
-  margin-left: -5px; /* horizontally centers dot on its animated left value */
+  margin-left: -5px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: #2457F5;
-  animation: pv-dot 9s linear infinite;
+  animation: pv-dot 16s linear infinite;
 }
 
-/* Per-circle animations */
-.pv-steps .pv-step:nth-child(1) .pv-circle { animation: pv-c1 9s linear infinite; }
-.pv-steps .pv-step:nth-child(2) .pv-circle { animation: pv-c2 9s linear infinite; }
-.pv-steps .pv-step:nth-child(3) .pv-circle { animation: pv-c3 9s linear infinite; }
-.pv-steps .pv-step:nth-child(4) .pv-circle { animation: pv-c4 9s linear infinite; }
+/* Per-circle animations — 16s loop */
+.pv-steps .pv-step:nth-child(1) .pv-circle { animation: pv-c1 16s linear infinite; }
+.pv-steps .pv-step:nth-child(2) .pv-circle { animation: pv-c2 16s linear infinite; }
+.pv-steps .pv-step:nth-child(3) .pv-circle { animation: pv-c3 16s linear infinite; }
+.pv-steps .pv-step:nth-child(4) .pv-circle { animation: pv-c4 16s linear infinite; }
+
+/* ── Phase 2+: Merged scene overlay ──────────────────────────────────── */
+
+.pv-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: pv-scene2-vis 16s linear infinite;
+}
+
+/* Merged circle — centered at column-1 center (12.5% from left) */
+.pv-merged {
+  position: absolute;
+  left: 12.5%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #2457F5;
+  border: 1.5px solid #2457F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pv-merged svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Dashed road — spans between merged circle and house */
+.pv-road {
+  position: absolute;
+  left: calc(12.5% + 34px);
+  right: calc(12.5% + 34px);
+  top: 33px;
+  height: 2px;
+  overflow: hidden;
+}
+.pv-road::after {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    90deg,
+    #5B6068 0,
+    #5B6068 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: pv-road-draw 16s linear infinite;
+}
+
+/* House — centered at column-4 center (12.5% from right) */
+.pv-house-wrap {
+  position: absolute;
+  right: 12.5%;
+  top: 0;
+  transform: translateX(50%);
+}
+
+/* Animated window fill inside house SVG */
+.pv-house-win {
+  opacity: 0;
+  animation: pv-house-win 16s linear infinite;
+}
+
+/* Green check badge on house */
+.pv-badge {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1A7F4B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  animation: pv-badge-show 16s linear infinite;
+}
+.pv-badge svg {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Van travel track — spans the road, van animates left within it */
+.pv-van-track {
+  position: absolute;
+  left: calc(12.5% + 34px);
+  right: calc(12.5% + 34px);
+  top: 20px;  /* 33px rail center − 13px (half of 26px van height) */
+  height: 26px;
+}
+
+.pv-van {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 26px;
+  opacity: 0;
+  animation: pv-van-drive 16s linear infinite;
+}
+
+/* ── Phase 1 keyframes (16s loop; C1–C4 light at 0/15/30/46%) ────────── */
+
+@keyframes pv-phase1-vis {
+  0%   { opacity: 1; }
+  50%  { opacity: 1; }
+  57%  { opacity: 0; }
+  95%  { opacity: 0; }
+  100% { opacity: 1; }
+}
 
 @keyframes pv-fill {
   0%   { width: 0%;   }
-  81%  { width: 100%; }
-  86%  { width: 100%; }
-  92%  { width: 0%;   }
+  46%  { width: 100%; }
+  94%  { width: 100%; }
+  95%  { width: 0%;   }
   100% { width: 0%;   }
 }
 
 @keyframes pv-dot {
   0%   { left: 0%;   opacity: 1; }
-  81%  { left: 100%; opacity: 1; }
-  86%  { left: 100%; opacity: 0; }
-  91%  { left: 0%;   opacity: 0; }
+  46%  { left: 100%; opacity: 1; }
+  50%  { left: 100%; opacity: 0; }
+  51%  { left: 0%;   opacity: 0; }
   100% { left: 0%;   opacity: 0; }
 }
 
-/* Activates at 0% */
+/* C1 activates at 0% */
 @keyframes pv-c1 {
   0%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  3%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  92%  { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  2%   { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  95%  { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
   100% { background: #fff;    color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
 }
 
-/* Activates at 27% */
+/* C2 activates at 15% */
 @keyframes pv-c2 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  26%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  27%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  30%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-}
-
-/* Activates at 54% */
-@keyframes pv-c3 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  53%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  54%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  14%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  15%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  17%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
   57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
 }
 
-/* Activates at 81% */
+/* C3 activates at 30% */
+@keyframes pv-c3 {
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  29%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  30%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  32%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+}
+
+/* C4 activates at 46% */
 @keyframes pv-c4 {
-  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  80%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  81%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
-  84%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  86%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
-  92%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
-  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1); }
+  0%   { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  45%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  46%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1.08); }
+  48%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  57%  { background: #2457F5; color: #fff; border-color: #2457F5; transform: scale(1);    }
+  95%  { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
+  100% { background: #fff; color: #5B6068; border-color: #DDD9CE; transform: scale(1);    }
 }
 
-/* Mobile: 54px circles */
+/* ── Phase 2+ keyframes ───────────────────────────────────────────────── */
+
+@keyframes pv-scene2-vis {
+  0%   { opacity: 0; }
+  50%  { opacity: 0; }
+  57%  { opacity: 1; }
+  95%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes pv-road-draw {
+  0%   { transform: scaleX(0); }
+  57%  { transform: scaleX(0); }
+  63%  { transform: scaleX(1); }
+  100% { transform: scaleX(1); }
+}
+
+/* Van: ease-in-out for DRIVE phase (64%→82%), linear hold, fade on LEAVE */
+@keyframes pv-van-drive {
+  0%   { left: 0;                    opacity: 0; }
+  63%  { left: 0;                    opacity: 0; }
+  64%  { left: 0;                    opacity: 1; animation-timing-function: ease-in-out; }
+  82%  { left: calc(100% - 44px);   opacity: 1; animation-timing-function: linear; }
+  91%  { left: calc(100% - 44px);   opacity: 1; }
+  95%  { left: calc(100% + 20px);   opacity: 0; }
+  100% { left: 0;                    opacity: 0; }
+}
+
+@keyframes pv-badge-show {
+  0%   { opacity: 0; transform: scale(0.6); }
+  82%  { opacity: 0; transform: scale(0.6); }
+  84%  { opacity: 1; transform: scale(1);   }
+  91%  { opacity: 1; transform: scale(1);   }
+  95%  { opacity: 0; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes pv-house-win {
+  0%   { opacity: 0;   }
+  82%  { opacity: 0;   }
+  84%  { opacity: 0.8; }
+  95%  { opacity: 0.8; }
+  96%  { opacity: 0;   }
+  100% { opacity: 0;   }
+}
+
+/* ── Mobile: 54px circles ─────────────────────────────────────────────── */
+
 @media (max-width: 640px) {
   .pv-circle { width: 54px; height: 54px; }
   .pv-circle svg { width: 18px; height: 18px; }
   .pv-label { font-size: 0.625rem; max-width: 60px; }
-  .pv-rail { top: 26px; } /* (54 ÷ 2) − 1 */
+  .pv-rail { top: 26px; }
+
+  .pv-merged { width: 54px; height: 54px; }
+  .pv-merged svg { width: 18px; height: 18px; }
+  .pv-road { top: 26px; left: calc(12.5% + 27px); right: calc(12.5% + 27px); }
+  .pv-van-track { top: 13px; left: calc(12.5% + 27px); right: calc(12.5% + 27px); }
 }
 
-/* prefers-reduced-motion: all circles lit, rail filled, no animation */
+/* ── Reduced motion: 4 lit circles + full rail, no scene ─────────────── */
+
 @media (prefers-reduced-motion: reduce) {
+  .pv-phase1-group { animation: none; opacity: 1; }
+  .pv-scene { display: none; }
   .pv-steps .pv-step:nth-child(1) .pv-circle,
   .pv-steps .pv-step:nth-child(2) .pv-circle,
   .pv-steps .pv-step:nth-child(3) .pv-circle,
@@ -216,11 +406,4 @@
   }
   .pv-fill { animation: none; width: 100%; }
   .pv-dot  { animation: none; display: none; }
-}
-
-/* ── Demo pulse (kept for compatibility, no longer used) ──────────────── */
-
-@keyframes demo-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
 }
