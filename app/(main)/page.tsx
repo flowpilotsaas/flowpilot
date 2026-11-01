@@ -4,6 +4,7 @@ import {
   Calendar, Users, CreditCard, MessageSquare,
   MapPin, FileText, CheckCircle2, ArrowRight, ChevronDown,
 } from 'lucide-react'
+import { PLANS, TRIAL_DAYS } from '@/lib/plans'
 
 export const metadata: Metadata = {
   title: 'Jobigram — Field Service Management for Contractors',
@@ -70,60 +71,10 @@ const FEATURES = [
   },
 ]
 
-const PLANS = [
-  {
-    name: 'Starter',
-    price: 29 as number | null,
-    description: 'For small field service teams',
-    features: [
-      'Up to 5 team members',
-      'Job scheduling & calendar',
-      'Customer database',
-      'Estimates with online approval',
-      'Email reminders',
-      'Basic reporting',
-    ],
-    cta: 'Start free trial',
-    href: '/signup',
-    highlight: false,
-  },
-  {
-    name: 'Pro',
-    price: 59 as number | null,
-    description: 'For growing field service businesses',
-    features: [
-      'Everything in Starter',
-      'Unlimited team members',
-      'Dispatch & team management',
-      'Online payments via Stripe',
-      'SMS reminders & calling',
-      'Pricebook & service agreements',
-      'Priority support',
-    ],
-    cta: 'Start free trial',
-    href: '/signup',
-    highlight: true,
-  },
-  {
-    name: 'Enterprise',
-    price: null as number | null,
-    description: 'For larger operations',
-    features: [
-      'Everything in Pro',
-      'Dedicated onboarding',
-      'Custom integrations',
-      'Advanced reporting',
-    ],
-    cta: 'Contact us',
-    href: '/contact',
-    highlight: false,
-  },
-]
-
 const FAQS = [
   {
     q: 'How long is the free trial?',
-    a: '30 days — no credit card required. Every feature is available during the trial so you can see exactly what you\'re signing up for.',
+    a: `${TRIAL_DAYS} days — no credit card required. Every feature is available during the trial so you can see exactly what you're signing up for.`,
   },
   {
     q: 'Can I cancel any time?',
@@ -147,7 +98,7 @@ const FAQS = [
   },
 ]
 
-// ── Shared link styles ─────────────────────────────────────────────────
+// ── Shared link style ──────────────────────────────────────────────────
 
 const primaryLink =
   'inline-flex h-12 items-center gap-2 rounded-lg bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
@@ -182,7 +133,7 @@ export default function HomePage() {
                 </a>
               </div>
               <p className="mt-5 text-xs text-muted-foreground/60">
-                30-day free trial · No credit card required · Payments powered by Stripe
+                {TRIAL_DAYS}-day free trial · No credit card required · Payments powered by Stripe
               </p>
             </div>
 
@@ -295,70 +246,57 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Pricing ──────────────────────────────────────────────── */}
+      {/* ── Pricing preview ──────────────────────────────────────── */}
       <section id="pricing" className="bg-muted/30 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-14 text-center">
+          <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
               Simple, transparent pricing
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              30-day free trial on every plan. No credit card required to start.
+              Plans from ${PLANS[0].price}/month · {TRIAL_DAYS}-day free trial · No credit card required
+            </p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Every plan includes all features. Plans differ only by team size.
             </p>
           </div>
-          <div className="grid gap-6 sm:grid-cols-3">
-            {PLANS.map((plan) => (
-              <div
-                key={plan.name}
-                className={`relative rounded-2xl border p-8 ${
-                  plan.highlight
-                    ? 'border-primary bg-card shadow-md shadow-primary/10'
-                    : 'border-border bg-card'
-                }`}
-              >
-                {plan.highlight && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                    <span className="rounded-full bg-primary px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary-foreground">
-                      Most popular
-                    </span>
-                  </div>
-                )}
-                <div className="mb-6">
-                  <h3 className="text-base font-bold text-foreground">{plan.name}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{plan.description}</p>
-                  <div className="mt-4">
-                    {plan.price !== null ? (
-                      <div className="flex items-end gap-1">
-                        <span className="text-4xl font-bold tabular-nums text-foreground">
-                          ${plan.price}
-                        </span>
-                        <span className="mb-1.5 text-sm text-muted-foreground">/mo</span>
-                      </div>
-                    ) : (
-                      <span className="text-2xl font-bold text-foreground">Custom</span>
-                    )}
-                  </div>
-                </div>
-                <ul className="mb-8 space-y-2.5" role="list">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
-                      <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={plan.href}
-                  className={`block w-full rounded-lg py-2.5 text-center text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                    plan.highlight
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-primary'
-                      : 'border border-border bg-background text-foreground hover:bg-muted focus-visible:outline-ring'
-                  }`}
-                >
-                  {plan.cta}
-                </Link>
-              </div>
-            ))}
+          <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Plan</th>
+                  <th className="px-6 py-3 text-left font-medium text-muted-foreground">Team size</th>
+                  <th className="px-6 py-3 text-right font-medium text-muted-foreground">Price / mo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PLANS.map((plan, i) => (
+                  <tr
+                    key={plan.name}
+                    className={i < PLANS.length - 1 ? 'border-b border-border' : ''}
+                  >
+                    <td className="px-6 py-3.5 font-medium text-foreground">{plan.name}</td>
+                    <td className="px-6 py-3.5 text-muted-foreground">
+                      {plan.cap >= 10_000 ? 'Unlimited' : `Up to ${plan.cap}`}
+                    </td>
+                    <td className="px-6 py-3.5 text-right tabular-nums text-foreground">
+                      ${plan.price}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/pricing"
+              className="text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+            >
+              See all plans →
+            </Link>
+            <Link href="/signup" className={primaryLink}>
+              Start free trial <ArrowRight className="size-4" />
+            </Link>
           </div>
         </div>
       </section>
@@ -394,7 +332,7 @@ export default function HomePage() {
             Ready to cut the paperwork?
           </h2>
           <p className="mt-3 text-base text-muted-foreground">
-            Start your 30-day free trial today. No credit card required.
+            Start your {TRIAL_DAYS}-day free trial today. No credit card required.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link href="/signup" className={primaryLink}>

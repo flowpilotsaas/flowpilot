@@ -1,6 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-
-const TRIAL_DAYS = 30
+import { TRIAL_DAYS } from '@/lib/plans'
 
 export type WriteAccessResult =
   | { allowed: true }

@@ -1,19 +1,10 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { checkWriteAccess } from '@/lib/trial-gate'
+import { PLAN_CAPS } from '@/lib/plans'
 
 const FROM    = process.env.RESEND_FROM_EMAIL ?? 'Jobigram <onboarding@resend.dev>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jobigram.com'
-
-// User cap per plan name — must match billing page feature copy exactly
-const PLAN_CAPS: Record<string, number> = {
-  Kickstart:    2,
-  Standard:     5,
-  Business:    10,
-  Professional: 20,
-  Growth:       50,
-  Enterprise:   10_000,
-}
 
 function buildInviteHtml(role: string) {
   const roleLabel = role === 'admin' ? 'Admin' : 'Technician'

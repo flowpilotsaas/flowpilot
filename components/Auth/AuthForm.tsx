@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
+import { TRIAL_DAYS } from '@/lib/plans'
 
 interface AuthFormProps {
   mode: 'login' | 'signup'
@@ -92,7 +93,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
         <p className="text-sm text-muted-foreground mb-8 text-center">
           {isLogin
             ? 'Sign in to your Jobigram account'
-            : 'Start your 14-day free trial'}
+            : `Start your ${TRIAL_DAYS}-day free trial`}
         </p>
 
         {/* Fields */}

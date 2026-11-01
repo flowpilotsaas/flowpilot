@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard, Check, CheckCircle2, AlertCircle, Loader2, DollarSign, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PLANS, type Plan } from '@/lib/plans'
 
 type SubscriptionRow = {
   id: string
@@ -18,46 +19,6 @@ type SubscriptionRow = {
   created_at: string
 }
 
-type Plan = {
-  name: string
-  price: number
-  features: string[]
-  highlight?: boolean
-}
-
-const PLANS: Plan[] = [
-  {
-    name: 'Kickstart',
-    price: 49,
-    features: ['Up to 2 users', 'Unlimited jobs', 'Basic scheduling', 'Email support'],
-  },
-  {
-    name: 'Standard',
-    price: 99,
-    features: ['Up to 5 users', 'Unlimited jobs', 'Scheduling + dispatch', 'Estimates', 'Phone support'],
-  },
-  {
-    name: 'Business',
-    price: 149,
-    features: ['Up to 10 users', 'Unlimited jobs', 'Full scheduling suite', 'Inventory', 'Priority support'],
-    highlight: true,
-  },
-  {
-    name: 'Professional',
-    price: 199,
-    features: ['Up to 20 users', 'Everything in Business', 'Pipeline & CRM', 'Custom reports', 'Dedicated support'],
-  },
-  {
-    name: 'Growth',
-    price: 299,
-    features: ['Up to 50 users', 'Everything in Pro', 'GPS tracking', 'Multi-location', 'API access'],
-  },
-  {
-    name: 'Enterprise',
-    price: 499,
-    features: ['Unlimited users', 'Everything in Growth', 'Custom integrations', 'SLA guarantee', 'White-glove onboarding'],
-  },
-]
 
 function fmtCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)

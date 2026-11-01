@@ -11,7 +11,7 @@ export default function FeaturesPage() {
       </div>
       <CTA
         heading="Stop juggling apps. Start running jobs."
-        description="Start your free 14-day trial. No credit card required. No software to install."
+        description="Start your free 30-day trial. No credit card required. No software to install."
         buttonText="Start free trial"
         buttonHref="/signup"
         showSecondaryButton={false}

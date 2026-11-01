@@ -1,15 +1,7 @@
 import { NextRequest } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createServerSupabase } from '@/lib/supabase-server'
-
-const PLAN_PRICES: Record<string, number> = {
-  Kickstart:    49,
-  Standard:     99,
-  Business:     149,
-  Professional: 199,
-  Growth:       299,
-  Enterprise:   499,
-}
+import { PLAN_PRICES } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
   try {
