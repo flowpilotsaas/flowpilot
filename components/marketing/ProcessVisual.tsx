@@ -83,36 +83,38 @@ export default function ProcessVisual() {
         {/* Dashed road — draws from merged circle to house */}
         <div className="pv-road" />
 
-        {/* House with animated window and check badge */}
+        {/* House — fades in and rises during van drive */}
         <div className="pv-house-wrap">
-          <svg
-            viewBox="0 0 52 52"
-            width="52"
-            height="52"
-            aria-hidden="true"
-            fill="none"
-          >
+          <svg viewBox="0 0 56 56" width="56" height="56" aria-hidden="true" fill="none">
             {/* Roof */}
-            <polygon
-              points="2,24 26,2 50,24"
-              stroke="#DDD9CE"
-              strokeWidth="1.5"
+            <polyline
+              className="pv-hs"
+              points="1,26 28,2 55,26"
+              strokeWidth="2.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {/* Walls */}
+            <rect
+              className="pv-hs"
+              x="7" y="26" width="42" height="28"
+              strokeWidth="2.5"
+              rx="1"
+            />
+            {/* Arched door — door fill animates green on DONE */}
+            <path
+              className="pv-hs pv-house-door"
+              d="M22,54 L22,42 A6,6 0 0,1 34,42 L34,54"
+              strokeWidth="2.5"
+              strokeLinecap="round"
               strokeLinejoin="round"
             />
-            {/* Body */}
-            <rect x="8" y="24" width="36" height="26" stroke="#DDD9CE" strokeWidth="1.5" rx="1" />
-            {/* Door */}
-            <rect x="19" y="36" width="14" height="14" stroke="#DDD9CE" strokeWidth="1.5" rx="1" />
-            {/* Window outline */}
-            <rect x="11" y="28" width="10" height="8" stroke="#DDD9CE" strokeWidth="1.5" rx="1" />
-            {/* Window fill — animates in on DONE */}
-            <rect className="pv-house-win" x="11" y="28" width="10" height="8" fill="#1A7F4B" rx="1" />
           </svg>
 
-          {/* Green check badge — appears on DONE */}
+          {/* Green check badge with drawn check — appears on DONE */}
           <div className="pv-badge">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <polyline points="20 6 9 17 4 12" />
+              <polyline className="pv-badge-check" points="20 6 9 17 4 12" />
             </svg>
           </div>
         </div>
@@ -121,24 +123,15 @@ export default function ProcessVisual() {
         <div className="pv-van-track">
           <div className="pv-van">
             <svg viewBox="0 0 44 26" width="44" height="26" aria-hidden="true" fill="none">
-              {/* Body */}
-              <rect x="0" y="1" width="36" height="14" rx="2" fill="#2457F5" />
-              {/* Cab front */}
-              <path d="M36 1 L43 7 L43 15 L36 15 Z" fill="#1a45d4" />
-              {/* Windshield */}
-              <path d="M36 3 L42 8 L42 14 L36 14 Z" fill="#a5b4fc" />
-              {/* Side window 1 */}
-              <rect x="21" y="3" width="9" height="5" rx="1" fill="#a5b4fc" />
-              {/* Side window 2 */}
-              <rect x="10" y="3" width="9" height="5" rx="1" fill="#a5b4fc" />
-              {/* Rear cap */}
-              <rect x="0" y="1" width="2" height="14" rx="1" fill="#1a45d4" />
-              {/* Rear wheel */}
-              <circle cx="9" cy="21" r="4" fill="#1f2937" />
-              <circle cx="9" cy="21" r="1.5" fill="#6b7280" />
-              {/* Front wheel */}
-              <circle cx="35" cy="21" r="4" fill="#1f2937" />
-              <circle cx="35" cy="21" r="1.5" fill="#6b7280" />
+              {/* Solid body with sloped front cab */}
+              <path d="M1,20 L1,5 Q1,2 4,2 L33,2 Q38,2 43,8 L43,20 Q43,23 40,23 L4,23 Q1,23 1,20 Z" fill="#2457F5" />
+              {/* Single window cut-out */}
+              <rect x="14" y="4" width="16" height="9" rx="2" fill="#F6F4EE" />
+              {/* Wheels */}
+              <circle cx="10" cy="22" r="4" fill="#14161B" />
+              <circle cx="10" cy="22" r="1.5" fill="#5B6068" />
+              <circle cx="34" cy="22" r="4" fill="#14161B" />
+              <circle cx="34" cy="22" r="1.5" fill="#5B6068" />
             </svg>
           </div>
         </div>

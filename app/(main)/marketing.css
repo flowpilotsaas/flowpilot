@@ -236,18 +236,24 @@
   animation: pv-road-draw 16s linear infinite;
 }
 
-/* House — centered at column-4 center (12.5% from right) */
+/* House — fades in and rises 6px during van drive; transform X in keyframe */
 .pv-house-wrap {
   position: absolute;
   right: 12.5%;
   top: 0;
-  transform: translateX(50%);
+  animation: pv-house-enter 16s linear infinite;
 }
 
-/* Animated window fill inside house SVG */
-.pv-house-win {
-  opacity: 0;
-  animation: pv-house-win 16s linear infinite;
+/* Stroke elements — dim at rest, full ink on DONE */
+.pv-hs {
+  stroke: rgba(20,22,27,0.35);
+  animation: pv-house-stroke 16s linear infinite;
+}
+
+/* Arched door — light green fill on DONE */
+.pv-house-door {
+  fill: transparent;
+  animation: pv-door-fill 16s linear infinite;
 }
 
 /* Green check badge on house */
@@ -274,6 +280,12 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Check draws itself via stroke-dashoffset */
+.pv-badge-check {
+  stroke-dasharray: 23;
+  stroke-dashoffset: 23;
+  animation: pv-check-draw 16s linear infinite;
+}
 
 /* Van travel track — spans the road, van animates left within it */
 .pv-van-track {
@@ -291,7 +303,7 @@
   width: 44px;
   height: 26px;
   opacity: 0;
-  animation: pv-van-drive 16s linear infinite;
+  animation: pv-van-drive 16s linear infinite, pv-van-bob 0.5s ease-in-out infinite;
 }
 
 /* ── Phase 1 keyframes ────────────────────────────────────────────────── */
@@ -451,29 +463,66 @@
 @keyframes pv-van-drive {
   0%   { left: 0;                  opacity: 0; }
   63%  { left: 0;                  opacity: 0; }
-  64%  { left: 0;                  opacity: 1; animation-timing-function: ease-in-out; }
-  82%  { left: calc(100% - 44px); opacity: 1; animation-timing-function: linear; }
-  91%  { left: calc(100% - 44px); opacity: 1; }
-  95%  { left: calc(100% + 20px); opacity: 0; }
+  64%  { left: 0;                  opacity: 1; animation-timing-function: ease-in; }
+  72%  { left: 45%;                            animation-timing-function: ease-out; }
+  82%  { left: calc(100% - 44px); opacity: 1; }
+  91%  { left: calc(100% - 44px); opacity: 1; animation-timing-function: ease-in; }
+  96%  { left: calc(100% + 30px); opacity: 0; }
   100% { left: 0;                  opacity: 0; }
 }
 
 @keyframes pv-badge-show {
   0%   { opacity: 0; transform: scale(0.6); }
-  82%  { opacity: 0; transform: scale(0.6); }
+  82%  { opacity: 0; transform: scale(0.6); animation-timing-function: cubic-bezier(.34,1.56,.64,1); }
   84%  { opacity: 1; transform: scale(1);   }
   91%  { opacity: 1; transform: scale(1);   }
   95%  { opacity: 0; transform: scale(0.6); }
   100% { opacity: 0; transform: scale(0.6); }
 }
 
-@keyframes pv-house-win {
-  0%   { opacity: 0;   }
-  82%  { opacity: 0;   }
-  84%  { opacity: 0.8; }
-  95%  { opacity: 0.8; }
-  96%  { opacity: 0;   }
-  100% { opacity: 0;   }
+/* House entrance: rises 6px ease-out while van drives */
+@keyframes pv-house-enter {
+  0%   { opacity: 0; transform: translateX(50%) translateY(6px); }
+  67%  { opacity: 0; transform: translateX(50%) translateY(6px); animation-timing-function: ease-out; }
+  76%  { opacity: 1; transform: translateX(50%) translateY(0);   }
+  95%  { opacity: 1; transform: translateX(50%) translateY(0);   }
+  100% { opacity: 0; transform: translateX(50%) translateY(6px); }
+}
+
+/* House strokes dim at rest, full ink on DONE */
+@keyframes pv-house-stroke {
+  0%   { stroke: rgba(20,22,27,0.35); }
+  80%  { stroke: rgba(20,22,27,0.35); }
+  83%  { stroke: rgba(20,22,27,1);    }
+  91%  { stroke: rgba(20,22,27,1);    }
+  95%  { stroke: rgba(20,22,27,0.35); }
+  100% { stroke: rgba(20,22,27,0.35); }
+}
+
+/* Door fills light green on DONE */
+@keyframes pv-door-fill {
+  0%   { fill: transparent;           }
+  82%  { fill: transparent;           }
+  84%  { fill: rgba(26,127,75,0.18);  }
+  91%  { fill: rgba(26,127,75,0.18);  }
+  95%  { fill: transparent;           }
+  100% { fill: transparent;           }
+}
+
+/* Check draws via stroke-dashoffset */
+@keyframes pv-check-draw {
+  0%    { stroke-dashoffset: 23; }
+  82%   { stroke-dashoffset: 23; }
+  84.5% { stroke-dashoffset: 0;  }
+  91%   { stroke-dashoffset: 0;  }
+  95%   { stroke-dashoffset: 23; }
+  100%  { stroke-dashoffset: 23; }
+}
+
+/* Subtle vertical bob while driving */
+@keyframes pv-van-bob {
+  0%, 100% { transform: translateY(0);     }
+  50%      { transform: translateY(-1.5px); }
 }
 
 /* ── Mobile: 54px circles ─────────────────────────────────────────────── */
@@ -505,6 +554,7 @@
   .pv-rail { animation: none; transform: none; }
   .pv-c1-plane { animation: none; opacity: 1; }
   .pv-c1-check { animation: none; opacity: 0; }
+  .pv-van { animation: pv-van-drive 16s linear infinite; }
   .pv-steps .pv-step:nth-child(1) .pv-circle,
   .pv-steps .pv-step:nth-child(2) .pv-circle,
   .pv-steps .pv-step:nth-child(3) .pv-circle,
