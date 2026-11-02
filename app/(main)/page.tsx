@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import {
-  Calendar, Users, CreditCard, MessageSquare,
-  MapPin, FileText, ArrowRight, ChevronDown,
-} from 'lucide-react'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 import { PLANS, TRIAL_DAYS } from '@/lib/plans'
-import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
 import ProcessVisual from '@/components/marketing/ProcessVisual'
+import FeatureTabs from '@/components/marketing/FeatureTabs'
 
 export const metadata: Metadata = {
   title: 'Jobigram — Field Service Management Software',
@@ -22,64 +19,6 @@ export const metadata: Metadata = {
 
 // ── Content ────────────────────────────────────────────────────────────
 
-const STEPS = [
-  {
-    n: '01',
-    title: 'Add a customer and job',
-    body: 'Create a customer profile, log the service address, and schedule the job. Your whole crew sees the calendar update in real time.',
-  },
-  {
-    n: '02',
-    title: 'Send an estimate for online approval',
-    body: 'Build a line-item estimate and send a secure link. Customers review, approve, and sign off from any device — no phone tag.',
-  },
-  {
-    n: '03',
-    title: 'Schedule the work and send reminders',
-    body: 'Assign the job to a technician, set an appointment time, and let automated email and SMS reminders handle the follow-up.',
-  },
-]
-
-const FEATURES = [
-  {
-    Icon: Calendar,
-    title: 'Job Scheduling',
-    body: 'Drag-and-drop calendar for assigning jobs and technicians. No more double-bookings or missed appointments.',
-    comingSoon: false,
-  },
-  {
-    Icon: FileText,
-    title: 'Estimates & Approval',
-    body: 'Build estimates from your pricebook, send a link, get a signed approval — without picking up the phone.',
-    comingSoon: false,
-  },
-  {
-    Icon: CreditCard,
-    title: 'Online Payments',
-    body: ONLINE_PAYMENTS_LIVE
-      ? 'Customers pay by card from the estimate link. Stripe deposits the money straight to your bank account.'
-      : 'Accept card payments directly from estimate links — Stripe-powered, funds go straight to your account.',
-    comingSoon: !ONLINE_PAYMENTS_LIVE,
-  },
-  {
-    Icon: MessageSquare,
-    title: 'Email & SMS Reminders',
-    body: 'Automated reminders keep customers informed before every appointment so jobs stay on track.',
-    comingSoon: false,
-  },
-  {
-    Icon: MapPin,
-    title: 'Dispatch & Teams',
-    body: "Assign jobs to technicians, track job status in real time, and view your whole crew's day at a glance.",
-    comingSoon: false,
-  },
-  {
-    Icon: Users,
-    title: 'Customer Portal',
-    body: 'Every estimate gets a secure customer-facing link. Customers approve without creating an account.',
-    comingSoon: false,
-  },
-]
 
 const FAQS = [
   {
@@ -154,65 +93,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── How it works ─────────────────────────────────────────── */}
-      <section id="how-it-works" className="bg-muted/40 px-6 py-20 sm:py-28">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-14">
-            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
-              How it works
-            </h2>
-            <p className="mt-3 text-base text-muted-foreground">
-              From new job to completed work in three steps.
-            </p>
-          </div>
-          <ol className="grid gap-10 sm:grid-cols-3">
-            {STEPS.map((step) => (
-              <li key={step.n} className="flex flex-col gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
-                  <span className="text-sm font-bold text-primary">{step.n}</span>
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
       {/* ── Features ─────────────────────────────────────────────── */}
-      <section id="features" className="px-6 py-20 sm:py-28">
+      <section id="features" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-14">
+          <div className="mb-10">
             <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
-              Everything your crew needs
+              Everything you need to run every job
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Built for service businesses that run on jobs, schedules, and estimates.
+              From first estimate to completed work, all in one place.
             </p>
           </div>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list">
-            {FEATURES.map(({ Icon, title, body, comingSoon }) => (
-              <li
-                key={title}
-                className="rounded-xl border border-border bg-card p-5"
-              >
-                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                  <Icon className="size-[18px] text-primary" />
-                </div>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-                  {comingSoon && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Soon
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
-              </li>
-            ))}
-          </ul>
+          <FeatureTabs />
         </div>
       </section>
 
@@ -294,19 +186,19 @@ export default function HomePage() {
 
       {/* ── CTA band ─────────────────────────────────────────────── */}
       <section className="px-6 pb-20">
-        <div className="mx-auto max-w-2xl rounded-2xl border border-primary/15 bg-primary/5 px-8 py-14 text-center">
-          <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
-            Ready to cut the paperwork?
+        <div className="mx-auto max-w-2xl rounded-2xl bg-foreground px-8 py-14 text-center">
+          <h2 className="text-2xl font-bold text-background sm:text-3xl">
+            Start sending estimates your customers can approve from their phone
           </h2>
-          <p className="mt-3 text-base text-muted-foreground">
-            Start your {TRIAL_DAYS}-day free trial today. No credit card required.
+          <p className="mt-3 text-sm text-background/60">
+            {TRIAL_DAYS}-day free trial. No credit card required.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <Link href="/signup" className={primaryBtn}>
+          <div className="mt-8">
+            <Link
+              href="/signup"
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-background px-6 text-sm font-semibold text-foreground transition-colors hover:bg-background/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-background"
+            >
               Start free trial <ArrowRight className="size-4" />
-            </Link>
-            <Link href="/contact" className={quietLink}>
-              Talk to us →
             </Link>
           </div>
         </div>
