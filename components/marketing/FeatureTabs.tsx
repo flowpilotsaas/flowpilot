@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
 
 // ── Tab data ────────────────────────────────────────────────────────────
@@ -150,10 +150,12 @@ function RemindersVisual() {
 }
 
 function CustomersVisual() {
+  // Customer type only stores name/email/phone/address/notes — no last-contact date.
+  // Using email + job/estimate count, which is what a customer list would show.
   const rows = [
-    { name: 'Alex Rivera', detail: '4 jobs · Last contact 3 days ago', chip: 'Active', accent: false },
-    { name: 'Sam Okafor', detail: 'Estimate sent · awaiting approval', chip: 'Pending', accent: true },
-    { name: 'Jordan Lee', detail: '7 jobs · Last contact 2 weeks ago', chip: 'Active', accent: false },
+    { name: 'Alex Rivera', detail: 'alex@example.com · 4 jobs', chip: 'Active', accent: false },
+    { name: 'Sam Okafor', detail: 'sam@example.com · 1 estimate pending', chip: 'Pending', accent: true },
+    { name: 'Jordan Lee', detail: 'jordan@example.com · 7 jobs', chip: 'Active', accent: false },
   ]
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm divide-y divide-border">
@@ -182,85 +184,208 @@ const VISUALS = [EstimatesVisual, SchedulingVisual, RemindersVisual, CustomersVi
 
 export default function FeatureTabs() {
   const [active, setActive] = useState(0)
+  const [autoAdvance, setAutoAdvance] = useState(true)
+  const [paused, setPaused] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  // Increments when auto-timing resumes after a pause, to restart the progress bar from 0.
+  const [progressKey, setProgressKey] = useState(0)
+
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wasRunningRef = useRef(false)
+
+  // Detect prefers-reduced-motion on the client
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setPrefersReducedMotion(mq.matches)
+    const handler = () => setPrefersReducedMotion(mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+
+  // IntersectionObserver: start only when 40% of the section is visible
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => setVisible(entry.isIntersecting),
+      { threshold: 0.4 },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  const isRunning = autoAdvance && visible && !paused && !prefersReducedMotion
+
+  // When timing resumes after a pause, restart the progress bar from 0 so it
+  // stays in sync with the freshly-started interval.
+  useEffect(() => {
+    if (!wasRunningRef.current && isRunning) {
+      setProgressKey((k) => k + 1)
+    }
+    wasRunningRef.current = isRunning
+  }, [isRunning])
+
+  // Auto-advance interval — cleared whenever any blocking condition changes
+  useEffect(() => {
+    if (!autoAdvance || !visible || paused || prefersReducedMotion) return
+    const id = setInterval(() => {
+      setActive((a) => (a + 1) % TABS.length)
+    }, 6000)
+    return () => clearInterval(id)
+  }, [autoAdvance, visible, paused, prefersReducedMotion])
+
+  // Pause on hover — event handlers on the wrapper
+  const handleMouseEnter = () => setPaused(true)
+  const handleMouseLeave = () => setPaused(false)
+
+  // Pause on focus inside the section. Debounce blur so moving focus between
+  // elements inside the section doesn't briefly unpause.
+  const handleFocusCapture = () => {
+    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
+    setPaused(true)
+  }
+  const handleBlurCapture = () => {
+    blurTimeoutRef.current = setTimeout(() => setPaused(false), 0)
+  }
+
+  function stopAutoAdvance() {
+    setAutoAdvance(false)
+  }
+
+  function handleTabClick(i: number) {
+    setActive(i)
+    stopAutoAdvance()
+  }
 
   function handleKeyDown(e: React.KeyboardEvent, i: number) {
     if (e.key === 'ArrowRight') {
       const n = (i + 1) % TABS.length
       tabRefs.current[n]?.focus()
       setActive(n)
+      stopAutoAdvance()
     } else if (e.key === 'ArrowLeft') {
       const n = (i - 1 + TABS.length) % TABS.length
       tabRefs.current[n]?.focus()
       setActive(n)
+      stopAutoAdvance()
     } else if (e.key === 'Home') {
       tabRefs.current[0]?.focus()
       setActive(0)
+      stopAutoAdvance()
     } else if (e.key === 'End') {
       const last = TABS.length - 1
       tabRefs.current[last]?.focus()
       setActive(last)
+      stopAutoAdvance()
     }
   }
 
-  return (
-    <div>
-      {/* Tab list */}
-      <div role="tablist" aria-label="Feature areas" className="flex flex-wrap gap-2 mb-8">
-        {TABS.map((tab, i) => (
-          <button
-            key={tab.id}
-            role="tab"
-            id={`tab-${tab.id}`}
-            aria-selected={active === i}
-            aria-controls={`tabpanel-${tab.id}`}
-            ref={(el) => { tabRefs.current[i] = el }}
-            tabIndex={active === i ? 0 : -1}
-            onClick={() => setActive(i)}
-            onKeyDown={(e) => handleKeyDown(e, i)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-              active === i
-                ? 'bg-foreground text-background'
-                : 'border border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground'
-            }`}
-          >
-            {tab.short}
-          </button>
-        ))}
-      </div>
+  const showProgress = autoAdvance && !prefersReducedMotion
 
-      {/* Panels — outer min-height reserves space so switching tabs doesn't shift the page */}
-      <div className="min-h-[300px] sm:min-h-[220px]">
-        {TABS.map((tab, i) => {
-          const PanelVisual = VISUALS[i]
-          return (
-            <div
+  return (
+    <>
+      {/* Keyframes injected once; React 19 hoists <style> tags automatically */}
+      <style>{`
+        @keyframes ft-panel-enter {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        @keyframes ft-tab-progress {
+          from { width: 0%;    }
+          to   { width: 100%;  }
+        }
+      `}</style>
+
+      <div
+        ref={sectionRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onFocusCapture={handleFocusCapture}
+        onBlurCapture={handleBlurCapture}
+      >
+        {/* Tab list */}
+        <div role="tablist" aria-label="Feature areas" className="flex flex-wrap gap-2 mb-8">
+          {TABS.map((tab, i) => (
+            <button
               key={tab.id}
-              role="tabpanel"
-              id={`tabpanel-${tab.id}`}
-              aria-labelledby={`tab-${tab.id}`}
-              hidden={active !== i}
-              className="grid gap-8 sm:grid-cols-2 sm:gap-12 sm:items-start"
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={active === i}
+              aria-controls={`tabpanel-${tab.id}`}
+              ref={(el) => { tabRefs.current[i] = el }}
+              tabIndex={active === i ? 0 : -1}
+              onClick={() => handleTabClick(i)}
+              onKeyDown={(e) => handleKeyDown(e, i)}
+              className={`relative overflow-hidden rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                active === i
+                  ? 'bg-foreground text-background'
+                  : 'border border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground'
+              }`}
             >
-              {/* Left: copy */}
-              <div>
-                <h3 className="text-xl font-bold text-foreground sm:text-2xl">{tab.heading}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{tab.body}</p>
-                <ul className="mt-5 space-y-2">
-                  {tab.bullets.map((b) => (
-                    <li key={b} className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                      <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                      {b}
-                    </li>
-                  ))}
-                </ul>
+              {tab.short}
+              {/* Progress bar: fills over 6 s while this tab is active and auto-advancing */}
+              {active === i && showProgress && (
+                <span
+                  key={`${i}-${progressKey}`}
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    height: '2px',
+                    background: active === i ? 'rgba(246,244,238,0.5)' : '#2457F5',
+                    animation: 'ft-tab-progress 6s linear forwards',
+                    animationPlayState: isRunning ? 'running' : 'paused',
+                  }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Panels — min-height reserves space so layout below never shifts.
+            aria-live="off" suppresses announcements from auto-advances. */}
+        <div className="min-h-[300px] sm:min-h-[220px]" aria-live="off">
+          {TABS.map((tab, i) => {
+            const PanelVisual = VISUALS[i]
+            const isActive = active === i
+            return (
+              <div
+                key={tab.id}
+                role="tabpanel"
+                id={`tabpanel-${tab.id}`}
+                aria-labelledby={`tab-${tab.id}`}
+                hidden={!isActive}
+                className="grid gap-8 sm:grid-cols-2 sm:gap-12 sm:items-start"
+                style={
+                  isActive && !prefersReducedMotion
+                    ? { animation: 'ft-panel-enter 250ms ease-out', animationFillMode: 'both' }
+                    : undefined
+                }
+              >
+                {/* Left: copy */}
+                <div>
+                  <h3 className="text-xl font-bold text-foreground sm:text-2xl">{tab.heading}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{tab.body}</p>
+                  <ul className="mt-5 space-y-2">
+                    {tab.bullets.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                        <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                {/* Right: visual */}
+                <PanelVisual />
               </div>
-              {/* Right: visual */}
-              <PanelVisual />
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
