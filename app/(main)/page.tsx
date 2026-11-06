@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown } from 'lucide-react'
 import { PLANS, TRIAL_DAYS } from '@/lib/plans'
 import ProcessVisual from '@/components/marketing/ProcessVisual'
 import FeatureTabs from '@/components/marketing/FeatureTabs'
+import PricingPicker from '@/components/marketing/PricingPicker'
 
 export const metadata: Metadata = {
   title: 'Jobigram — Field Service Management Software',
@@ -108,55 +109,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Pricing preview ──────────────────────────────────────── */}
+      {/* ── Pricing ──────────────────────────────────────────────── */}
       <section id="pricing" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-10">
-            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
-              Simple, transparent pricing
-            </h2>
-            <p className="mt-3 text-base text-muted-foreground">
-              Plans from ${PLANS[0].price}/month · {TRIAL_DAYS}-day free trial · No credit card required
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Every plan includes all features. Plans differ only by team size.
-            </p>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team size</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Price/mo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {PLANS.map((plan, i) => (
-                  <tr
-                    key={plan.name}
-                    className={i < PLANS.length - 1 ? 'border-b border-border' : ''}
-                  >
-                    <td className="px-5 py-3.5 font-medium text-foreground">{plan.name}</td>
-                    <td className="px-5 py-3.5 text-muted-foreground">
-                      {plan.cap >= 10_000 ? 'Unlimited' : `Up to ${plan.cap}`}
-                    </td>
-                    <td className="px-5 py-3.5 text-right tabular-nums text-foreground">
-                      ${plan.price}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-7 flex flex-wrap items-center gap-5">
-            <Link href="/pricing" className={quietLink}>
-              See all plans →
-            </Link>
-            <Link href="/signup" className={primaryBtn}>
-              Start free trial <ArrowRight className="size-4" />
-            </Link>
-          </div>
+          <PricingPicker />
         </div>
       </section>
 
