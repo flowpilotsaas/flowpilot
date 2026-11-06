@@ -186,9 +186,16 @@ export default function FeatureTabs() {
   const [containerW, setContainerW] = useState(840)
   const [hovered, setHovered]     = useState<number | null>(null)
   const [prefersRM, setPrefersRM] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
+  const [isFocused, setIsFocused] = useState(false)
+  const [stopped, setStopped]     = useState(false)
+  const [progressKey, setProgressKey] = useState(0)
 
+  const sectionRef = useRef<HTMLDivElement>(null)
   const wrapRef  = useRef<HTMLDivElement>(null)
   const btnRefs  = useRef<(HTMLButtonElement | null)[]>([])
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -206,7 +213,46 @@ export default function FeatureTabs() {
     return () => obs.disconnect()
   }, [])
 
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.intersectionRatio >= 0.4),
+      { threshold: [0, 0.4] },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  // Reset progress bar to 0% when section re-enters view
+  const prevVisible = useRef(false)
+  useEffect(() => {
+    if (isVisible && !prevVisible.current) setProgressKey((k) => k + 1)
+    prevVisible.current = isVisible
+  }, [isVisible])
+
+  const autoRunning = isVisible && !isHovering && !isFocused && !stopped && !prefersRM
+
+  useEffect(() => {
+    if (!autoRunning) return
+    const id = setInterval(() => {
+      setSelected((prev) => (prev + 1) % EVENTS.length)
+      setAnimKey((k) => k + 1)
+      setProgressKey((k) => k + 1)
+    }, 4000)
+    return () => clearInterval(id)
+  }, [autoRunning])
+
+  function handleFocusCapture() {
+    if (blurTimer.current) clearTimeout(blurTimer.current)
+    setIsFocused(true)
+  }
+  function handleBlurCapture() {
+    blurTimer.current = setTimeout(() => setIsFocused(false), 0)
+  }
+
   function pick(i: number) {
+    setStopped(true)
     setSelected(i)
     setAnimKey((k) => k + 1)
   }
@@ -237,11 +283,21 @@ export default function FeatureTabs() {
   const { Visual } = EVENTS[selected]
 
   return (
-    <>
+    <div
+      ref={sectionRef}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      onFocusCapture={handleFocusCapture}
+      onBlurCapture={handleBlurCapture}
+    >
       <style>{`
         @keyframes day-card-enter {
           from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes progress-fill {
+          from { width: 0%; }
+          to   { width: 100%; }
         }
       `}</style>
 
@@ -383,6 +439,19 @@ export default function FeatureTabs() {
                   >
                     {ev.title}
                   </span>
+
+                  {/* Progress bar track (always rendered on active so it fades with button) */}
+                  {isActive && !prefersRM && (
+                    <div
+                      aria-hidden="true"
+                      style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, borderRadius: '0 0 15px 15px', overflow: 'hidden', background: 'rgba(255,255,255,0.2)' }}
+                    >
+                      <div
+                        key={progressKey}
+                        style={{ height: '100%', background: 'rgba(255,255,255,0.8)', animationName: 'progress-fill', animationDuration: '4s', animationTimingFunction: 'linear', animationFillMode: 'both', animationPlayState: autoRunning ? 'running' : 'paused' }}
+                      />
+                    </div>
+                  )}
                 </button>
               </React.Fragment>
             )
@@ -454,23 +523,23 @@ export default function FeatureTabs() {
                   )}
                 </button>
 
-                {/* Accordion card */}
-                {isActive && (
-                  <div
-                    key={animKey}
-                    style={{
-                      marginTop: 8,
-                      ...(prefersRM ? {} : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }),
-                    }}
-                  >
-                    <ev.Visual />
-                  </div>
-                )}
+                {/* Accordion card – always mounted for smooth height transition */}
+                <div
+                  style={{
+                    maxHeight: isActive ? 600 : 0,
+                    opacity: isActive ? 1 : 0,
+                    overflow: 'hidden',
+                    marginTop: isActive ? 8 : 0,
+                    transition: prefersRM ? 'none' : 'max-height 350ms ease, opacity 250ms ease, margin-top 350ms ease',
+                  }}
+                >
+                  <ev.Visual />
+                </div>
               </div>
             )
           })}
         </div>
       </div>
-    </>
+    </div>
   )
 }
