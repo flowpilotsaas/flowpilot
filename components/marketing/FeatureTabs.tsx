@@ -1,29 +1,29 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
 
-// ── Visuals ─────────────────────────────────────────────────────────────
+// ── Visuals (sized for the wider 480px card) ─────────────────────────────
 
 function EstimatesVisual() {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Estimate #142</span>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Sent</span>
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-base font-semibold text-foreground">Estimate #142</span>
+        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">Sent</span>
       </div>
-      <div className="border-t border-border pt-3 space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
+      <div className="border-t border-border pt-4 space-y-3">
+        <div className="flex justify-between text-sm text-muted-foreground">
           <span>Gutter cleaning</span><span>$120.00</span>
         </div>
-        <div className="flex justify-between text-xs text-muted-foreground">
+        <div className="flex justify-between text-sm text-muted-foreground">
           <span>Downspout flush</span><span>$45.00</span>
         </div>
-        <div className="flex justify-between text-xs font-semibold text-foreground border-t border-border pt-2">
-          <span>Total</span><span>$165.00</span>
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <span className="text-sm font-semibold text-foreground">Total</span>
+          <span className="font-bold text-foreground" style={{ fontSize: 28, lineHeight: 1 }}>$165.00</span>
         </div>
       </div>
-      <div className="mt-4 rounded-full bg-primary py-2 text-center text-xs font-semibold text-primary-foreground">
+      <div className="mt-5 rounded-full bg-primary py-2.5 text-center text-sm font-semibold text-primary-foreground">
         Approve estimate
       </div>
     </div>
@@ -32,31 +32,26 @@ function EstimatesVisual() {
 
 function ApprovedEstimateVisual() {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-semibold text-foreground">Estimate #142</span>
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-          style={{ background: '#dcfce7', color: '#16a34a' }}
-        >
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-base font-semibold text-foreground">Estimate #142</span>
+        <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: '#dcfce7', color: '#16a34a' }}>
           Approved
         </span>
       </div>
-      <div className="border-t border-border pt-3 space-y-2">
-        <div className="flex justify-between text-xs text-muted-foreground">
+      <div className="border-t border-border pt-4 space-y-3">
+        <div className="flex justify-between text-sm text-muted-foreground">
           <span>Gutter cleaning</span><span>$120.00</span>
         </div>
-        <div className="flex justify-between text-xs text-muted-foreground">
+        <div className="flex justify-between text-sm text-muted-foreground">
           <span>Downspout flush</span><span>$45.00</span>
         </div>
-        <div className="flex justify-between text-xs font-semibold text-foreground border-t border-border pt-2">
-          <span>Total</span><span>$165.00</span>
+        <div className="flex items-center justify-between border-t border-border pt-3">
+          <span className="text-sm font-semibold text-foreground">Total</span>
+          <span className="font-bold text-foreground" style={{ fontSize: 28, lineHeight: 1 }}>$165.00</span>
         </div>
       </div>
-      <div
-        className="mt-4 rounded-full py-2 text-center text-xs font-semibold"
-        style={{ background: '#dcfce7', color: '#16a34a' }}
-      >
+      <div className="mt-5 rounded-full py-2.5 text-center text-sm font-semibold" style={{ background: '#dcfce7', color: '#16a34a' }}>
         ✓ Approved by customer
       </div>
     </div>
@@ -80,28 +75,21 @@ function SchedulingVisual() {
     { label: '3 pm · Lee', accent: false },
   ]
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <div className="grid grid-cols-5 gap-1.5">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="grid grid-cols-5 gap-2">
         {days.map((d) => (
-          <div key={d} className="pb-1 text-center text-[10px] font-semibold text-muted-foreground">{d}</div>
+          <div key={d} className="pb-1.5 text-center text-xs font-semibold text-muted-foreground">{d}</div>
         ))}
         {row1.map((b, i) =>
           b ? (
-            <div
-              key={`r1-${i}`}
-              className={`rounded p-1 text-[9px] leading-tight ${
-                b.accent ? 'bg-primary/15 font-semibold text-primary' : 'bg-muted text-muted-foreground'
-              }`}
-            >
+            <div key={`r1-${i}`} className={`rounded p-1.5 text-[10px] leading-tight ${b.accent ? 'bg-primary/15 font-semibold text-primary' : 'bg-muted text-muted-foreground'}`}>
               {b.label}
             </div>
           ) : <div key={`r1-${i}`} />
         )}
         {row2.map((b, i) =>
           b ? (
-            <div key={`r2-${i}`} className="rounded bg-muted p-1 text-[9px] leading-tight text-muted-foreground">
-              {b.label}
-            </div>
+            <div key={`r2-${i}`} className="rounded bg-muted p-1.5 text-[10px] leading-tight text-muted-foreground">{b.label}</div>
           ) : <div key={`r2-${i}`} />
         )}
       </div>
@@ -111,15 +99,15 @@ function SchedulingVisual() {
 
 function RemindersVisual() {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
-      <div className="max-w-[90%] rounded-xl rounded-tl-none bg-muted p-3">
-        <p className="text-[10px] font-semibold text-foreground mb-0.5">Jobigram</p>
-        <p className="text-xs text-muted-foreground">
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-3">
+      <div className="max-w-[90%] rounded-xl rounded-tl-none bg-muted p-3.5">
+        <p className="text-xs font-semibold text-foreground mb-1">Jobigram</p>
+        <p className="text-sm text-muted-foreground">
           Hi Alex — your appointment is confirmed for tomorrow at 2 pm. Reply STOP to unsubscribe.
         </p>
       </div>
-      <div className="ml-auto max-w-[75%] rounded-xl rounded-tr-none bg-primary/10 p-3">
-        <p className="text-xs text-primary">Got it, thanks!</p>
+      <div className="ml-auto max-w-[75%] rounded-xl rounded-tr-none bg-primary/10 p-3.5">
+        <p className="text-sm text-primary">Got it, thanks!</p>
       </div>
     </div>
   )
@@ -134,16 +122,12 @@ function CustomersVisual() {
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden shadow-sm divide-y divide-border">
       {rows.map((row) => (
-        <div key={row.name} className="flex items-center justify-between px-4 py-3">
+        <div key={row.name} className="flex items-center justify-between px-5 py-3.5">
           <div>
-            <p className="text-sm font-medium text-foreground">{row.name}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{row.detail}</p>
+            <p className="text-base font-medium text-foreground">{row.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{row.detail}</p>
           </div>
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-              row.accent ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-            }`}
-          >
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.accent ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
             {row.chip}
           </span>
         </div>
@@ -156,133 +140,68 @@ function CustomersVisual() {
 
 type EventItem = {
   id: string
-  time: string
   title: string
-  caption: string
   icon: 'document' | 'check' | 'calendar' | 'bell' | 'person'
   Visual: () => React.ReactElement
-  pct: number // horizontal position on the timeline (0–100)
 }
 
 const EVENTS: EventItem[] = [
-  {
-    id: 'estimate-sent',
-    time: '9:00 AM',
-    title: 'Estimate sent',
-    caption: 'Build a line-item estimate and share a link. The customer sees it on any device.',
-    icon: 'document',
-    Visual: EstimatesVisual,
-    pct: 0,
-  },
-  {
-    id: 'customer-approves',
-    time: '10:30 AM',
-    title: 'Customer approves',
-    caption: 'The customer taps Approve from their phone. You get notified immediately.',
-    icon: 'check',
-    Visual: ApprovedEstimateVisual,
-    pct: 25,
-  },
-  {
-    id: 'job-scheduled',
-    time: '1:00 PM',
-    title: 'Job scheduled',
-    caption: "Drop the job on the calendar. Your crew sees the update right away.",
-    icon: 'calendar',
-    Visual: SchedulingVisual,
-    pct: 50,
-  },
-  {
-    id: 'reminder-sent',
-    time: '4:00 PM',
-    title: 'Reminder sent',
-    caption: 'An automated reminder goes out before the appointment — no manual follow-up.',
-    icon: 'bell',
-    Visual: RemindersVisual,
-    pct: 75,
-  },
-  {
-    id: 'history-saved',
-    time: '5:00 PM',
-    title: 'Customer history saved',
-    caption: 'Every job, estimate, and note is saved to the customer record automatically.',
-    icon: 'person',
-    Visual: CustomersVisual,
-    pct: 100,
-  },
+  { id: 'estimate-sent',    title: 'Estimate sent',      icon: 'document',  Visual: EstimatesVisual },
+  { id: 'customer-approves',title: 'Customer approves',  icon: 'check',     Visual: ApprovedEstimateVisual },
+  { id: 'job-scheduled',    title: 'Job scheduled',      icon: 'calendar',  Visual: SchedulingVisual },
+  { id: 'reminder-sent',    title: 'Reminder sent',      icon: 'bell',      Visual: RemindersVisual },
+  { id: 'history-saved',    title: 'History saved',      icon: 'person',    Visual: CustomersVisual },
 ]
 
-// ── Dot icons ────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────
 
-const DOT_ICON_SIZE = 10
+function EventIcon({ icon, size = 28, color }: { icon: EventItem['icon']; size?: number; color: string }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none' as const, stroke: color, strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (icon === 'document') return <svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+  if (icon === 'check')    return <svg {...p} strokeWidth={2}><polyline points="20 6 9 17 4 12"/></svg>
+  if (icon === 'calendar') return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  if (icon === 'bell')     return <svg {...p}><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+  return <svg {...p}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+}
 
-function DotIcon({ icon, active }: { icon: EventItem['icon']; active: boolean }) {
-  const stroke = active ? '#fff' : '#5B6068'
-  const common = { width: DOT_ICON_SIZE, height: DOT_ICON_SIZE, viewBox: '0 0 24 24', fill: 'none' as const, stroke, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-
-  if (icon === 'document') return (
-    <svg {...common}>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  )
-  if (icon === 'check') return (
-    <svg {...common} strokeWidth={3}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-  if (icon === 'calendar') return (
-    <svg {...common}>
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-  if (icon === 'bell') return (
-    <svg {...common}>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  )
+function SmallCheck({ color }: { color: string }) {
   return (
-    <svg {...common}>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
+    <svg width={9} height={9} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   )
 }
 
-// ── Constants ────────────────────────────────────────────────────────────
+// ── Layout constants ──────────────────────────────────────────────────────
 
-const CARD_WIDTH = 300
-const CARD_AREA_HEIGHT = 240 // px; tall enough for the deepest card
-const DOT_D = 20            // dot diameter px
-const LINE_TOP = 10          // px from top of timeline row to line center
+const CARD_WIDTH    = 480
+const CARD_AREA_H   = 260  // px; tall enough for the deepest card + pointer
+const CONNECTOR_W   = 6    // px gap between buttons
 
 // ── Main component ──────────────────────────────────────────────────────
 
 export default function FeatureTabs() {
-  const [selected, setSelected] = useState(0)
-  const [animKey, setAnimKey] = useState(0)
-  const [containerWidth, setContainerWidth] = useState(840)
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
+  const [selected, setSelected]   = useState(0)
+  const [animKey, setAnimKey]     = useState(0)
+  const [containerW, setContainerW] = useState(840)
+  const [hovered, setHovered]     = useState<number | null>(null)
+  const [prefersRM, setPrefersRM] = useState(false)
 
-  const timelineRef = useRef<HTMLDivElement>(null)
-  const dotRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const wrapRef  = useRef<HTMLDivElement>(null)
+  const btnRefs  = useRef<(HTMLButtonElement | null)[]>([])
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setPrefersReducedMotion(mq.matches)
-    const h = () => setPrefersReducedMotion(mq.matches)
+    setPrefersRM(mq.matches)
+    const h = () => setPrefersRM(mq.matches)
     mq.addEventListener('change', h)
     return () => mq.removeEventListener('change', h)
   }, [])
 
   useEffect(() => {
-    const el = timelineRef.current
+    const el = wrapRef.current
     if (!el) return
-    const obs = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
+    const obs = new ResizeObserver(([e]) => setContainerW(e.contentRect.width))
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
@@ -292,31 +211,28 @@ export default function FeatureTabs() {
     setAnimKey((k) => k + 1)
   }
 
-  function handleDotKey(e: React.KeyboardEvent, i: number) {
-    if (e.key === 'ArrowRight') {
-      const n = (i + 1) % EVENTS.length
-      dotRefs.current[n]?.focus()
-      pick(n)
-    } else if (e.key === 'ArrowLeft') {
-      const n = (i - 1 + EVENTS.length) % EVENTS.length
-      dotRefs.current[n]?.focus()
-      pick(n)
-    } else if (e.key === 'Home') { dotRefs.current[0]?.focus(); pick(0) }
-    else if (e.key === 'End') { dotRefs.current[EVENTS.length - 1]?.focus(); pick(EVENTS.length - 1) }
+  function handleKey(e: React.KeyboardEvent, i: number) {
+    if (e.key === 'ArrowRight') { const n = (i + 1) % EVENTS.length; btnRefs.current[n]?.focus(); pick(n) }
+    else if (e.key === 'ArrowLeft') { const n = (i - 1 + EVENTS.length) % EVENTS.length; btnRefs.current[n]?.focus(); pick(n) }
+    else if (e.key === 'Home') { btnRefs.current[0]?.focus(); pick(0) }
+    else if (e.key === 'End')  { const l = EVENTS.length - 1; btnRefs.current[l]?.focus(); pick(l) }
   }
 
-  // Card left position, clamped so card never overflows the container
+  const tr = (ms: number) => prefersRM ? 'none' : `all ${ms}ms ease`
+
+  // Center x of button i within the container
+  function btnCenter(i: number): number {
+    const B = (containerW - (EVENTS.length - 1) * CONNECTOR_W) / EVENTS.length
+    return i * (B + CONNECTOR_W) + B / 2
+  }
+
   function cardLeft(i: number): number {
-    const dotX = (EVENTS[i].pct / 100) * containerWidth
-    return Math.max(0, Math.min(containerWidth - CARD_WIDTH, dotX - CARD_WIDTH / 2))
+    return Math.max(0, Math.min(containerW - CARD_WIDTH, btnCenter(i) - CARD_WIDTH / 2))
   }
 
-  // Pointer x offset within the card wrapper (aligns pointer tip with dot center)
-  function pointerOffset(i: number): number {
-    return (EVENTS[i].pct / 100) * containerWidth - cardLeft(i)
+  function pointerOff(i: number): number {
+    return btnCenter(i) - cardLeft(i)
   }
-
-  const tr = (ms: number) => prefersReducedMotion ? 'none' : `all ${ms}ms ease`
 
   const { Visual } = EVENTS[selected]
 
@@ -325,7 +241,7 @@ export default function FeatureTabs() {
       <style>{`
         @keyframes day-card-enter {
           from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0);   }
+          to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
@@ -334,14 +250,10 @@ export default function FeatureTabs() {
       </p>
 
       {/* ── DESKTOP ── */}
-      <div ref={timelineRef} className="hidden sm:block" aria-label="Day timeline">
+      <div ref={wrapRef} className="hidden sm:block">
 
-        {/* Card area — fixed height reserves space; cards hang from bottom */}
-        <div
-          aria-live="off"
-          style={{ position: 'relative', height: CARD_AREA_HEIGHT, overflow: 'visible' }}
-        >
-          {/* Wrapper slides left/right to stay centered above selected dot */}
+        {/* Fixed-height card area; cards hang from the bottom */}
+        <div aria-live="off" style={{ position: 'relative', height: CARD_AREA_H, overflow: 'visible' }}>
           <div
             style={{
               position: 'absolute',
@@ -351,31 +263,24 @@ export default function FeatureTabs() {
               transition: tr(300),
             }}
           >
-            {/* Card content — remounts on selection to replay enter animation */}
             <div
               key={animKey}
               className="relative z-10"
-              style={
-                prefersReducedMotion
-                  ? undefined
-                  : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }
-              }
+              style={prefersRM ? undefined : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }}
             >
               <Visual />
             </div>
-
-            {/* Diamond pointer: two-layer bordered arrow pointing down */}
+            {/* Diamond pointer */}
             <div
               aria-hidden="true"
               style={{
                 position: 'absolute',
                 bottom: -8,
-                left: pointerOffset(selected),
+                left: pointerOff(selected),
                 transform: 'translateX(-50%) rotate(45deg)',
-                width: 12,
-                height: 12,
-                background: '#ffffff', // var(--card)
-                borderRight: '1.5px solid #DDD9CE', // var(--border)
+                width: 12, height: 12,
+                background: '#ffffff',
+                borderRight: '1.5px solid #DDD9CE',
                 borderBottom: '1.5px solid #DDD9CE',
                 zIndex: 9,
                 transition: tr(300),
@@ -384,248 +289,179 @@ export default function FeatureTabs() {
           </div>
         </div>
 
-        {/* Timeline row: line + dots */}
-        <div style={{ position: 'relative', height: 56, marginTop: 2 }}>
-          {/* Background line */}
-          <div
-            style={{
-              position: 'absolute',
-              top: LINE_TOP,
-              left: 0,
-              right: 0,
-              height: 2,
-              background: '#DDD9CE',
-            }}
-          />
-          {/* Primary fill line */}
-          <div
-            style={{
-              position: 'absolute',
-              top: LINE_TOP,
-              left: 0,
-              width: `${EVENTS[selected].pct}%`,
-              height: 2,
-              background: '#2457F5',
-              transition: tr(300),
-            }}
-          />
-
-          {/* Event dots */}
-          {EVENTS.map((ev, i) => {
-            const isActive = i === selected
-            return (
-              <button
-                key={ev.id}
-                ref={(el) => { dotRefs.current[i] = el }}
-                role="tab"
-                aria-selected={isActive}
-                tabIndex={isActive ? 0 : -1}
-                aria-label={`${ev.title} at ${ev.time}`}
-                onClick={() => pick(i)}
-                onKeyDown={(e) => handleDotKey(e, i)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: `${ev.pct}%`,
-                  transform: 'translateX(-50%)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 5,
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                }}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
-              >
-                {/* Circle */}
-                <div
-                  style={{
-                    width: DOT_D,
-                    height: DOT_D,
-                    borderRadius: '50%',
-                    background: isActive ? '#2457F5' : '#ffffff',
-                    border: `1.5px solid ${isActive ? '#2457F5' : '#DDD9CE'}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transform: isActive ? 'scale(1.2)' : 'scale(1)',
-                    transition: tr(200),
-                  }}
-                >
-                  <DotIcon icon={ev.icon} active={isActive} />
-                </div>
-                {/* Time */}
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? '#2457F5' : '#5B6068',
-                    whiteSpace: 'nowrap',
-                    lineHeight: 1,
-                  }}
-                >
-                  {ev.time}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Captions row */}
+        {/* Button timeline row */}
         <div
           role="tablist"
-          aria-label="Event captions"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
-            gap: 12,
-            marginTop: 20,
-          }}
+          aria-label="A day with Jobigram"
+          style={{ display: 'flex', alignItems: 'stretch', marginTop: 16 }}
         >
           {EVENTS.map((ev, i) => {
             const isActive = i === selected
-            return (
-              <button
-                key={ev.id}
-                role="tab"
-                aria-selected={isActive}
-                tabIndex={0}
-                onClick={() => pick(i)}
-                className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg p-2 -m-2"
-              >
-                <p
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: isActive ? '#14161B' : '#5B6068',
-                    marginBottom: 2,
-                    transition: tr(200),
-                  }}
-                >
-                  {ev.title}
-                </p>
-                <p style={{ fontSize: 11, color: '#5B6068', lineHeight: 1.4 }}>
-                  {ev.caption}
-                </p>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+            const isDone   = i < selected
+            const isHov    = hovered === i && !isActive
 
-      {/* ── MOBILE ── */}
-      <div className="sm:hidden" aria-live="off">
-        <div style={{ position: 'relative', paddingLeft: 36 }}>
-          {/* Vertical background line */}
-          <div
-            style={{
-              position: 'absolute',
-              left: 9,
-              top: 10,
-              bottom: 10,
-              width: 2,
-              background: '#DDD9CE',
-            }}
-          />
-          {/* Primary fill line (top portion up to selected dot) */}
-          <div
-            style={{
-              position: 'absolute',
-              left: 9,
-              top: 10,
-              // Height grows as selected index increases; each event row is ~88px tall
-              height: `calc(${selected} * 88px)`,
-              width: 2,
-              background: '#2457F5',
-              transition: tr(300),
-            }}
-          />
+            const bg     = isActive ? '#2457F5' : isDone ? 'rgba(36,87,245,0.07)' : '#ffffff'
+            const border = isActive ? '#2457F5' : isHov ? '#2457F5' : isDone ? 'rgba(36,87,245,0.25)' : '#DDD9CE'
+            const iconColor = isActive ? '#ffffff' : isDone ? '#2457F5' : '#5B6068'
+            const textColor = isActive ? '#ffffff' : '#14161B'
 
-          {EVENTS.map((ev, i) => {
-            const isActive = i === selected
             return (
-              <div
-                key={ev.id}
-                style={{ marginBottom: i < EVENTS.length - 1 ? 28 : 0, position: 'relative' }}
-              >
-                {/* Dot button on the vertical line */}
-                <button
-                  ref={(el) => { if (!dotRefs.current[i]) dotRefs.current[i] = el }}
-                  aria-label={`${ev.title} at ${ev.time}`}
-                  aria-pressed={isActive}
-                  onClick={() => pick(i)}
-                  onKeyDown={(e) => handleDotKey(e, i)}
-                  tabIndex={isActive ? 0 : -1}
-                  style={{
-                    position: 'absolute',
-                    left: -27,
-                    top: 0,
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                  }}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-full"
-                >
+              <React.Fragment key={ev.id}>
+                {/* Connector between buttons */}
+                {i > 0 && (
                   <div
+                    aria-hidden="true"
                     style={{
-                      width: DOT_D,
-                      height: DOT_D,
-                      borderRadius: '50%',
-                      background: isActive ? '#2457F5' : '#ffffff',
-                      border: `1.5px solid ${isActive ? '#2457F5' : '#DDD9CE'}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transform: isActive ? 'scale(1.15)' : 'scale(1)',
-                      transition: tr(200),
+                      flexShrink: 0,
+                      alignSelf: 'center',
+                      width: CONNECTOR_W,
+                      height: 2,
+                      background: i <= selected ? '#2457F5' : '#DDD9CE',
+                      transition: tr(300),
                     }}
-                  >
-                    <DotIcon icon={ev.icon} active={isActive} />
-                  </div>
-                </button>
+                  />
+                )}
 
-                {/* Time + title (tappable) */}
                 <button
+                  ref={(el) => { btnRefs.current[i] = el }}
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
                   onClick={() => pick(i)}
-                  className="text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                  onKeyDown={(e) => handleKey(e, i)}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{
+                    flex: 1,
+                    height: 88,
+                    borderRadius: 16,
+                    border: `1px solid ${border}`,
+                    background: bg,
+                    cursor: 'pointer',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 7,
+                    padding: '0 8px',
+                    transform: isActive && !prefersRM ? 'translateY(-2px) scale(1.03)' : 'none',
+                    transition: tr(200),
+                    outline: 'none',
+                  }}
+                  className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
+                  {/* Done check badge */}
+                  {isDone && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: 'absolute',
+                        top: 8, right: 8,
+                        width: 16, height: 16,
+                        borderRadius: '50%',
+                        background: 'rgba(36,87,245,0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      <SmallCheck color="#2457F5" />
+                    </div>
+                  )}
+
+                  <EventIcon icon={ev.icon} size={28} color={iconColor} />
+
                   <span
                     style={{
-                      display: 'block',
-                      fontSize: 10,
-                      fontWeight: 500,
-                      color: isActive ? '#2457F5' : '#5B6068',
-                    }}
-                  >
-                    {ev.time}
-                  </span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 600,
-                      color: isActive ? '#14161B' : '#5B6068',
-                      marginBottom: isActive ? 10 : 0,
+                      color: textColor,
+                      lineHeight: 1.2,
+                      textAlign: 'center',
+                      fontFamily: 'var(--font-display), sans-serif',
                       transition: tr(200),
                     }}
                   >
                     {ev.title}
                   </span>
                 </button>
+              </React.Fragment>
+            )
+          })}
+        </div>
+      </div>
 
-                {/* Card below the selected dot */}
+      {/* ── MOBILE accordion ── */}
+      <div className="sm:hidden" aria-live="off">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {EVENTS.map((ev, i) => {
+            const isActive = i === selected
+            const isDone   = i < selected
+            const iconColor = isActive ? '#ffffff' : isDone ? '#2457F5' : '#5B6068'
+            const bg = isActive ? '#2457F5' : isDone ? 'rgba(36,87,245,0.07)' : '#ffffff'
+            const border = isActive ? '#2457F5' : isDone ? 'rgba(36,87,245,0.25)' : '#DDD9CE'
+
+            return (
+              <div key={ev.id}>
+                <button
+                  ref={(el) => { if (!btnRefs.current[i]) btnRefs.current[i] = el }}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-expanded={isActive}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => pick(i)}
+                  onKeyDown={(e) => handleKey(e, i)}
+                  style={{
+                    width: '100%',
+                    height: 72,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '0 18px',
+                    borderRadius: 14,
+                    border: `1px solid ${border}`,
+                    background: bg,
+                    cursor: 'pointer',
+                    position: 'relative',
+                    outline: 'none',
+                  }}
+                  className="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <EventIcon icon={ev.icon} size={24} color={iconColor} />
+                  <span
+                    style={{
+                      flex: 1,
+                      textAlign: 'left',
+                      fontSize: 15,
+                      fontWeight: 600,
+                      color: isActive ? '#ffffff' : '#14161B',
+                      fontFamily: 'var(--font-display), sans-serif',
+                    }}
+                  >
+                    {ev.title}
+                  </span>
+                  {isDone && !isActive && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        background: 'rgba(36,87,245,0.15)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <SmallCheck color="#2457F5" />
+                    </div>
+                  )}
+                </button>
+
+                {/* Accordion card */}
                 {isActive && (
                   <div
                     key={animKey}
-                    style={
-                      prefersReducedMotion
-                        ? undefined
-                        : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }
-                    }
+                    style={{
+                      marginTop: 8,
+                      ...(prefersRM ? {} : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }),
+                    }}
                   >
                     <ev.Visual />
                   </div>
