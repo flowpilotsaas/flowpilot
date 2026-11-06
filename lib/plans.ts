@@ -30,7 +30,14 @@ export const PLAN_CAPS: Record<string, number> = {
   Enterprise:   10_000,
 }
 
-/** Canonical plan list used by billing page, pricing page, and homepage preview */
+/**
+ * Canonical plan list used by billing page, pricing page, and homepage preview.
+ *
+ * NOTE: the `features` arrays below are display copy for the /pricing page UI.
+ * They do NOT map to enforced feature gates — the only enforcement in the app is
+ * the team-size cap (PLAN_CAPS, enforced by app/api/team/invite) and trial/
+ * subscription status (lib/trial-gate.ts). Every plan has access to every feature.
+ */
 export const PLANS: Plan[] = [
   {
     name: 'Kickstart',
