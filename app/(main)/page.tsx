@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ArrowRight, ChevronDown } from 'lucide-react'
-import { PLANS, TRIAL_DAYS } from '@/lib/plans'
+import { ArrowRight } from 'lucide-react'
+import { TRIAL_DAYS } from '@/lib/plans'
 import ProcessVisual from '@/components/marketing/ProcessVisual'
 import FeatureTabs from '@/components/marketing/FeatureTabs'
 import PricingPicker from '@/components/marketing/PricingPicker'
+import FaqAccordion from '@/components/marketing/FaqAccordion'
 
 export const metadata: Metadata = {
   title: 'Jobigram — Field Service Management Software',
@@ -18,43 +19,10 @@ export const metadata: Metadata = {
   },
 }
 
-// ── Content ────────────────────────────────────────────────────────────
-
-
-const FAQS = [
-  {
-    q: 'How long is the free trial?',
-    a: `${TRIAL_DAYS} days — no credit card required. Every feature is available during the trial so you can see exactly what you're signing up for.`,
-  },
-  {
-    q: 'Can I cancel any time?',
-    a: 'Yes. Cancel at any time from your billing settings. No contracts, no cancellation fees, no hassle.',
-  },
-  {
-    q: 'How does the estimate approval work?',
-    a: 'When you send an estimate, the customer gets an email with a secure link. They can open it on any device, review the line items, and tap Approve or Decline — no account required.',
-  },
-  {
-    q: 'Does Jobigram work on mobile?',
-    a: 'Yes. The dashboard is fully responsive and works in any modern mobile browser. No separate app download needed.',
-  },
-  {
-    q: 'Do I need Stripe to use Jobigram?',
-    a: 'No. Scheduling, dispatch, customers, and estimates all work without Stripe. You only need it if you want to accept online card payments.',
-  },
-  {
-    q: 'How do I get help?',
-    a: 'Email support is included on every plan. We aim to respond within one business day.',
-  },
-]
-
 // ── Shared styles ──────────────────────────────────────────────────────
 
 const primaryBtn =
   'inline-flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary'
-
-const quietLink =
-  'text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded'
 
 // ── Page ───────────────────────────────────────────────────────────────
 
@@ -118,25 +86,8 @@ export default function HomePage() {
 
       {/* ── FAQ ──────────────────────────────────────────────────── */}
       <section className="px-6 py-20 sm:py-28">
-        <div className="mx-auto max-w-2xl">
-          <div className="mb-12">
-            <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
-              Frequently asked questions
-            </h2>
-          </div>
-          <dl className="divide-y divide-border">
-            {FAQS.map((faq) => (
-              <details key={faq.q} className="group py-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
-                  <dt>{faq.q}</dt>
-                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-                </summary>
-                <dd className="mt-3 pr-8 text-sm leading-relaxed text-muted-foreground">
-                  {faq.a}
-                </dd>
-              </details>
-            ))}
-          </dl>
+        <div className="mx-auto" style={{ maxWidth: 720 }}>
+          <FaqAccordion />
         </div>
       </section>
 
