@@ -3,57 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
 
-// ── Tab data ────────────────────────────────────────────────────────────
-
-const TABS = [
-  {
-    id: 'estimates',
-    short: 'Estimates',
-    heading: 'Create and send estimates',
-    body: 'Build a line-item estimate and share a secure link. Your customer approves or declines from any device — no phone tag.',
-    bullets: [
-      'Build estimates from your own line items',
-      'Customers approve with one tap from the link',
-      ...(ONLINE_PAYMENTS_LIVE ? ['Accept card payments directly from the estimate'] : []),
-      'Track status and get notified when they respond',
-    ],
-  },
-  {
-    id: 'scheduling',
-    short: 'Scheduling',
-    heading: 'Schedule jobs on a calendar',
-    body: "Drag jobs onto your team's shared calendar and see every appointment at a glance.",
-    bullets: [
-      'Assign jobs to any team member',
-      'See open slots and prevent double-bookings',
-      'Your crew sees schedule changes in real time',
-    ],
-  },
-  {
-    id: 'reminders',
-    short: 'Reminders',
-    heading: 'Send customer reminders',
-    body: 'Automated email and SMS reminders go out before every appointment so no-shows stop happening.',
-    bullets: [
-      'Set up once; reminders send automatically',
-      'Customers can reply and you see the message',
-      'Reduce no-shows without picking up the phone',
-    ],
-  },
-  {
-    id: 'customers',
-    short: 'Customers',
-    heading: 'Keep every customer in one place',
-    body: 'Every job, estimate, and note lives on a single customer record so you always know the history.',
-    bullets: [
-      'Full job and estimate history per customer',
-      'Search and filter your whole customer list',
-      'Add notes and contact details for your team',
-    ],
-  },
-]
-
-// ── Static visuals ──────────────────────────────────────────────────────
+// ── Visuals ─────────────────────────────────────────────────────────────
 
 function EstimatesVisual() {
   return (
@@ -64,20 +14,50 @@ function EstimatesVisual() {
       </div>
       <div className="border-t border-border pt-3 space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Gutter cleaning</span>
-          <span>$120.00</span>
+          <span>Gutter cleaning</span><span>$120.00</span>
         </div>
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Downspout flush</span>
-          <span>$45.00</span>
+          <span>Downspout flush</span><span>$45.00</span>
         </div>
         <div className="flex justify-between text-xs font-semibold text-foreground border-t border-border pt-2">
-          <span>Total</span>
-          <span>$165.00</span>
+          <span>Total</span><span>$165.00</span>
         </div>
       </div>
       <div className="mt-4 rounded-full bg-primary py-2 text-center text-xs font-semibold text-primary-foreground">
         Approve estimate
+      </div>
+    </div>
+  )
+}
+
+function ApprovedEstimateVisual() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-sm font-semibold text-foreground">Estimate #142</span>
+        <span
+          className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+          style={{ background: '#dcfce7', color: '#16a34a' }}
+        >
+          Approved
+        </span>
+      </div>
+      <div className="border-t border-border pt-3 space-y-2">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Gutter cleaning</span><span>$120.00</span>
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Downspout flush</span><span>$45.00</span>
+        </div>
+        <div className="flex justify-between text-xs font-semibold text-foreground border-t border-border pt-2">
+          <span>Total</span><span>$165.00</span>
+        </div>
+      </div>
+      <div
+        className="mt-4 rounded-full py-2 text-center text-xs font-semibold"
+        style={{ background: '#dcfce7', color: '#16a34a' }}
+      >
+        ✓ Approved by customer
       </div>
     </div>
   )
@@ -115,18 +95,14 @@ function SchedulingVisual() {
             >
               {b.label}
             </div>
-          ) : (
-            <div key={`r1-${i}`} />
-          )
+          ) : <div key={`r1-${i}`} />
         )}
         {row2.map((b, i) =>
           b ? (
             <div key={`r2-${i}`} className="rounded bg-muted p-1 text-[9px] leading-tight text-muted-foreground">
               {b.label}
             </div>
-          ) : (
-            <div key={`r2-${i}`} />
-          )
+          ) : <div key={`r2-${i}`} />
         )}
       </div>
     </div>
@@ -150,8 +126,6 @@ function RemindersVisual() {
 }
 
 function CustomersVisual() {
-  // Customer type only stores name/email/phone/address/notes — no last-contact date.
-  // Using email + job/estimate count, which is what a customer list would show.
   const rows = [
     { name: 'Alex Rivera', detail: 'alex@example.com · 4 jobs', chip: 'Active', accent: false },
     { name: 'Sam Okafor', detail: 'sam@example.com · 1 estimate pending', chip: 'Pending', accent: true },
@@ -178,209 +152,484 @@ function CustomersVisual() {
   )
 }
 
-const VISUALS = [EstimatesVisual, SchedulingVisual, RemindersVisual, CustomersVisual]
+// ── Event data ───────────────────────────────────────────────────────────
+
+type EventItem = {
+  id: string
+  time: string
+  title: string
+  caption: string
+  icon: 'document' | 'check' | 'calendar' | 'bell' | 'person'
+  Visual: () => React.ReactElement
+  pct: number // horizontal position on the timeline (0–100)
+}
+
+const EVENTS: EventItem[] = [
+  {
+    id: 'estimate-sent',
+    time: '9:00 AM',
+    title: 'Estimate sent',
+    caption: 'Build a line-item estimate and share a link. The customer sees it on any device.',
+    icon: 'document',
+    Visual: EstimatesVisual,
+    pct: 0,
+  },
+  {
+    id: 'customer-approves',
+    time: '10:30 AM',
+    title: 'Customer approves',
+    caption: 'The customer taps Approve from their phone. You get notified immediately.',
+    icon: 'check',
+    Visual: ApprovedEstimateVisual,
+    pct: 25,
+  },
+  {
+    id: 'job-scheduled',
+    time: '1:00 PM',
+    title: 'Job scheduled',
+    caption: "Drop the job on the calendar. Your crew sees the update right away.",
+    icon: 'calendar',
+    Visual: SchedulingVisual,
+    pct: 50,
+  },
+  {
+    id: 'reminder-sent',
+    time: '4:00 PM',
+    title: 'Reminder sent',
+    caption: 'An automated reminder goes out before the appointment — no manual follow-up.',
+    icon: 'bell',
+    Visual: RemindersVisual,
+    pct: 75,
+  },
+  {
+    id: 'history-saved',
+    time: '5:00 PM',
+    title: 'Customer history saved',
+    caption: 'Every job, estimate, and note is saved to the customer record automatically.',
+    icon: 'person',
+    Visual: CustomersVisual,
+    pct: 100,
+  },
+]
+
+// ── Dot icons ────────────────────────────────────────────────────────────
+
+const DOT_ICON_SIZE = 10
+
+function DotIcon({ icon, active }: { icon: EventItem['icon']; active: boolean }) {
+  const stroke = active ? '#fff' : '#5B6068'
+  const common = { width: DOT_ICON_SIZE, height: DOT_ICON_SIZE, viewBox: '0 0 24 24', fill: 'none' as const, stroke, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+
+  if (icon === 'document') return (
+    <svg {...common}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  )
+  if (icon === 'check') return (
+    <svg {...common} strokeWidth={3}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  )
+  if (icon === 'calendar') return (
+    <svg {...common}>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  )
+  if (icon === 'bell') return (
+    <svg {...common}>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  )
+  return (
+    <svg {...common}>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+// ── Constants ────────────────────────────────────────────────────────────
+
+const CARD_WIDTH = 300
+const CARD_AREA_HEIGHT = 240 // px; tall enough for the deepest card
+const DOT_D = 20            // dot diameter px
+const LINE_TOP = 10          // px from top of timeline row to line center
 
 // ── Main component ──────────────────────────────────────────────────────
 
 export default function FeatureTabs() {
-  const [active, setActive] = useState(0)
-  const [autoAdvance, setAutoAdvance] = useState(true)
-  const [paused, setPaused] = useState(false)
-  const [visible, setVisible] = useState(false)
+  const [selected, setSelected] = useState(0)
+  const [animKey, setAnimKey] = useState(0)
+  const [containerWidth, setContainerWidth] = useState(840)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
-  // Increments when auto-timing resumes after a pause, to restart the progress bar from 0.
-  const [progressKey, setProgressKey] = useState(0)
 
-  const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
-  const sectionRef = useRef<HTMLDivElement>(null)
-  const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const wasRunningRef = useRef(false)
+  const timelineRef = useRef<HTMLDivElement>(null)
+  const dotRefs = useRef<(HTMLButtonElement | null)[]>([])
 
-  // Detect prefers-reduced-motion on the client
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     setPrefersReducedMotion(mq.matches)
-    const handler = () => setPrefersReducedMotion(mq.matches)
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
+    const h = () => setPrefersReducedMotion(mq.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
   }, [])
 
-  // IntersectionObserver: start only when 40% of the section is visible
   useEffect(() => {
-    const el = sectionRef.current
+    const el = timelineRef.current
     if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      { threshold: 0.4 },
-    )
+    const obs = new ResizeObserver(([entry]) => setContainerWidth(entry.contentRect.width))
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
 
-  const isRunning = autoAdvance && visible && !paused && !prefersReducedMotion
-
-  // When timing resumes after a pause, restart the progress bar from 0 so it
-  // stays in sync with the freshly-started interval.
-  useEffect(() => {
-    if (!wasRunningRef.current && isRunning) {
-      setProgressKey((k) => k + 1)
-    }
-    wasRunningRef.current = isRunning
-  }, [isRunning])
-
-  // Auto-advance interval — cleared whenever any blocking condition changes
-  useEffect(() => {
-    if (!autoAdvance || !visible || paused || prefersReducedMotion) return
-    const id = setInterval(() => {
-      setActive((a) => (a + 1) % TABS.length)
-    }, 6000)
-    return () => clearInterval(id)
-  }, [autoAdvance, visible, paused, prefersReducedMotion])
-
-  // Pause on hover — event handlers on the wrapper
-  const handleMouseEnter = () => setPaused(true)
-  const handleMouseLeave = () => setPaused(false)
-
-  // Pause on focus inside the section. Debounce blur so moving focus between
-  // elements inside the section doesn't briefly unpause.
-  const handleFocusCapture = () => {
-    if (blurTimeoutRef.current) clearTimeout(blurTimeoutRef.current)
-    setPaused(true)
-  }
-  const handleBlurCapture = () => {
-    blurTimeoutRef.current = setTimeout(() => setPaused(false), 0)
+  function pick(i: number) {
+    setSelected(i)
+    setAnimKey((k) => k + 1)
   }
 
-  function stopAutoAdvance() {
-    setAutoAdvance(false)
-  }
-
-  function handleTabClick(i: number) {
-    setActive(i)
-    stopAutoAdvance()
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent, i: number) {
+  function handleDotKey(e: React.KeyboardEvent, i: number) {
     if (e.key === 'ArrowRight') {
-      const n = (i + 1) % TABS.length
-      tabRefs.current[n]?.focus()
-      setActive(n)
-      stopAutoAdvance()
+      const n = (i + 1) % EVENTS.length
+      dotRefs.current[n]?.focus()
+      pick(n)
     } else if (e.key === 'ArrowLeft') {
-      const n = (i - 1 + TABS.length) % TABS.length
-      tabRefs.current[n]?.focus()
-      setActive(n)
-      stopAutoAdvance()
-    } else if (e.key === 'Home') {
-      tabRefs.current[0]?.focus()
-      setActive(0)
-      stopAutoAdvance()
-    } else if (e.key === 'End') {
-      const last = TABS.length - 1
-      tabRefs.current[last]?.focus()
-      setActive(last)
-      stopAutoAdvance()
-    }
+      const n = (i - 1 + EVENTS.length) % EVENTS.length
+      dotRefs.current[n]?.focus()
+      pick(n)
+    } else if (e.key === 'Home') { dotRefs.current[0]?.focus(); pick(0) }
+    else if (e.key === 'End') { dotRefs.current[EVENTS.length - 1]?.focus(); pick(EVENTS.length - 1) }
   }
 
-  const showProgress = autoAdvance && !prefersReducedMotion
+  // Card left position, clamped so card never overflows the container
+  function cardLeft(i: number): number {
+    const dotX = (EVENTS[i].pct / 100) * containerWidth
+    return Math.max(0, Math.min(containerWidth - CARD_WIDTH, dotX - CARD_WIDTH / 2))
+  }
+
+  // Pointer x offset within the card wrapper (aligns pointer tip with dot center)
+  function pointerOffset(i: number): number {
+    return (EVENTS[i].pct / 100) * containerWidth - cardLeft(i)
+  }
+
+  const tr = (ms: number) => prefersReducedMotion ? 'none' : `all ${ms}ms ease`
+
+  const { Visual } = EVENTS[selected]
 
   return (
     <>
-      {/* Keyframes injected once; React 19 hoists <style> tags automatically */}
       <style>{`
-        @keyframes ft-panel-enter {
+        @keyframes day-card-enter {
           from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0);   }
         }
-        @keyframes ft-tab-progress {
-          from { width: 0%;    }
-          to   { width: 100%;  }
-        }
       `}</style>
 
-      <div
-        ref={sectionRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onFocusCapture={handleFocusCapture}
-        onBlurCapture={handleBlurCapture}
-      >
-        {/* Tab list */}
-        <div role="tablist" aria-label="Feature areas" className="flex flex-wrap gap-2 mb-8">
-          {TABS.map((tab, i) => (
-            <button
-              key={tab.id}
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={active === i}
-              aria-controls={`tabpanel-${tab.id}`}
-              ref={(el) => { tabRefs.current[i] = el }}
-              tabIndex={active === i ? 0 : -1}
-              onClick={() => handleTabClick(i)}
-              onKeyDown={(e) => handleKeyDown(e, i)}
-              className={`relative overflow-hidden rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                active === i
-                  ? 'bg-foreground text-background'
-                  : 'border border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground'
-              }`}
+      <p className="mb-8 text-sm text-muted-foreground">
+        Follow a typical day, from first estimate to final reminder.
+      </p>
+
+      {/* ── DESKTOP ── */}
+      <div ref={timelineRef} className="hidden sm:block" aria-label="Day timeline">
+
+        {/* Card area — fixed height reserves space; cards hang from bottom */}
+        <div
+          aria-live="off"
+          style={{ position: 'relative', height: CARD_AREA_HEIGHT, overflow: 'visible' }}
+        >
+          {/* Wrapper slides left/right to stay centered above selected dot */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: cardLeft(selected),
+              width: CARD_WIDTH,
+              transition: tr(300),
+            }}
+          >
+            {/* Card content — remounts on selection to replay enter animation */}
+            <div
+              key={animKey}
+              className="relative z-10"
+              style={
+                prefersReducedMotion
+                  ? undefined
+                  : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }
+              }
             >
-              {tab.short}
-              {/* Progress bar: fills over 6 s while this tab is active and auto-advancing */}
-              {active === i && showProgress && (
-                <span
-                  key={`${i}-${progressKey}`}
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    height: '2px',
-                    background: active === i ? 'rgba(246,244,238,0.5)' : '#2457F5',
-                    animation: 'ft-tab-progress 6s linear forwards',
-                    animationPlayState: isRunning ? 'running' : 'paused',
-                  }}
-                />
-              )}
-            </button>
-          ))}
+              <Visual />
+            </div>
+
+            {/* Diamond pointer: two-layer bordered arrow pointing down */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                bottom: -8,
+                left: pointerOffset(selected),
+                transform: 'translateX(-50%) rotate(45deg)',
+                width: 12,
+                height: 12,
+                background: '#ffffff', // var(--card)
+                borderRight: '1.5px solid #DDD9CE', // var(--border)
+                borderBottom: '1.5px solid #DDD9CE',
+                zIndex: 9,
+                transition: tr(300),
+              }}
+            />
+          </div>
         </div>
 
-        {/* Panels — min-height reserves space so layout below never shifts.
-            aria-live="off" suppresses announcements from auto-advances. */}
-        <div className="min-h-[300px] sm:min-h-[220px]" aria-live="off">
-          {TABS.map((tab, i) => {
-            const PanelVisual = VISUALS[i]
-            const isActive = active === i
+        {/* Timeline row: line + dots */}
+        <div style={{ position: 'relative', height: 56, marginTop: 2 }}>
+          {/* Background line */}
+          <div
+            style={{
+              position: 'absolute',
+              top: LINE_TOP,
+              left: 0,
+              right: 0,
+              height: 2,
+              background: '#DDD9CE',
+            }}
+          />
+          {/* Primary fill line */}
+          <div
+            style={{
+              position: 'absolute',
+              top: LINE_TOP,
+              left: 0,
+              width: `${EVENTS[selected].pct}%`,
+              height: 2,
+              background: '#2457F5',
+              transition: tr(300),
+            }}
+          />
+
+          {/* Event dots */}
+          {EVENTS.map((ev, i) => {
+            const isActive = i === selected
+            return (
+              <button
+                key={ev.id}
+                ref={(el) => { dotRefs.current[i] = el }}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                aria-label={`${ev.title} at ${ev.time}`}
+                onClick={() => pick(i)}
+                onKeyDown={(e) => handleDotKey(e, i)}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: `${ev.pct}%`,
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                }}
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+              >
+                {/* Circle */}
+                <div
+                  style={{
+                    width: DOT_D,
+                    height: DOT_D,
+                    borderRadius: '50%',
+                    background: isActive ? '#2457F5' : '#ffffff',
+                    border: `1.5px solid ${isActive ? '#2457F5' : '#DDD9CE'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    transform: isActive ? 'scale(1.2)' : 'scale(1)',
+                    transition: tr(200),
+                  }}
+                >
+                  <DotIcon icon={ev.icon} active={isActive} />
+                </div>
+                {/* Time */}
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? '#2457F5' : '#5B6068',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1,
+                  }}
+                >
+                  {ev.time}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Captions row */}
+        <div
+          role="tablist"
+          aria-label="Event captions"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: 12,
+            marginTop: 20,
+          }}
+        >
+          {EVENTS.map((ev, i) => {
+            const isActive = i === selected
+            return (
+              <button
+                key={ev.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={0}
+                onClick={() => pick(i)}
+                className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-lg p-2 -m-2"
+              >
+                <p
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: isActive ? '#14161B' : '#5B6068',
+                    marginBottom: 2,
+                    transition: tr(200),
+                  }}
+                >
+                  {ev.title}
+                </p>
+                <p style={{ fontSize: 11, color: '#5B6068', lineHeight: 1.4 }}>
+                  {ev.caption}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── MOBILE ── */}
+      <div className="sm:hidden" aria-live="off">
+        <div style={{ position: 'relative', paddingLeft: 36 }}>
+          {/* Vertical background line */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 9,
+              top: 10,
+              bottom: 10,
+              width: 2,
+              background: '#DDD9CE',
+            }}
+          />
+          {/* Primary fill line (top portion up to selected dot) */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 9,
+              top: 10,
+              // Height grows as selected index increases; each event row is ~88px tall
+              height: `calc(${selected} * 88px)`,
+              width: 2,
+              background: '#2457F5',
+              transition: tr(300),
+            }}
+          />
+
+          {EVENTS.map((ev, i) => {
+            const isActive = i === selected
             return (
               <div
-                key={tab.id}
-                role="tabpanel"
-                id={`tabpanel-${tab.id}`}
-                aria-labelledby={`tab-${tab.id}`}
-                hidden={!isActive}
-                className="grid gap-8 sm:grid-cols-2 sm:gap-12 sm:items-start"
-                style={
-                  isActive && !prefersReducedMotion
-                    ? { animation: 'ft-panel-enter 250ms ease-out', animationFillMode: 'both' }
-                    : undefined
-                }
+                key={ev.id}
+                style={{ marginBottom: i < EVENTS.length - 1 ? 28 : 0, position: 'relative' }}
               >
-                {/* Left: copy */}
-                <div>
-                  <h3 className="text-xl font-bold text-foreground sm:text-2xl">{tab.heading}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{tab.body}</p>
-                  <ul className="mt-5 space-y-2">
-                    {tab.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2.5 text-sm text-muted-foreground">
-                        <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                {/* Right: visual */}
-                <PanelVisual />
+                {/* Dot button on the vertical line */}
+                <button
+                  ref={(el) => { if (!dotRefs.current[i]) dotRefs.current[i] = el }}
+                  aria-label={`${ev.title} at ${ev.time}`}
+                  aria-pressed={isActive}
+                  onClick={() => pick(i)}
+                  onKeyDown={(e) => handleDotKey(e, i)}
+                  tabIndex={isActive ? 0 : -1}
+                  style={{
+                    position: 'absolute',
+                    left: -27,
+                    top: 0,
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-full"
+                >
+                  <div
+                    style={{
+                      width: DOT_D,
+                      height: DOT_D,
+                      borderRadius: '50%',
+                      background: isActive ? '#2457F5' : '#ffffff',
+                      border: `1.5px solid ${isActive ? '#2457F5' : '#DDD9CE'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                      transition: tr(200),
+                    }}
+                  >
+                    <DotIcon icon={ev.icon} active={isActive} />
+                  </div>
+                </button>
+
+                {/* Time + title (tappable) */}
+                <button
+                  onClick={() => pick(i)}
+                  className="text-left w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 10,
+                      fontWeight: 500,
+                      color: isActive ? '#2457F5' : '#5B6068',
+                    }}
+                  >
+                    {ev.time}
+                  </span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: isActive ? '#14161B' : '#5B6068',
+                      marginBottom: isActive ? 10 : 0,
+                      transition: tr(200),
+                    }}
+                  >
+                    {ev.title}
+                  </span>
+                </button>
+
+                {/* Card below the selected dot */}
+                {isActive && (
+                  <div
+                    key={animKey}
+                    style={
+                      prefersReducedMotion
+                        ? undefined
+                        : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }
+                    }
+                  >
+                    <ev.Visual />
+                  </div>
+                )}
               </div>
             )
           })}
