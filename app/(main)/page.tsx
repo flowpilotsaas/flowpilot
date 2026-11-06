@@ -96,7 +96,7 @@ export default function HomePage() {
       {/* ── Features ─────────────────────────────────────────────── */}
       <section id="features" className="bg-muted/40 px-6 py-20 sm:py-28">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-10">
+          <div className="mb-6 sm:mb-8">
             <h2 className="text-3xl font-bold text-foreground sm:text-4xl">
               Everything you need to run every job
             </h2>

@@ -191,11 +191,13 @@ export default function FeatureTabs() {
   const [isFocused, setIsFocused] = useState(false)
   const [stopped, setStopped]     = useState(false)
   const [progressKey, setProgressKey] = useState(0)
+  const [cardAreaH, setCardAreaH]     = useState(260)
 
   const sectionRef = useRef<HTMLDivElement>(null)
-  const wrapRef  = useRef<HTMLDivElement>(null)
-  const btnRefs  = useRef<(HTMLButtonElement | null)[]>([])
-  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const wrapRef    = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
+  const btnRefs    = useRef<(HTMLButtonElement | null)[]>([])
+  const blurTimer  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -211,6 +213,17 @@ export default function FeatureTabs() {
     const obs = new ResizeObserver(([e]) => setContainerW(e.contentRect.width))
     obs.observe(el)
     return () => obs.disconnect()
+  }, [])
+
+  useEffect(() => {
+    function measure() {
+      const el = measureRef.current
+      if (!el) return
+      const heights = Array.from(el.children).map((c) => (c as HTMLElement).offsetHeight)
+      const max = Math.max(...heights)
+      if (max > 0) setCardAreaH(max)
+    }
+    document.fonts.ready.then(measure)
   }, [])
 
   useEffect(() => {
@@ -301,15 +314,20 @@ export default function FeatureTabs() {
         }
       `}</style>
 
-      <p className="mb-8 text-sm text-muted-foreground">
-        Follow a typical day, from first estimate to final reminder.
-      </p>
-
       {/* ── DESKTOP ── */}
       <div ref={wrapRef} className="hidden sm:block">
 
+        {/* Hidden rack: measure all card heights so we can reserve the tallest */}
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          style={{ position: 'absolute', visibility: 'hidden', left: -9999, top: 0, width: CARD_WIDTH, pointerEvents: 'none' }}
+        >
+          {EVENTS.map((ev) => <div key={ev.id}><ev.Visual /></div>)}
+        </div>
+
         {/* Fixed-height card area; cards hang from the bottom */}
-        <div aria-live="off" style={{ position: 'relative', height: CARD_AREA_H, overflow: 'visible' }}>
+        <div aria-live="off" style={{ position: 'relative', height: cardAreaH, overflow: 'visible' }}>
           <div
             style={{
               position: 'absolute',
@@ -322,7 +340,7 @@ export default function FeatureTabs() {
             <div
               key={animKey}
               className="relative z-10"
-              style={prefersRM ? undefined : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }}
+              style={{ minHeight: cardAreaH, ...(prefersRM ? {} : { animation: 'day-card-enter 250ms ease-out', animationFillMode: 'both' }) }}
             >
               <Visual />
             </div>
