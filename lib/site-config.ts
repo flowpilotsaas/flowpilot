@@ -12,3 +12,5 @@
  *  - all of the above restore automatically, no other edits needed
  */
 export const ONLINE_PAYMENTS_LIVE = false
+
+export const CONTACT_EMAIL = 'flowpilotsaas@gmail.com'

@@ -1,36 +1,57 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+import { CONTACT_EMAIL } from '@/lib/site-config'
 
 export const metadata: Metadata = {
   title: 'Contact — Jobigram',
   description: "Questions about Jobigram? Send a message and we'll get back to you.",
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 async function submitContact(formData: FormData) {
   'use server'
-  const name    = (formData.get('name')    as string | null)?.trim() ?? ''
-  const email   = (formData.get('email')   as string | null)?.trim() ?? ''
-  const message = (formData.get('message') as string | null)?.trim() ?? ''
+  const name     = (formData.get('name')     as string | null)?.trim() ?? ''
+  const email    = (formData.get('email')    as string | null)?.trim() ?? ''
+  const message  = (formData.get('message')  as string | null)?.trim() ?? ''
+  const honeypot = (formData.get('website')  as string | null) ?? ''
+
+  // Silently discard honeypot submissions
+  if (honeypot) {
+    redirect('/contact?sent=1')
+  }
 
   if (!name || !email || !message) {
     redirect('/contact?error=missing')
   }
 
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const { Resend } = await import('resend')
-      const client = new Resend(process.env.RESEND_API_KEY)
-      const from = process.env.RESEND_FROM_EMAIL ?? 'Jobigram <onboarding@resend.dev>'
-      await client.emails.send({
-        from,
-        to:      from,
-        replyTo: email,
-        subject: `Contact: ${name}`,
-        text:    `From: ${name} <${email}>\n\n${message}`,
-      })
-    } catch {
-      redirect('/contact?error=send')
-    }
+  if (!EMAIL_RE.test(email)) {
+    redirect('/contact?error=email')
+  }
+
+  if (message.length > 5000) {
+    redirect('/contact?error=length')
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[contact] RESEND_API_KEY is not set')
+    redirect('/contact?error=send')
+  }
+
+  try {
+    const { Resend } = await import('resend')
+    const client = new Resend(process.env.RESEND_API_KEY)
+    const from = process.env.RESEND_FROM_EMAIL ?? 'Jobigram <onboarding@resend.dev>'
+    await client.emails.send({
+      from,
+      to:      CONTACT_EMAIL,
+      replyTo: email,
+      subject: `Jobigram contact: ${name}`,
+      text:    `From: ${name} <${email}>\n\n${message}`,
+    })
+  } catch (err) {
+    console.error('[contact] Resend send failed:', err)
+    redirect('/contact?error=send')
   }
 
   redirect('/contact?sent=1')
@@ -47,6 +68,9 @@ export default async function ContactPage({
   const params = await searchParams
   const sent  = params.sent === '1'
   const error = params.error
+
+  const sendError =
+    error === 'send' || error === 'email' || error === 'length' || error === 'missing'
 
   return (
     <div className="px-6 pb-20 pt-36 sm:pt-44">
@@ -71,12 +95,34 @@ export default async function ContactPage({
             {error === 'missing' && (
               <p className="mb-6 text-sm text-red-600">Please fill in all fields before sending.</p>
             )}
+            {error === 'email' && (
+              <p className="mb-6 text-sm text-red-600">Please enter a valid email address.</p>
+            )}
+            {error === 'length' && (
+              <p className="mb-6 text-sm text-red-600">Your message must be 5000 characters or fewer.</p>
+            )}
             {error === 'send' && (
-              <p className="mb-6 text-sm text-red-600">Something went wrong sending your message. Please try again.</p>
+              <p className="mb-6 text-sm text-red-600">
+                Something went wrong. Please try again or email{' '}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="underline underline-offset-2">
+                  {CONTACT_EMAIL}
+                </a>
+                .
+              </p>
             )}
 
             {!sent && (
               <form action={submitContact} className="space-y-5">
+                {/* Honeypot — hidden from real users */}
+                <input
+                  type="text"
+                  name="website"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  style={{ display: 'none' }}
+                />
+
                 <div>
                   <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-foreground">
                     Name
@@ -118,6 +164,7 @@ export default async function ContactPage({
                     name="message"
                     required
                     rows={6}
+                    maxLength={5000}
                     className={`${inputClass} py-3`}
                     placeholder="What would you like to know?"
                   />
@@ -138,6 +185,15 @@ export default async function ContactPage({
             <p className="text-sm font-semibold text-foreground">Support</p>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               We reply by email. Use the form and we&apos;ll get back to you.
+            </p>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Or email us at{' '}
+              <a
+                href={`mailto:${CONTACT_EMAIL}`}
+                className="text-foreground underline underline-offset-2 hover:text-primary"
+              >
+                {CONTACT_EMAIL}
+              </a>
             </p>
           </div>
 
