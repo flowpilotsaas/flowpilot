@@ -118,6 +118,37 @@
   --sidebar-ring:               oklch(0.585 0.233 277);
 }
 
+/* ─── Light scope — locks light tokens on a subtree regardless of prefers-color-scheme ── */
+/*
+  Used by pages outside next-themes (auth, public routes) so the native-CSS dark-mode
+  fallback in the @media block below does not bleed light-on-white text onto them.
+*/
+.light {
+  color-scheme: light;
+  --background:         oklch(0.982 0.004 285);
+  --foreground:         oklch(0.130 0.010 285);
+  --card:               oklch(1 0 0);
+  --card-foreground:    oklch(0.130 0.010 285);
+  --popover:            oklch(1 0 0);
+  --popover-foreground: oklch(0.130 0.010 285);
+  --primary:            oklch(0.585 0.233 277);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary:            oklch(0.965 0.008 285);
+  --secondary-foreground: oklch(0.250 0.010 285);
+  --muted:            oklch(0.965 0.005 285);
+  --muted-foreground: oklch(0.505 0.012 285);
+  --accent:            oklch(0.942 0.018 277);
+  --accent-foreground: oklch(0.350 0.080 277);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success:            oklch(0.535 0.158 148);
+  --success-foreground: oklch(0.985 0 0);
+  --warning:            oklch(0.740 0.163 66);
+  --warning-foreground: oklch(0.180 0 0);
+  --border: oklch(0.906 0.008 285);
+  --input:  oklch(0.906 0.008 285);
+  --ring:   oklch(0.585 0.233 277);
+}
+
 /* ─── Dark mode ───────────────────────────────────────────────────────────── */
 .dark {
   --background:  oklch(0.120 0.012 275);

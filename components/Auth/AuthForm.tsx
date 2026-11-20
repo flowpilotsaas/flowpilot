@@ -11,8 +11,8 @@ interface AuthFormProps {
 }
 
 const fieldClass =
-  'block w-full rounded-[12px] border border-border bg-white px-4 text-sm text-foreground ' +
-  'placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-2 ' +
+  'block w-full rounded-[12px] border border-border bg-white px-4 text-sm text-[#14161B] ' +
+  'placeholder:text-[#767676] focus-visible:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-ring focus-visible:ring-offset-1'
 
 export default function AuthForm({ mode }: AuthFormProps) {
@@ -79,8 +79,8 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-12"
-      style={{ backgroundColor: '#F6F4EE' }}
+      className="light min-h-screen flex flex-col items-center justify-center px-4 py-12 bg-background text-foreground"
+      style={{ backgroundColor: '#F6F4EE', colorScheme: 'light' }}
     >
       {/* Logo above card */}
       <Link
@@ -177,7 +177,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
           <button
             type="button"
             onClick={handleSubmit}
-            className="w-full rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            className="w-full rounded-full px-6 py-3 text-sm font-semibold text-white transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{ backgroundColor: '#2457F5', outlineColor: '#2457F5' }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1a46d4' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2457F5' }}
           >
             {isLogin ? 'Sign in' : 'Create account'}
           </button>
