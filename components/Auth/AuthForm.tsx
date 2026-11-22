@@ -32,6 +32,7 @@ export default function AuthForm({ mode }: AuthFormProps) {
   }, [searchParams])
 
   const isLogin = mode === 'login'
+  const resetSuccess = isLogin && searchParams.get('reset') === 'success'
 
   const validateEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
 
@@ -102,6 +103,12 @@ export default function AuthForm({ mode }: AuthFormProps) {
             ? 'Sign in to your Jobigram account'
             : `Start your ${TRIAL_DAYS}-day free trial`}
         </p>
+
+        {resetSuccess && (
+          <p className="mb-4 rounded-[8px] bg-green-50 border border-green-200 px-4 py-2.5 text-sm text-green-700 text-center">
+            Your password was updated. Sign in below.
+          </p>
+        )}
 
         <div className="flex flex-col gap-4">
 

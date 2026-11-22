@@ -79,8 +79,9 @@ export default function ResetPasswordForm() {
       setError(error.message)
       return
     }
+    await supabase.auth.signOut()
     setStatus('success')
-    setTimeout(() => router.push('/dashboard'), 2000)
+    setTimeout(() => router.push('/login?reset=success'), 2000)
   }
 
   return (
@@ -122,7 +123,7 @@ export default function ResetPasswordForm() {
           <>
             <h1 className="text-xl font-semibold text-[#14161B] text-center">Password updated</h1>
             <p className="mt-3 text-sm text-muted-foreground text-center">
-              Redirecting you to the dashboard…
+              Please sign in with your new password.
             </p>
           </>
         )}
