@@ -20,14 +20,46 @@ export default function ResetPasswordForm() {
 
   React.useEffect(() => {
     const code = searchParams.get('code')
+    const tokenHash = searchParams.get('token_hash')
+    const type = searchParams.get('type')
+
     if (code) {
       supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        setStatus(error ? 'expired' : 'ready')
+        if (error) {
+          console.error('[reset-password] exchangeCodeForSession failed:', error.message)
+          setError(error.message)
+          setStatus('expired')
+        } else {
+          setStatus('ready')
+        }
+      })
+    } else if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' }).then(({ error }) => {
+        if (error) {
+          console.error('[reset-password] verifyOtp failed:', error.message)
+          setError(error.message)
+          setStatus('expired')
+        } else {
+          setStatus('ready')
+        }
       })
     } else {
-      // No code — check whether a recovery session already exists (e.g. page refresh)
+      // No token in URL — check for an existing recovery session (page refresh, or
+      // the callback route already exchanged the code and redirected here).
       supabase.auth.getSession().then(({ data: { session } }) => {
-        setStatus(session ? 'ready' : 'expired')
+        if (session) {
+          setStatus('ready')
+        } else {
+          // Last resort: listen for the PASSWORD_RECOVERY event from the hash fragment
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') setStatus('ready')
+          })
+          // If no event fires within a short window, show expired
+          const timer = setTimeout(() => {
+            setStatus((s) => s === 'loading' ? 'expired' : s)
+          }, 3000)
+          return () => { subscription.unsubscribe(); clearTimeout(timer) }
+        }
       })
     }
   }, [searchParams])
@@ -80,6 +112,9 @@ export default function ResetPasswordForm() {
                 Request a new one.
               </Link>
             </p>
+            {error && (
+              <p className="mt-2 text-xs text-destructive text-center break-words">{error}</p>
+            )}
           </>
         )}
 

@@ -13,9 +13,13 @@ import { createServerClient } from '@supabase/ssr'
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get('code')
+  // `next` lets callers (e.g. the password-reset email) control where we land
+  // after a successful exchange instead of always going to /dashboard.
+  const next = searchParams.get('next') ?? '/dashboard'
+  const safeNext = next.startsWith('/') ? next : '/dashboard'
 
   if (code) {
-    const successRedirect = NextResponse.redirect(`${origin}/dashboard`)
+    const successRedirect = NextResponse.redirect(`${origin}${safeNext}`)
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      console.log('[auth/callback] session exchange OK — redirecting to dashboard')
+      console.log(`[auth/callback] session exchange OK — redirecting to ${safeNext}`)
       return successRedirect
     }
     console.error('[auth/callback] exchangeCodeForSession failed:', error.message)
