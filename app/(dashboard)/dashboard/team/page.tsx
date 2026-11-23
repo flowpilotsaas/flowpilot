@@ -102,7 +102,8 @@ export default function TeamPage() {
   const [removeTarget, setRemoveTarget] = React.useState<RemoveTarget>(null)
   const [removing, setRemoving]         = React.useState(false)
 
-  const [resendingId, setResendingId] = React.useState<string | null>(null)
+  const [resendingId, setResendingId]     = React.useState<string | null>(null)
+  const [savingRoleId, setSavingRoleId]   = React.useState<string | null>(null)
 
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(new Set())
   const [selectedInviteIds, setSelectedInviteIds] = React.useState<Set<string>>(new Set())
@@ -207,6 +208,29 @@ export default function TeamPage() {
       setNotificationWarning('Invite email could not be resent (network error).')
     }
     setResendingId(null)
+  }
+
+  // ─── Change role ─────────────────────────────────────────────────────────
+
+  const handleRoleChange = async (member: OrgMember, newRole: 'admin' | 'technician') => {
+    if (newRole === member.role) return
+    setSavingRoleId(member.id)
+    try {
+      const r = await fetch('/api/team/change-role', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memberId: member.id, role: newRole }),
+      })
+      const b = await r.json().catch(() => ({})) as { error?: string }
+      if (!r.ok) {
+        toast.error(b.error ?? 'Failed to update role.')
+      } else {
+        toast.success('Role updated')
+        await fetchMembers()
+      }
+    } catch {
+      toast.error('Network error. Please try again.')
+    }
+    setSavingRoleId(null)
   }
 
   // ─── Remove / Cancel ─────────────────────────────────────────────────────
@@ -386,9 +410,17 @@ export default function TeamPage() {
                         )}
                         <td className="px-6 py-4 text-foreground">{member.email}</td>
                         <td className="px-6 py-4">
-                          <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[member.role])}>
-                            {roleLabel(member.role)}
-                          </span>
+                          {currentUserRole === 'owner' && member.role !== 'owner' ? (
+                            <RoleDropdown
+                              value={member.role as 'admin' | 'technician'}
+                              disabled={savingRoleId === member.id}
+                              onChange={(r) => handleRoleChange(member, r)}
+                            />
+                          ) : (
+                            <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[member.role])}>
+                              {roleLabel(member.role)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{fmtDate(member.joined_at ?? member.invited_at)}</td>
                         {canManage && (
@@ -680,6 +712,42 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
         document.body
       )}
     </>
+  )
+}
+
+const ROLE_DESCRIPTIONS: Record<'admin' | 'technician', string> = {
+  admin:      'Can invite members and create/edit jobs, estimates, and billing settings.',
+  technician: 'Can view assigned jobs only.',
+}
+
+function RoleDropdown({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: 'admin' | 'technician'
+  disabled: boolean
+  onChange: (r: 'admin' | 'technician') => void
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value as 'admin' | 'technician')}
+        className={cn(
+          'h-7 rounded-md border border-input bg-transparent px-2 py-0 text-xs shadow-xs outline-none',
+          'transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
+          'disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer'
+        )}
+      >
+        <option value="admin">Admin</option>
+        <option value="technician">Technician</option>
+      </select>
+      <span className="text-[11px] text-muted-foreground leading-tight max-w-[220px]">
+        {ROLE_DESCRIPTIONS[value]}
+      </span>
+    </div>
   )
 }
 
