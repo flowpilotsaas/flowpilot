@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { checkWriteAccess } from '@/lib/trial-gate'
-import { PLAN_CAPS } from '@/lib/plans'
+import { PLAN_CAPS, TRIAL_DAYS, TRIAL_MAX_MEMBERS } from '@/lib/plans'
 
 const FROM    = process.env.RESEND_FROM_EMAIL ?? 'Jobigram <onboarding@resend.dev>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.jobigram.com'
@@ -105,14 +105,30 @@ export async function POST(req: NextRequest) {
 
     const isActiveSub = sub?.status === 'active' || sub?.status === 'trialing'
 
-    if (!sub || !isActiveSub) {
-      return Response.json({
-        error: 'No active subscription. Please choose a plan before inviting team members.',
-        code: 'no_subscription',
-      }, { status: 402 })
-    }
+    let cap: number
+    if (isActiveSub) {
+      cap = PLAN_CAPS[sub!.plan_name ?? ''] ?? 0
+    } else {
+      // No active subscription — allow if still within the free trial
+      const { data: orgRow } = await supabase
+        .from('organizations')
+        .select('created_at')
+        .eq('id', orgId)
+        .maybeSingle()
 
-    const cap = PLAN_CAPS[sub.plan_name ?? ''] ?? 0
+      const trialEnd = orgRow
+        ? new Date(orgRow.created_at).getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000
+        : 0
+
+      if (Date.now() > trialEnd) {
+        return Response.json({
+          error: 'No active subscription. Please choose a plan before inviting team members.',
+          code: 'no_subscription',
+        }, { status: 402 })
+      }
+
+      cap = TRIAL_MAX_MEMBERS
+    }
 
     const { count } = await supabase
       .from('organization_members')
@@ -121,8 +137,11 @@ export async function POST(req: NextRequest) {
       .in('status', ['active', 'pending'])
 
     if ((count ?? 0) >= cap) {
+      const limitMsg = !isActiveSub
+        ? 'Free trial includes 1 teammate. Choose a plan to add more.'
+        : `You've reached your plan's user limit (${cap} user${cap !== 1 ? 's' : ''}). Upgrade your plan to add more team members.`
       return Response.json({
-        error: `You've reached your plan's user limit (${cap} user${cap !== 1 ? 's' : ''}). Upgrade your plan to add more team members.`,
+        error: limitMsg,
         code: 'plan_limit',
         cap,
       }, { status: 402 })

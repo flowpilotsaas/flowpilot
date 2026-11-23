@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import { PLANS, TRIAL_DAYS } from '@/lib/plans'
+import { PLANS, TRIAL_DAYS, TRIAL_MAX_MEMBERS } from '@/lib/plans'
 import { ONLINE_PAYMENTS_LIVE } from '@/lib/site-config'
 
 function buildFaqs() {
@@ -15,7 +15,7 @@ function buildFaqs() {
     },
     {
       q: 'Can my whole team use it?',
-      a: `Yes. Once you subscribe, you can invite your whole team. Plans start at ${smallestCap} team members and go up to ${hasUnlimited ? 'unlimited' : `${PLANS[PLANS.length - 1].cap}`}. Every plan includes every feature — plans differ only in team size.`,
+      a: `Yes. During the free trial you can invite ${TRIAL_MAX_MEMBERS - 1} teammate (${TRIAL_MAX_MEMBERS} members total). Once you subscribe, plans start at ${smallestCap} team members and go up to ${hasUnlimited ? 'unlimited' : `${PLANS[PLANS.length - 1].cap}`}. Every plan includes every feature — plans differ only in team size.`,
     },
     {
       q: 'Can I cancel any time?',

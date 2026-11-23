@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
+import { useTrialStatus } from '@/hooks/useTrialStatus'
+import { TRIAL_MAX_MEMBERS } from '@/lib/plans'
 import { DeleteConfirmModal } from '@/components/ui/DeleteConfirmModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -83,6 +85,8 @@ function PermIcon({ allowed }: { allowed: boolean }) {
 
 export default function TeamPage() {
   const { organizationId, role: currentUserRole } = useOrganization()
+  const { hasActiveSub, isLoading: trialLoading } = useTrialStatus()
+  const isTrialOnly = !trialLoading && !hasActiveSub
   const [activeTab, setActiveTab] = React.useState<Tab>('members')
   const [members, setMembers]     = React.useState<OrgMember[]>([])
   const [loading, setLoading]     = React.useState(true)
@@ -578,6 +582,15 @@ export default function TeamPage() {
             <p className="text-sm text-muted-foreground -mt-1">
               They&apos;ll receive an email invite to join your organization.
             </p>
+            {isTrialOnly && (
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-md px-3 py-2 -mt-1">
+                Free trial: invite {TRIAL_MAX_MEMBERS - 1} teammate.{' '}
+                <Link href="/dashboard/billing" className="underline underline-offset-2 hover:text-foreground">
+                  Choose a plan
+                </Link>{' '}
+                to add more.
+              </p>
+            )}
             <Field label="Email" required>
               <Input
                 type="email"

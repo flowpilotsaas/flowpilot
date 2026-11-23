@@ -1,6 +1,9 @@
 /** Trial length in days — single source of truth used by trial-gate, marketing pages, and auth copy. */
 export const TRIAL_DAYS = 30
 
+/** Max active+pending team members (including owner) allowed during a free trial. */
+export const TRIAL_MAX_MEMBERS = 2
+
 export type Plan = {
   name: string
   price: number
