@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
+import { createServiceSupabase } from '@/lib/supabase-service'
 
 const ASSIGNABLE_ROLES = ['admin', 'technician'] as const
 type AssignableRole = typeof ASSIGNABLE_ROLES[number]
 
 export async function POST(req: NextRequest) {
+  // Auth checks use the user client (respects RLS for reads)
   const supabase = await createServerSupabase()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: `Invalid role. Allowed: ${ASSIGNABLE_ROLES.join(', ')}.` }, { status: 400 })
   }
 
-  // Verify requester is an owner
+  // Verify requester is owner
   const { data: requesterMembership } = await supabase
     .from('organization_members')
     .select('organization_id, role')
@@ -50,15 +52,21 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'You cannot change your own role.' }, { status: 403 })
   }
 
-  const { error: updateError } = await supabase
+  // Write with the service-role client so RLS does not block the update
+  const service = createServiceSupabase()
+  const { data: updated, error: updateError } = await service
     .from('organization_members')
     .update({ role })
     .eq('id', memberId)
     .eq('organization_id', orgId)
+    .select('id, role')
 
   if (updateError) {
     return Response.json({ error: updateError.message }, { status: 500 })
   }
+  if (!updated || updated.length === 0) {
+    return Response.json({ error: 'Update did not match any rows.' }, { status: 500 })
+  }
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true, role: updated[0].role })
 }

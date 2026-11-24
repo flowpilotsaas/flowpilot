@@ -105,6 +105,9 @@ export default function TeamPage() {
   const [resendingId, setResendingId]     = React.useState<string | null>(null)
   const [savingRoleId, setSavingRoleId]   = React.useState<string | null>(null)
 
+  type RoleConfirm = { member: OrgMember; newRole: 'admin' | 'technician' } | null
+  const [roleConfirm, setRoleConfirm] = React.useState<RoleConfirm>(null)
+
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(new Set())
   const [selectedInviteIds, setSelectedInviteIds] = React.useState<Set<string>>(new Set())
 
@@ -212,24 +215,36 @@ export default function TeamPage() {
 
   // ─── Change role ─────────────────────────────────────────────────────────
 
-  const handleRoleChange = async (member: OrgMember, newRole: 'admin' | 'technician') => {
-    if (newRole === member.role) return
+  // Called when the owner picks a new value from the dropdown — opens confirm dialog
+  const requestRoleChange = (member: OrgMember, newRole: 'admin' | 'technician') => {
+    if (newRole === (member.role as string)) return
+    setRoleConfirm({ member, newRole })
+  }
+
+  // Called when the confirm dialog is confirmed
+  const confirmRoleChange = async () => {
+    if (!roleConfirm) return
+    const { member, newRole } = roleConfirm
+    setRoleConfirm(null)
     setSavingRoleId(member.id)
     try {
       const r = await fetch('/api/team/change-role', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ memberId: member.id, role: newRole }),
       })
-      const b = await r.json().catch(() => ({})) as { error?: string }
-      if (!r.ok) {
+      const b = await r.json().catch(() => ({})) as { ok?: boolean; role?: string; error?: string }
+      if (!r.ok || !b.ok || !b.role) {
         toast.error(b.error ?? 'Failed to update role.')
+        // No local state revert needed — fetchMembers will re-read the real value
       } else {
+        // Optimistically patch local state, then confirm with a refetch
+        setMembers(prev => prev.map(m => m.id === member.id ? { ...m, role: b.role as OrgMember['role'] } : m))
         toast.success('Role updated')
-        await fetchMembers()
       }
     } catch {
       toast.error('Network error. Please try again.')
     }
+    await fetchMembers()
     setSavingRoleId(null)
   }
 
@@ -414,7 +429,7 @@ export default function TeamPage() {
                             <RoleDropdown
                               value={member.role as 'admin' | 'technician'}
                               disabled={savingRoleId === member.id}
-                              onChange={(r) => handleRoleChange(member, r)}
+                              onChange={(r) => requestRoleChange(member, r)}
                             />
                           ) : (
                             <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', ROLE_BADGE[member.role])}>
@@ -593,6 +608,17 @@ export default function TeamPage() {
         </div>
       )}
 
+      {/* Change role confirmation modal */}
+      <ChangeRoleModal
+        open={roleConfirm !== null}
+        email={roleConfirm?.member.email ?? ''}
+        oldRole={roleConfirm?.member.role as 'admin' | 'technician' | undefined}
+        newRole={roleConfirm?.newRole}
+        onCancel={() => setRoleConfirm(null)}
+        onConfirm={confirmRoleChange}
+        loading={savingRoleId !== null}
+      />
+
       {/* Remove / Cancel confirmation modal */}
       <DeleteConfirmModal
         open={removeTarget !== null}
@@ -712,6 +738,68 @@ function MemberActionMenu({ onRemove }: { onRemove: () => void }) {
         document.body
       )}
     </>
+  )
+}
+
+function ChangeRoleModal({
+  open,
+  email,
+  oldRole,
+  newRole,
+  onCancel,
+  onConfirm,
+  loading,
+}: {
+  open: boolean
+  email: string
+  oldRole?: 'admin' | 'technician'
+  newRole?: 'admin' | 'technician'
+  onCancel: () => void
+  onConfirm: () => void
+  loading: boolean
+}) {
+  // keyboard: Escape to cancel
+  React.useEffect(() => {
+    if (!open) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [open, onCancel])
+
+  if (!open || !oldRole || !newRole) return null
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="change-role-title"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div className="bg-popover rounded-xl border border-border shadow-xl w-full max-w-sm mx-4 focus:outline-none" tabIndex={-1}>
+        <div className="px-6 pt-6 pb-4 flex flex-col gap-3">
+          <h2 id="change-role-title" className="text-base font-semibold text-foreground">Change role?</h2>
+          <p className="text-sm text-muted-foreground">
+            Change <span className="font-medium text-foreground">{email}</span> from{' '}
+            <span className="font-medium text-foreground capitalize">{oldRole}</span> to{' '}
+            <span className="font-medium text-foreground capitalize">{newRole}</span>?
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed bg-muted/50 rounded-md px-3 py-2">
+            {ROLE_DESCRIPTIONS[newRole]}
+          </p>
+        </div>
+        <div className="px-6 pb-5 flex gap-3">
+          <Button variant="outline" className="flex-1" onClick={onCancel} disabled={loading} autoFocus>
+            Cancel
+          </Button>
+          <Button className="flex-1" onClick={onConfirm} disabled={loading}>
+            {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+            Confirm
+          </Button>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
