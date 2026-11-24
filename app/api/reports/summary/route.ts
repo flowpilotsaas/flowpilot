@@ -7,10 +7,10 @@ export type PeriodMetrics = {
   revenue: number
   estSent: number
   estApproved: number
+  estPending: number
+  estDeclined: number
   jobsCompleted: number
   newCustomers: number
-  outstandingTotal: number
-  outstandingCount: number
   jobsByStatus: Record<string, number>
 }
 
@@ -91,6 +91,8 @@ async function fetchMetrics(
 
   const estSent = estimates.filter((e) => e.status !== 'Draft').length
   const estApproved = estimates.filter((e) => e.status === 'Approved').length
+  const estPending = estimates.filter((e) => e.status === 'Sent').length
+  const estDeclined = estimates.filter((e) => e.status === 'Declined').length
 
   const jobsCompleted = jobs.filter((j) => j.status === 'Completed' || j.status === 'Paid').length
 
@@ -99,18 +101,14 @@ async function fetchMetrics(
     jobsByStatus[j.status] = (jobsByStatus[j.status] ?? 0) + 1
   }
 
-  const outstanding = jobs.filter((j) => j.status === 'Completed' && (j.price ?? 0) > 0)
-  const outstandingTotal = outstanding.reduce((s, j) => s + (j.price ?? 0), 0)
-  const outstandingCount = outstanding.length
-
   return {
     revenue,
     estSent,
     estApproved,
+    estPending,
+    estDeclined,
     jobsCompleted,
     newCustomers,
-    outstandingTotal,
-    outstandingCount,
     jobsByStatus,
   }
 }

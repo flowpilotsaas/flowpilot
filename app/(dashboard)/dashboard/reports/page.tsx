@@ -111,11 +111,12 @@ type TileProps = {
   format: 'usd' | 'num' | 'pct'
   prev: number | null
   lowerIsBetter?: boolean
+  neutralDelta?: boolean
   loading: boolean
   skeleton: boolean
 }
 
-function MetricTile({ label, value, format, prev, lowerIsBetter, loading, skeleton }: TileProps) {
+function MetricTile({ label, value, format, prev, lowerIsBetter, neutralDelta, loading, skeleton }: TileProps) {
   const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const animated = useAnimatedValue(value, !reduced)
   const d = prev !== null ? delta(value, prev, lowerIsBetter) : null
@@ -137,8 +138,11 @@ function MetricTile({ label, value, format, prev, lowerIsBetter, loading, skelet
         {fmt(format === 'pct' ? animated : Math.round(animated), format)}
       </p>
       {d !== null ? (
-        <p className={cn('text-xs font-medium flex items-center gap-0.5', d.up ? 'text-success' : 'text-destructive')}>
-          {d.up ? '↑' : '↓'} {Math.abs(d.pct).toFixed(1)}% vs prev period
+        <p className={cn(
+          'text-xs font-medium flex items-center gap-0.5',
+          neutralDelta ? 'text-muted-foreground' : d.up ? 'text-success' : 'text-destructive',
+        )}>
+          {d.pct > 0 ? '↑' : d.pct < 0 ? '↓' : '—'} {Math.abs(d.pct).toFixed(1)}% vs prev period
         </p>
       ) : (
         <p className="text-xs text-muted-foreground/50">No prior data</p>
@@ -182,7 +186,7 @@ export default function ReportsPage() {
   const cur = data?.current
   const prev = data?.previous
 
-  function tile(label: string, curVal: number, prevVal: number, format: 'usd' | 'num' | 'pct', lowerIsBetter = false) {
+  function tile(label: string, curVal: number, prevVal: number, format: 'usd' | 'num' | 'pct', lowerIsBetter = false, neutralDelta = false) {
     return (
       <MetricTile
         label={label}
@@ -190,6 +194,7 @@ export default function ReportsPage() {
         format={format}
         prev={prev ? prevVal : null}
         lowerIsBetter={lowerIsBetter}
+        neutralDelta={neutralDelta}
         loading={loading}
         skeleton={skeleton}
       />
@@ -248,14 +253,14 @@ export default function ReportsPage() {
             ))
           ) : cur ? (
             <>
-              {tile('Revenue Collected', cur.revenue, prev?.revenue ?? 0, 'usd')}
-              {tile('Outstanding', cur.outstandingTotal, prev?.outstandingTotal ?? 0, 'usd', true)}
-              {tile('Estimates Sent', cur.estSent, prev?.estSent ?? 0, 'num')}
-              {tile('Approval Rate', approvalRate, prevApprovalRate, 'pct')}
-              {tile('Jobs Completed', cur.jobsCompleted, prev?.jobsCompleted ?? 0, 'num')}
-              {tile('New Customers', cur.newCustomers, prev?.newCustomers ?? 0, 'num')}
-              {tile('Outstanding (count)', cur.outstandingCount, prev?.outstandingCount ?? 0, 'num', true)}
-              {tile('Est. Approved', cur.estApproved, prev?.estApproved ?? 0, 'num')}
+              {tile('Revenue Collected',  cur.revenue,       prev?.revenue       ?? 0, 'usd')}
+              {tile('Estimates Sent',     cur.estSent,       prev?.estSent       ?? 0, 'num')}
+              {tile('Approval Rate',      approvalRate,      prevApprovalRate,         'pct')}
+              {tile('Jobs Completed',     cur.jobsCompleted, prev?.jobsCompleted ?? 0, 'num')}
+              {tile('New Customers',      cur.newCustomers,  prev?.newCustomers  ?? 0, 'num')}
+              {tile('Est. Approved',      cur.estApproved,   prev?.estApproved   ?? 0, 'num')}
+              {tile('Pending Estimates',  cur.estPending,    prev?.estPending    ?? 0, 'num', false, true)}
+              {tile('Est. Declined',      cur.estDeclined,   prev?.estDeclined   ?? 0, 'num')}
             </>
           ) : null}
         </div>
