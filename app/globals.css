@@ -55,6 +55,7 @@
 
 /* ─── Light mode ──────────────────────────────────────────────────────────── */
 :root {
+  color-scheme: light;
   /* Backgrounds — slightly violet-tinted off-white instead of pure white */
   --background:  oklch(0.982 0.004 285);
   --foreground:  oklch(0.130 0.010 285);
@@ -151,6 +152,7 @@
 
 /* ─── Dark mode ───────────────────────────────────────────────────────────── */
 .dark {
+  color-scheme: dark;
   --background:  oklch(0.120 0.012 275);
   --foreground:  oklch(0.970 0.003 285);
 
@@ -269,6 +271,19 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Native select controls: use solid design-token colours so the OS-rendered
+     option list is readable in both light and dark themes.
+     !important overrides Tailwind's bg-transparent utility so the popup gets
+     a solid background regardless of the class applied to the <select>. */
+  select {
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground) !important;
+  }
+  select option,
+  select optgroup {
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground) !important;
   }
 }
 
