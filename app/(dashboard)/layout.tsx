@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Bricolage_Grotesque } from 'next/font/google'
 import { supabase } from '@/lib/supabase'
 import DashboardSidebar from '@/components/dashboard/DashboardSidebar'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
@@ -10,6 +11,12 @@ import { useTrialStatus } from '@/hooks/useTrialStatus'
 import { Toaster } from 'sonner'
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { ThemeProvider } from '@/components/ThemeProvider'
+
+const bricolage = Bricolage_Grotesque({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+})
 
 function ToastSuccessIcon() { return <CheckCircle2 className="w-4 h-4 text-success" /> }
 function ToastErrorIcon()   { return <XCircle className="w-4 h-4 text-destructive" /> }
@@ -146,7 +153,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
+      <div className={`h-screen bg-background flex flex-col overflow-hidden ${bricolage.variable}`}>
         <TopBanner />
         <DashboardHeader />
         <div className="flex flex-1 min-h-0">
