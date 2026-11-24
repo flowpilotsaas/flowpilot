@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import Link from 'next/link'
@@ -168,7 +168,7 @@ export default function DispatchPage() {
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as typeof filter)}
-            className="h-9 rounded-md border border-input bg-background px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="h-9 rounded-[12px] border border-input bg-background px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <option value="active">Active Jobs</option>
             <option value="all">All Jobs</option>

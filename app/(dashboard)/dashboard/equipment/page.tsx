@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 /*
   SQL — run in Supabase SQL editor:
@@ -204,7 +204,7 @@ export default function EquipmentPage() {
         {[
           { label: 'Registered Units',   value: loading ? '—' : registered,  color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
           { label: 'Currently Deployed', value: loading ? '—' : deployed,    color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
-          { label: 'Total Reuses',       value: loading ? '—' : totalReuses, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+          { label: 'Total Reuses',       value: loading ? '—' : totalReuses, color: 'text-primary', bg: 'bg-primary/10 dark:bg-primary/20' },
         ].map(({ label, value, color, bg }) => (
           <Card key={label}>
             <CardContent className="p-5 flex items-center gap-4">
@@ -226,7 +226,7 @@ export default function EquipmentPage() {
           <Input className="pl-9" placeholder="Search by name or asset tag…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select value={statusFilter} onChange={(e) => setStatus(e.target.value as typeof statusFilter)}
-          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+          className="h-9 rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
           <option value="all">All statuses</option>
           {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
@@ -362,7 +362,7 @@ export default function EquipmentPage() {
             </Field>
             <Field label="Status">
               <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as EquipStatus }))}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                className="h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
                 {(['Available', 'Deployed', 'Maintenance'] as EquipStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>

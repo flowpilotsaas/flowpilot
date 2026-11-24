@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -304,7 +304,7 @@ export default function CommunicationsPage() {
             <select
               value={textCustomer}
               onChange={handleCustomerChange}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full border border-border rounded-[12px] px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
             >
               <option value="">— Select a customer —</option>
               {customers.map((c) => (

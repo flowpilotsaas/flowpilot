@@ -193,8 +193,8 @@ export default function TransactionsPage() {
       label: 'Estimates Sent',
       value: loading ? '—' : estimatesCount,
       icon: FileText,
-      color: 'text-purple-500',
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      color: 'text-primary',
+      bg: 'bg-primary/10 dark:bg-primary/20',
     },
     {
       label: 'Total Customers',

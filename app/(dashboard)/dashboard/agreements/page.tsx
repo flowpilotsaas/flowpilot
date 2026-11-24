@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -263,7 +263,7 @@ export default function AgreementsPage() {
   const statCards = [
     { label: 'Agreements', value: loading ? '—' : totalCount, icon: ClipboardList, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
     { label: 'Pending Approvals', value: loading ? '—' : pendingCount, icon: FileCheck, color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
-    { label: 'Sites / Assets', value: loading ? '—' : `${totalSites}/${totalAssets}`, icon: MapPin, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+    { label: 'Sites / Assets', value: loading ? '—' : `${totalSites}/${totalAssets}`, icon: MapPin, color: 'text-primary', bg: 'bg-primary/10 dark:bg-primary/20' },
     { label: 'Active PM Plans', value: loading ? '—' : activePmPlans, icon: CalendarClock, color: 'text-green-500', bg: 'bg-green-50 dark:bg-green-900/20' },
     { label: 'PM Due / Overdue', value: loading ? '—' : `${totalPmDue}/${totalPmOverdue}`, icon: AlertTriangle, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
   ]
@@ -464,7 +464,7 @@ export default function AgreementsPage() {
                 placeholder="Contract terms, scope of work…"
                 value={form.notes}
                 onChange={setField('notes')}
-                className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
@@ -561,7 +561,7 @@ function NativeSelect({ className, children, ...props }: React.ComponentProps<'s
   return (
     <select
       className={cn(
-        'h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+        'h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
       {...props}

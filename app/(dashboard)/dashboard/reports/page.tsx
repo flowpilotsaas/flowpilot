@@ -17,19 +17,19 @@ type ReportCard = {
 
 const REPORTS: ReportCard[] = [
   { title: 'Jobs',                icon: Briefcase,    color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-  { title: 'Job Statistics',      icon: BarChart2,    color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+  { title: 'Job Statistics',      icon: BarChart2,    color: 'text-primary',    bg: 'bg-primary/10 dark:bg-primary/20' },
   { title: 'Activity',            icon: Activity,     color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
   { title: 'Aging Invoices',      icon: Clock,        color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
   { title: 'Tasks',               icon: CheckSquare,  color: 'text-teal-500',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
   { title: 'Sales',               icon: TrendingUp,   color: 'text-emerald-500',bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
   { title: 'Payments',            icon: CreditCard,   color: 'text-sky-500',    bg: 'bg-sky-50 dark:bg-sky-900/20' },
-  { title: 'Estimates',           icon: ClipboardList,color: 'text-violet-500', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+  { title: 'Estimates',           icon: ClipboardList,color: 'text-primary',   bg: 'bg-primary/10 dark:bg-primary/20' },
   { title: 'Timesheets',          icon: Clock,        color: 'text-amber-500',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
   { title: 'Tax',                 icon: Receipt,      color: 'text-red-500',    bg: 'bg-red-50 dark:bg-red-900/20' },
   { title: 'Equipment',           icon: Wrench,       color: 'text-stone-500',  bg: 'bg-stone-50 dark:bg-stone-900/20' },
   { title: 'Tips',                icon: DollarSign,   color: 'text-yellow-500', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
   { title: 'Expenses',            icon: FileText,     color: 'text-rose-500',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
-  { title: 'Invoices',            icon: FileText,     color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+  { title: 'Invoices',            icon: FileText,     color: 'text-primary',    bg: 'bg-primary/10 dark:bg-primary/20' },
   { title: 'Items and Services',  icon: Package,      color: 'text-cyan-500',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
   { title: 'Call Tracking',       icon: Phone,        color: 'text-pink-500',   bg: 'bg-pink-50 dark:bg-pink-900/20' },
 ]

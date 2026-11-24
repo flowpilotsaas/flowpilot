@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -824,7 +824,7 @@ function RoleDropdown({
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as 'admin' | 'technician')}
         className={cn(
-          'h-7 rounded-md border border-input bg-transparent px-2 py-0 text-xs shadow-xs outline-none',
+          'h-7 rounded-[12px] border border-input bg-transparent px-2 py-0 text-xs shadow-xs outline-none',
           'transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50',
           'disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer'
         )}
@@ -854,7 +854,7 @@ function NativeSelect({ className, children, ...props }: React.ComponentProps<'s
   return (
     <select
       className={cn(
-        'h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+        'h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
       {...props}

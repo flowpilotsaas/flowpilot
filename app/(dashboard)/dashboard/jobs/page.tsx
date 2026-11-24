@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -457,7 +457,7 @@ export default function JobsPage() {
                 <select
                   defaultValue=""
                   onChange={(e) => { if (e.target.value) { handleBulkStatusChange(e.target.value as JobStatus); e.target.value = '' } }}
-                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring cursor-pointer"
+                  className="h-8 rounded-[12px] border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 cursor-pointer"
                 >
                   <option value="" disabled>Change status…</option>
                   {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -677,7 +677,7 @@ export default function JobsPage() {
                 placeholder="What needs to be done…"
                 value={form.description}
                 onChange={setField('description')}
-                className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
 
@@ -687,7 +687,7 @@ export default function JobsPage() {
                 placeholder="Internal notes…"
                 value={form.notes}
                 onChange={setField('notes')}
-                className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               />
             </Field>
 
@@ -920,7 +920,7 @@ function NativeSelect({ className, children, ...props }: React.ComponentProps<'s
   return (
     <select
       className={cn(
-        'h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
+        'h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
       {...props}
@@ -1011,7 +1011,7 @@ function PaymentModal({
               placeholder="Payment notes (optional)…"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </Field>
 

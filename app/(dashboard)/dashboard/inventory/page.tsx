@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 /*
   SQL — run in Supabase SQL editor:
@@ -262,7 +262,7 @@ export default function InventoryPage() {
           <Input className="pl-9" placeholder="Search by name or part #…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)}
-          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+          className="h-9 rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
           <option value="all">All Categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -419,7 +419,7 @@ export default function InventoryPage() {
             </Field>
             <Field label="Status">
               <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as ItemStatus }))}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+                className="h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
                 {(['In Stock', 'Low Stock', 'Out of Stock'] as ItemStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>

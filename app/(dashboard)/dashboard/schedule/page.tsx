@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -680,7 +680,7 @@ export default function SchedulePage() {
                   placeholder="Any scheduling notes…"
                   value={modalForm.notes}
                   onChange={(e) => setModalForm((p) => ({ ...p, notes: e.target.value }))}
-                  className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                 />
               </MField>
               {modalError && (
@@ -735,7 +735,7 @@ export default function SchedulePage() {
                     <select
                       value={detailForm.status}
                       onChange={(e) => setDetailForm((p) => ({ ...p, status: e.target.value as JobStatus }))}
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       {JOB_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -777,7 +777,7 @@ export default function SchedulePage() {
                       placeholder="Notes…"
                       value={detailForm.notes}
                       onChange={(e) => setDetailForm((p) => ({ ...p, notes: e.target.value }))}
-                      className="w-full rounded-md border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                      className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                     />
                   </MField>
 
@@ -1316,7 +1316,7 @@ function TimeSelect({ value, onChange, slots }: {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       {slots.map((t) => (
         <option key={t} value={t}>{fmtTime(t)}</option>

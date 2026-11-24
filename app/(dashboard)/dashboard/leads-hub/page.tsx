@@ -118,7 +118,7 @@ export default function LeadsHubPage() {
       <Card>
         <CardHeader className="border-b">
           <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Bell className="w-4 h-4 text-purple-500" />
+            <Bell className="w-4 h-4 text-primary" />
             Assignment Alerts
           </CardTitle>
         </CardHeader>

@@ -778,11 +778,11 @@ export default function EstimateDetailPage({
       )}
 
       {/* ── Send Payment Link ── */}
-      <Card className="mb-6 border-violet-200 dark:border-violet-900">
-        <CardHeader className="border-b border-violet-100 dark:border-violet-900 px-6 py-4 bg-violet-50/60 dark:bg-violet-950/30 rounded-t-xl">
+      <Card className="mb-6 border-primary/20 dark:border-primary/30">
+        <CardHeader className="border-b border-primary/10 dark:border-primary/20 px-6 py-4 bg-primary/5 dark:bg-primary/10 rounded-t-xl">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
                 <Link2 className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -790,7 +790,7 @@ export default function EstimateDetailPage({
                 <p className="text-xs text-muted-foreground mt-0.5">Powered by Stripe</p>
               </div>
             </div>
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary">
               <CreditCard className="w-3 h-3" />
               Card, ACH &amp; Financing available
             </span>
@@ -823,7 +823,7 @@ export default function EstimateDetailPage({
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-1.5 text-violet-700 border-violet-200 hover:bg-violet-50 dark:text-violet-400 dark:border-violet-800 dark:hover:bg-violet-950"
+                className="gap-1.5 text-primary border-primary/30 hover:bg-primary/5 dark:text-primary dark:border-primary/30 dark:hover:bg-primary/10"
                 disabled={generatingPaymentLink}
                 onClick={handleGeneratePaymentLink}
               >
@@ -910,8 +910,8 @@ function PaymentLinkModal({
       <div className="absolute inset-0 bg-black/50 cursor-pointer" onClick={onClose} />
       <div className="relative bg-background rounded-xl border border-border shadow-xl w-full max-w-md">
         <div className="flex items-center gap-3 px-6 py-4 border-b border-border">
-          <div className="w-7 h-7 rounded-md bg-violet-600 flex items-center justify-center shrink-0">
-            <Link2 className="w-3.5 h-3.5 text-white" />
+          <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <Link2 className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
           <h2 className="text-base font-semibold text-foreground">Payment Link Ready</h2>
         </div>
@@ -926,7 +926,7 @@ function PaymentLinkModal({
             <button
               type="button"
               onClick={onCopy}
-              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-violet-600 text-white hover:bg-violet-700 transition-colors cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:brightness-110 transition-colors cursor-pointer"
             >
               {copied
                 ? <><Check className="w-3 h-3" /> Copied!</>

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
@@ -193,7 +193,7 @@ export default function EstimatesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as 'all' | EstimateStatus)}
-          className="h-9 rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-9 rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="all">All statuses</option>
           {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -213,7 +213,7 @@ export default function EstimatesPage() {
                 <select
                   defaultValue=""
                   onChange={(e) => { if (e.target.value) { handleBulkStatusChange(e.target.value as EstimateStatus); e.target.value = '' } }}
-                  className="h-8 rounded-md border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring cursor-pointer"
+                  className="h-8 rounded-[12px] border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 cursor-pointer"
                 >
                   <option value="" disabled>Change status…</option>
                   {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}

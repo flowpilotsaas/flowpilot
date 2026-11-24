@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 /*
   SQL — run in Supabase SQL editor to add columns to user_settings:
@@ -364,7 +364,7 @@ export default function SettingsPage() {
               <select
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-9 w-full rounded-[12px] border border-input bg-transparent px-2.5 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="">Select an industry…</option>
                 {INDUSTRY_DROPDOWN.map((ind) => (
