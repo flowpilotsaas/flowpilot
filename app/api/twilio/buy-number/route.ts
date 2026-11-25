@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { checkWriteAccess } from '@/lib/trial-gate'
+import { getAppUrl } from '@/lib/app-url'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase()
@@ -31,9 +32,16 @@ export async function POST(req: NextRequest) {
     const { phoneNumber } = await req.json()
     if (!phoneNumber) return Response.json({ error: 'phoneNumber is required.' }, { status: 400 })
 
+    const appUrl = getAppUrl()
     const twilio = (await import('twilio')).default
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-    const purchased = await client.incomingPhoneNumbers.create({ phoneNumber })
+    const purchased = await client.incomingPhoneNumbers.create({
+      phoneNumber,
+      voiceUrl:    `${appUrl}/api/twilio/voice-inbound`,
+      voiceMethod: 'POST',
+      statusCallback:       `${appUrl}/api/twilio/call-status`,
+      statusCallbackMethod: 'POST',
+    })
 
     const { error: dbError } = await supabase.from('phone_numbers').insert({
       user_id:         user.id,
