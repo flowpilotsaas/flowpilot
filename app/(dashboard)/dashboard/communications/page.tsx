@@ -6,11 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import {
   Phone, MessageSquare, Search, Loader2, X, Send,
   PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
-  Download, ChevronLeft, ChevronRight,
+  Download, ChevronLeft, ChevronRight, Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -47,7 +47,7 @@ type TwilioCall = {
   duration: string
 }
 
-type Customer = { id: string; name: string; phone: string | null }
+type Customer = { id: string; name: string; phone: string | null; email: string | null }
 
 type CallFilter = 'all' | 'missed' | 'answered' | 'outbound' | 'new-callers'
 
@@ -81,8 +81,7 @@ function fmtDuration(seconds: string) {
 }
 
 function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '')
-  return digits.slice(-10)
+  return phone.replace(/\D/g, '').slice(-10)
 }
 
 function isMissed(status: string): boolean {
@@ -90,8 +89,7 @@ function isMissed(status: string): boolean {
 }
 
 function getDirection(call: TwilioCall, orgNumbers: Set<string>): 'inbound' | 'outbound' {
-  const toNorm = normalizePhone(call.to)
-  return orgNumbers.has(toNorm) ? 'inbound' : 'outbound'
+  return orgNumbers.has(normalizePhone(call.to)) ? 'inbound' : 'outbound'
 }
 
 function getCallerNumber(call: TwilioCall, direction: 'inbound' | 'outbound'): string {
@@ -109,10 +107,7 @@ function exportCsv(calls: TwilioCall[], customers: Customer[], orgNumbers: Set<s
     const callerNum = getCallerNumber(c, dir)
     const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
     rows.push([
-      c.status,
-      dir,
-      matched?.name ?? '',
-      callerNum,
+      c.status, dir, matched?.name ?? '', callerNum,
       getBusinessLine(c, dir),
       c.startTime ? fmtDate(c.startTime) : '',
       fmtDuration(c.duration),
@@ -122,10 +117,93 @@ function exportCsv(calls: TwilioCall[], customers: Customer[], orgNumbers: Set<s
   const blob = new Blob([csv], { type: 'text/csv' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url
-  a.download = `calls-${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
+  a.href = url; a.download = `calls-${new Date().toISOString().slice(0, 10)}.csv`; a.click()
   URL.revokeObjectURL(url)
+}
+
+// ─── Recipient picker ──────────────────────────────────────────────────────
+
+type RecipientMode = 'phone' | 'email'
+
+function RecipientPicker({
+  customers,
+  value,
+  onChange,
+  mode,
+  placeholder,
+}: {
+  customers: Customer[]
+  value: string
+  onChange: (val: string, customer?: Customer) => void
+  mode: RecipientMode
+  placeholder?: string
+}) {
+  const [open, setOpen] = React.useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const q = value.toLowerCase()
+  const matches = customers.filter((c) => {
+    if (!q) return true
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.phone ?? '').includes(q) ||
+      (c.email ?? '').toLowerCase().includes(q)
+    )
+  }).slice(0, 8)
+
+  const hasValue = (c: Customer) => mode === 'phone' ? !!c.phone : !!c.email
+
+  return (
+    <div ref={ref} className="relative">
+      <Input
+        placeholder={placeholder ?? (mode === 'phone' ? '+1 (555) 000-0000' : 'email@example.com')}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        autoComplete="off"
+      />
+      {open && (
+        <div className="absolute z-10 w-full mt-1 bg-background border border-border rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+          {matches.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No customers match</p>
+          ) : matches.map((c) => {
+            const capable = hasValue(c)
+            const detail = mode === 'phone' ? c.phone : c.email
+            return (
+              <button
+                key={c.id}
+                type="button"
+                disabled={!capable}
+                onClick={() => {
+                  if (!capable) return
+                  onChange(detail!, c)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 hover:bg-muted/50 transition-colors',
+                  !capable && 'opacity-40 cursor-not-allowed hover:bg-transparent'
+                )}
+              >
+                <span className="font-medium truncate">{c.name}</span>
+                {detail
+                  ? <span className="text-xs text-muted-foreground font-mono shrink-0">{detail}</span>
+                  : <span className="text-xs text-muted-foreground shrink-0">No {mode === 'phone' ? 'phone' : 'email'}</span>
+                }
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
@@ -188,11 +266,41 @@ export default function CommunicationsPage() {
   const [addCustSaving, setAddCustSaving]     = React.useState(false)
   const [addCustError, setAddCustError]       = React.useState('')
 
+  // ── Quick Message dialog ──────────────────────────────────────────────────
+  const [msgOpen, setMsgOpen]                 = React.useState(false)
+  const [msgTo, setMsgTo]                     = React.useState('')
+  const [msgFrom, setMsgFrom]                 = React.useState('')
+  const [msgBody, setMsgBody]                 = React.useState('')
+  const [msgSending, setMsgSending]           = React.useState(false)
+  const [msgError, setMsgError]               = React.useState('')
+
+  // ── Quick Email dialog ────────────────────────────────────────────────────
+  const [emailOpen, setEmailOpen]             = React.useState(false)
+  const [emailTo, setEmailTo]                 = React.useState('')
+  const [emailSubject, setEmailSubject]       = React.useState('')
+  const [emailBody, setEmailBody]             = React.useState('')
+  const [emailSending, setEmailSending]       = React.useState(false)
+  const [emailError, setEmailError]           = React.useState('')
+
+  // ── Quick Call dialog ─────────────────────────────────────────────────────
+  const [callDialogOpen, setCallDialogOpen]   = React.useState(false)
+  const [callDialogTo, setCallDialogTo]       = React.useState('')
+  const [callDialogFrom, setCallDialogFrom]   = React.useState('')
+
   // ── Derived: org phone number set ────────────────────────────────────────
   const orgNumberSet = React.useMemo(
     () => new Set(purchasedNumbers.map((n) => normalizePhone(n.phone_number))),
     [purchasedNumbers],
   )
+
+  // ── Set default "from" when numbers load ─────────────────────────────────
+  React.useEffect(() => {
+    if (purchasedNumbers.length > 0) {
+      const first = purchasedNumbers[0].phone_number
+      if (!msgFrom)        setMsgFrom(first)
+      if (!callDialogFrom) setCallDialogFrom(first)
+    }
+  }, [purchasedNumbers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
@@ -221,7 +329,7 @@ export default function CommunicationsPage() {
     if (!orgId) return
     const { data } = await supabase
       .from('customers')
-      .select('id, name, phone')
+      .select('id, name, phone, email')
       .eq('organization_id', orgId)
       .order('name')
     if (data) setCustomers(data)
@@ -256,9 +364,7 @@ export default function CommunicationsPage() {
 
   const handleSearch = async () => {
     if (!/^\d{3}$/.test(areaCode)) { setSearchError('Enter a 3-digit area code.'); return }
-    setSearching(true)
-    setSearchError('')
-    setSearchResults([])
+    setSearching(true); setSearchError(''); setSearchResults([])
     try {
       const res = await fetch(`/api/twilio/search-numbers?areaCode=${areaCode}`)
       const data = await res.json()
@@ -267,30 +373,24 @@ export default function CommunicationsPage() {
       if (!data.numbers.length) setSearchError('No numbers available for that area code.')
     } catch (err) {
       setSearchError((err as Error).message)
-    } finally {
-      setSearching(false)
-    }
+    } finally { setSearching(false) }
   }
 
   const handleBuy = async (phoneNumber: string) => {
     setBuying(phoneNumber)
     try {
       const res = await fetch('/api/twilio/buy-number', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Purchase failed.')
-      setSearchResults([])
-      setAreaCode('')
+      setSearchResults([]); setAreaCode('')
       await fetchPurchasedNumbers()
       toast.success('Phone number purchased')
     } catch (err) {
       setSearchError((err as Error).message)
-    } finally {
-      setBuying(null)
-    }
+    } finally { setBuying(null) }
   }
 
   const handleRelease = async (num: PurchasedNumber) => {
@@ -298,8 +398,7 @@ export default function CommunicationsPage() {
     setReleasing(num.id)
     try {
       const res = await fetch('/api/twilio/release-number', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ twilioSid: num.twilio_sid, phoneNumberId: num.id }),
       })
       const data = await res.json()
@@ -308,77 +407,53 @@ export default function CommunicationsPage() {
       toast.success('Number released')
     } catch (err) {
       toast.error((err as Error).message)
-    } finally {
-      setReleasing(null)
-    }
+    } finally { setReleasing(null) }
   }
 
   // ── Text handlers ─────────────────────────────────────────────────────────
 
   const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value
-    setTextCustomer(id)
-    const c = customers.find((c) => c.id === id)
-    setTextTo(c?.phone ?? '')
+    const id = e.target.value; setTextCustomer(id)
+    const c = customers.find((c) => c.id === id); setTextTo(c?.phone ?? '')
   }
 
   const handleSendText = async () => {
     if (!textTo.trim()) { setTextError('Phone number is required.'); return }
     if (!textBody.trim()) { setTextError('Message is required.'); return }
-    setSendingText(true)
-    setTextError('')
+    setSendingText(true); setTextError('')
     try {
       const customer = customers.find((c) => c.id === textCustomer)
       const res = await fetch('/api/twilio/send-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to:           textTo,
-          body:         textBody,
-          customerId:   textCustomer || null,
-          customerName: customer?.name ?? null,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: textTo, body: textBody, customerId: textCustomer || null, customerName: customer?.name ?? null }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to send.')
-      setTextModalOpen(false)
-      setTextCustomer('')
-      setTextTo('')
-      setTextBody('')
+      setTextModalOpen(false); setTextCustomer(''); setTextTo(''); setTextBody('')
       await fetchTextMessages()
       toast.success('Message sent')
     } catch (err) {
       setTextError((err as Error).message)
-    } finally {
-      setSendingText(false)
-    }
+    } finally { setSendingText(false) }
   }
 
   // ── Add customer handler ──────────────────────────────────────────────────
 
   const openAddCust = (phone: string) => {
-    setAddCustPhone(phone)
-    setAddCustName('')
-    setAddCustEmail('')
-    setAddCustAddress('')
-    setAddCustError('')
-    setAddCustOpen(true)
+    setAddCustPhone(phone); setAddCustName(''); setAddCustEmail('')
+    setAddCustAddress(''); setAddCustError(''); setAddCustOpen(true)
   }
 
   const handleAddCustomer = async () => {
     if (!addCustName.trim()) { setAddCustError('Name is required.'); return }
-    setAddCustSaving(true)
-    setAddCustError('')
+    setAddCustSaving(true); setAddCustError('')
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !orgId) throw new Error('Not authenticated.')
       const { error } = await supabase.from('customers').insert({
-        name: addCustName.trim(),
-        email: addCustEmail.trim() || null,
-        phone: addCustPhone,
-        address: addCustAddress.trim() || null,
-        user_id: user.id,
-        organization_id: orgId,
+        name: addCustName.trim(), email: addCustEmail.trim() || null,
+        phone: addCustPhone, address: addCustAddress.trim() || null,
+        user_id: user.id, organization_id: orgId,
       })
       if (error) throw new Error(error.message)
       await fetchCustomers()
@@ -386,34 +461,90 @@ export default function CommunicationsPage() {
       toast.success('Customer created')
     } catch (err) {
       setAddCustError((err as Error).message)
-    } finally {
-      setAddCustSaving(false)
-    }
+    } finally { setAddCustSaving(false) }
+  }
+
+  // ── Quick message handler ─────────────────────────────────────────────────
+
+  const openMsgDialog = () => {
+    setMsgTo(''); setMsgBody(''); setMsgError('')
+    if (purchasedNumbers.length > 0) setMsgFrom(purchasedNumbers[0].phone_number)
+    setMsgOpen(true)
+  }
+
+  const handleSendMsg = async () => {
+    if (!msgTo.trim()) { setMsgError('Recipient is required.'); return }
+    if (!msgBody.trim()) { setMsgError('Message is required.'); return }
+    if (!msgFrom) { setMsgError('Select a number to send from.'); return }
+    setMsgSending(true); setMsgError('')
+    try {
+      const customer = customers.find((c) => c.phone && normalizePhone(c.phone) === normalizePhone(msgTo))
+      const res = await fetch('/api/twilio/send-sms', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: msgTo, body: msgBody, from: msgFrom,
+          customerId: customer?.id ?? null, customerName: customer?.name ?? null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send.')
+      setMsgOpen(false)
+      await fetchTextMessages()
+      toast.success('Message sent')
+    } catch (err) {
+      setMsgError((err as Error).message)
+    } finally { setMsgSending(false) }
+  }
+
+  // ── Quick email handler ───────────────────────────────────────────────────
+
+  const openEmailDialog = () => {
+    setEmailTo(''); setEmailSubject(''); setEmailBody(''); setEmailError('')
+    setEmailOpen(true)
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailTo.trim()) { setEmailError('Recipient is required.'); return }
+    if (!emailSubject.trim()) { setEmailError('Subject is required.'); return }
+    if (!emailBody.trim()) { setEmailError('Message is required.'); return }
+    setEmailSending(true); setEmailError('')
+    try {
+      const res = await fetch('/api/email/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: emailTo, subject: emailSubject, body: emailBody }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send.')
+      setEmailOpen(false)
+      toast.success('Email sent')
+    } catch (err) {
+      setEmailError((err as Error).message)
+    } finally { setEmailSending(false) }
+  }
+
+  // ── Quick call handler ────────────────────────────────────────────────────
+
+  const openCallDialog = (prefillNumber?: string) => {
+    setCallDialogTo(prefillNumber ?? '')
+    if (purchasedNumbers.length > 0) setCallDialogFrom(purchasedNumbers[0].phone_number)
+    setCallDialogOpen(true)
   }
 
   // ── Calls filtering ───────────────────────────────────────────────────────
 
   const filteredCalls = React.useMemo(() => {
     let list = calls
-
-    // date range
     if (callDateRange !== 'all') {
       const now = Date.now()
-      const ms = callDateRange === 'today'
-        ? 86400000
-        : callDateRange === '7d'
-        ? 7 * 86400000
-        : 30 * 86400000
+      const ms = callDateRange === 'today' ? 86400000 : callDateRange === '7d' ? 7 * 86400000 : 30 * 86400000
       list = list.filter((c) => c.startTime && now - new Date(c.startTime).getTime() < ms)
     }
-
-    // status filter
     if (callFilter !== 'all') {
       list = list.filter((c) => {
         const dir = getDirection(c, orgNumberSet)
-        if (callFilter === 'missed')    return isMissed(c.status) && dir === 'inbound'
-        if (callFilter === 'answered')  return c.status === 'completed'
-        if (callFilter === 'outbound')  return dir === 'outbound'
+        if (callFilter === 'missed')       return isMissed(c.status) && dir === 'inbound'
+        if (callFilter === 'answered')     return c.status === 'completed'
+        if (callFilter === 'outbound')     return dir === 'outbound'
         if (callFilter === 'new-callers') {
           const callerNum = getCallerNumber(c, dir)
           return !customers.some((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
@@ -421,27 +552,20 @@ export default function CommunicationsPage() {
         return true
       })
     }
-
-    // search
     if (callSearch.trim()) {
       const q = callSearch.toLowerCase()
       list = list.filter((c) => {
         const dir = getDirection(c, orgNumberSet)
         const callerNum = getCallerNumber(c, dir)
         const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
-        return (
-          callerNum.toLowerCase().includes(q) ||
-          (matched?.name.toLowerCase().includes(q) ?? false)
-        )
+        return callerNum.toLowerCase().includes(q) || (matched?.name.toLowerCase().includes(q) ?? false)
       })
     }
-
     return list
   }, [calls, callFilter, callDateRange, callSearch, customers, orgNumberSet])
 
   const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE))
   const pagedCalls = filteredCalls.slice((callPage - 1) * PAGE_SIZE, callPage * PAGE_SIZE)
-
   React.useEffect(() => { setCallPage(1) }, [callFilter, callDateRange, callSearch])
 
   // ── Tabs ─────────────────────────────────────────────────────────────────
@@ -453,58 +577,59 @@ export default function CommunicationsPage() {
   ]
 
   const filterPills: { id: CallFilter; label: string }[] = [
-    { id: 'all',          label: 'All' },
-    { id: 'missed',       label: 'Missed' },
-    { id: 'answered',     label: 'Answered' },
-    { id: 'outbound',     label: 'Outbound' },
-    { id: 'new-callers',  label: 'New callers' },
+    { id: 'all',         label: 'All' },
+    { id: 'missed',      label: 'Missed' },
+    { id: 'answered',    label: 'Answered' },
+    { id: 'outbound',    label: 'Outbound' },
+    { id: 'new-callers', label: 'New callers' },
   ]
 
   // ── Modals ────────────────────────────────────────────────────────────────
 
-  const textModal = textModalOpen && mounted && createPortal(
+  // shared dialog shell
+  const dialogShell = (title: string, onClose: () => void, children: React.ReactNode) => (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setTextModalOpen(false)} />
+      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={onClose} />
       <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Send a Text</h2>
-          <button onClick={() => setTextModalOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
+        {children}
+      </div>
+    </div>
+  )
 
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Customer (optional)</label>
-            <select
-              value={textCustomer}
-              onChange={handleCustomerChange}
-              className="w-full border border-border rounded-[12px] px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
-            >
-              <option value="">— Select a customer —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">To</label>
-            <Input placeholder="+1 (555) 000-0000" value={textTo} onChange={(e) => setTextTo(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
-            <textarea
-              value={textBody}
-              onChange={(e) => setTextBody(e.target.value)}
-              placeholder="Type your message…"
-              rows={4}
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-            />
-            <p className="text-xs text-muted-foreground mt-1 text-right">{textBody.length} chars</p>
-          </div>
-          {textError && <p className="text-sm text-red-500">{textError}</p>}
+  const textModal = textModalOpen && mounted && createPortal(
+    dialogShell('Send a Text', () => setTextModalOpen(false), (
+      <div className="space-y-3">
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Customer (optional)</label>
+          <select
+            value={textCustomer} onChange={handleCustomerChange}
+            className="w-full border border-border rounded-[12px] px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+          >
+            <option value="">— Select a customer —</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
+            ))}
+          </select>
         </div>
-
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">To</label>
+          <Input placeholder="+1 (555) 000-0000" value={textTo} onChange={(e) => setTextTo(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
+          <textarea value={textBody} onChange={(e) => setTextBody(e.target.value)}
+            placeholder="Type your message…" rows={4}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
+          <p className="text-xs text-muted-foreground mt-1 text-right">{textBody.length} chars</p>
+        </div>
+        {textError && <p className="text-sm text-red-500">{textError}</p>}
         <div className="flex gap-2 justify-end pt-1">
           <Button variant="outline" onClick={() => setTextModalOpen(false)}>Cancel</Button>
           <Button onClick={handleSendText} disabled={sendingText} className="gap-2">
@@ -513,46 +638,30 @@ export default function CommunicationsPage() {
           </Button>
         </div>
       </div>
-    </div>,
+    )),
     document.body,
   )
 
   const addCustModal = addCustOpen && mounted && createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setAddCustOpen(false)} />
-      <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Add Customer</h2>
-          <button onClick={() => setAddCustOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
-            <X className="w-4 h-4" />
-          </button>
+    dialogShell('Add Customer', () => setAddCustOpen(false), (
+      <div className="space-y-3">
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Phone</label>
+          <Input value={addCustPhone} readOnly className="bg-muted/40 text-muted-foreground" />
         </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Phone</label>
-            <Input value={addCustPhone} readOnly className="bg-muted/40 text-muted-foreground" />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Name <span className="text-red-500">*</span></label>
-            <Input
-              placeholder="Full name"
-              value={addCustName}
-              onChange={(e) => setAddCustName(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
-            <Input placeholder="email@example.com" value={addCustEmail} onChange={(e) => setAddCustEmail(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-foreground mb-1.5 block">Address</label>
-            <Input placeholder="123 Main St" value={addCustAddress} onChange={(e) => setAddCustAddress(e.target.value)} />
-          </div>
-          {addCustError && <p className="text-sm text-red-500">{addCustError}</p>}
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Name <span className="text-red-500">*</span></label>
+          <Input placeholder="Full name" value={addCustName} onChange={(e) => setAddCustName(e.target.value)} autoFocus />
         </div>
-
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+          <Input placeholder="email@example.com" value={addCustEmail} onChange={(e) => setAddCustEmail(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Address</label>
+          <Input placeholder="123 Main St" value={addCustAddress} onChange={(e) => setAddCustAddress(e.target.value)} />
+        </div>
+        {addCustError && <p className="text-sm text-red-500">{addCustError}</p>}
         <div className="flex gap-2 justify-end pt-1">
           <Button variant="outline" onClick={() => setAddCustOpen(false)}>Cancel</Button>
           <Button onClick={handleAddCustomer} disabled={addCustSaving} className="gap-2">
@@ -561,7 +670,124 @@ export default function CommunicationsPage() {
           </Button>
         </div>
       </div>
-    </div>,
+    )),
+    document.body,
+  )
+
+  const msgModal = msgOpen && mounted && createPortal(
+    dialogShell('Send a Text', () => setMsgOpen(false), (
+      purchasedNumbers.length === 0 ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">You need a phone number to send texts.</p>
+          <Button variant="outline" className="w-full" onClick={() => { setMsgOpen(false); setTab('phone-numbers') }}>
+            Buy a number in Phone Numbers tab
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">To</label>
+            <RecipientPicker customers={customers} value={msgTo} onChange={(v) => setMsgTo(v)} mode="phone" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Send from</label>
+            <select
+              value={msgFrom} onChange={(e) => setMsgFrom(e.target.value)}
+              className="w-full border border-border rounded-[12px] px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+            >
+              {purchasedNumbers.map((n) => (
+                <option key={n.id} value={n.phone_number}>{n.friendly_name ?? n.phone_number}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
+            <textarea value={msgBody} onChange={(e) => setMsgBody(e.target.value)}
+              placeholder="Type your message…" rows={4}
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+            />
+            <p className="text-xs text-muted-foreground mt-1 text-right">{msgBody.length} chars</p>
+          </div>
+          {msgError && <p className="text-sm text-red-500">{msgError}</p>}
+          <div className="flex gap-2 justify-end pt-1">
+            <Button variant="outline" onClick={() => setMsgOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendMsg} disabled={msgSending} className="gap-2">
+              {msgSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {msgSending ? 'Sending…' : 'Send'}
+            </Button>
+          </div>
+        </div>
+      )
+    )),
+    document.body,
+  )
+
+  const emailModal = emailOpen && mounted && createPortal(
+    dialogShell('Send an Email', () => setEmailOpen(false), (
+      <div className="space-y-3">
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">To</label>
+          <RecipientPicker customers={customers} value={emailTo} onChange={(v) => setEmailTo(v)} mode="email" />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Subject</label>
+          <Input placeholder="Subject line" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
+          <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)}
+            placeholder="Type your message…" rows={5}
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          />
+        </div>
+        {emailError && <p className="text-sm text-red-500">{emailError}</p>}
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="outline" onClick={() => setEmailOpen(false)}>Cancel</Button>
+          <Button onClick={handleSendEmail} disabled={emailSending} className="gap-2">
+            {emailSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+            {emailSending ? 'Sending…' : 'Send'}
+          </Button>
+        </div>
+      </div>
+    )),
+    document.body,
+  )
+
+  const callModal = callDialogOpen && mounted && createPortal(
+    dialogShell('Make a Call', () => setCallDialogOpen(false), (
+      purchasedNumbers.length === 0 ? (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">You need a phone number to make calls.</p>
+          <Button variant="outline" className="w-full" onClick={() => { setCallDialogOpen(false); setTab('phone-numbers') }}>
+            Buy a number in Phone Numbers tab
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Call</label>
+            <RecipientPicker customers={customers} value={callDialogTo} onChange={(v) => setCallDialogTo(v)} mode="phone" />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Call from</label>
+            <select
+              value={callDialogFrom} onChange={(e) => setCallDialogFrom(e.target.value)}
+              className="w-full border border-border rounded-[12px] px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50"
+            >
+              {purchasedNumbers.map((n) => (
+                <option key={n.id} value={n.phone_number}>{n.friendly_name ?? n.phone_number}</option>
+              ))}
+            </select>
+          </div>
+          <div className="p-3 bg-muted/40 rounded-lg text-sm text-muted-foreground">
+            Browser-based calling is coming soon. Use your Twilio number from any phone or SIP client to call this number.
+          </div>
+          <div className="flex gap-2 justify-end pt-1">
+            <Button variant="outline" onClick={() => setCallDialogOpen(false)}>Close</Button>
+          </div>
+        </div>
+      )
+    )),
     document.body,
   )
 
@@ -571,20 +797,65 @@ export default function CommunicationsPage() {
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
       {textModal}
       {addCustModal}
+      {msgModal}
+      {emailModal}
+      {callModal}
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Communications</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Calls, texts and phone numbers in one place</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Communications</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Calls, texts and phone numbers in one place</p>
+        </div>
+        {/* Quick action buttons */}
+        <div className="flex gap-2 shrink-0 mt-0.5">
+          {/* Text */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={openMsgDialog}
+              className="w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:bg-primary hover:border-primary hover:text-primary-foreground"
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+            <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-foreground text-background rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              Text
+            </span>
+          </div>
+          {/* Email */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={openEmailDialog}
+              className="w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:bg-primary hover:border-primary hover:text-primary-foreground"
+            >
+              <Mail className="w-4 h-4" />
+            </button>
+            <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-foreground text-background rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              Email
+            </span>
+          </div>
+          {/* Call */}
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={() => openCallDialog()}
+              className="w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground transition-colors hover:bg-primary hover:border-primary hover:text-primary-foreground"
+            >
+              <Phone className="w-4 h-4" />
+            </button>
+            <span className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-xs bg-foreground text-background rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              Call
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Pill tabs */}
       <div className="flex gap-1.5 flex-wrap">
         {tabs.map((t) => (
           <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
+            key={t.id} type="button" onClick={() => setTab(t.id)}
             className={cn(
               'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
               tab === t.id
@@ -602,24 +873,13 @@ export default function CommunicationsPage() {
         <Card>
           {/* Toolbar */}
           <div className="p-4 border-b border-border flex flex-wrap gap-3 items-center">
-            {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              <Input
-                placeholder="Search calls…"
-                value={callSearch}
-                onChange={(e) => setCallSearch(e.target.value)}
-                className="pl-8"
-              />
+              <Input placeholder="Search calls…" value={callSearch} onChange={(e) => setCallSearch(e.target.value)} className="pl-8" />
             </div>
-
-            {/* Filter pills */}
             <div className="flex gap-1 flex-wrap">
               {filterPills.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setCallFilter(f.id)}
+                <button key={f.id} type="button" onClick={() => setCallFilter(f.id)}
                   className={cn(
                     'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
                     callFilter === f.id
@@ -631,11 +891,8 @@ export default function CommunicationsPage() {
                 </button>
               ))}
             </div>
-
-            {/* Date range */}
             <select
-              value={callDateRange}
-              onChange={(e) => setCallDateRange(e.target.value)}
+              value={callDateRange} onChange={(e) => setCallDateRange(e.target.value)}
               className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50 text-foreground"
             >
               <option value="all">All time</option>
@@ -643,15 +900,9 @@ export default function CommunicationsPage() {
               <option value="7d">Last 7 days</option>
               <option value="30d">Last 30 days</option>
             </select>
-
-            {/* Export */}
             {filteredCalls.length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 ml-auto"
-                onClick={() => exportCsv(filteredCalls, customers, orgNumberSet)}
-              >
+              <Button size="sm" variant="outline" className="gap-1.5 ml-auto"
+                onClick={() => exportCsv(filteredCalls, customers, orgNumberSet)}>
                 <Download className="w-3.5 h-3.5" />
                 Export CSV
               </Button>
@@ -699,27 +950,18 @@ export default function CommunicationsPage() {
                       const missed = isMissed(call.status) && dir === 'inbound'
                       const callerNum = getCallerNumber(call, dir)
                       const bizLine = getBusinessLine(call, dir)
-                      const bizLabel = purchasedNumbers.find(
-                        (n) => normalizePhone(n.phone_number) === normalizePhone(bizLine)
-                      )
-                      const matched = customers.find(
-                        (cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum)
-                      )
-
+                      const bizLabel = purchasedNumbers.find((n) => normalizePhone(n.phone_number) === normalizePhone(bizLine))
+                      const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
                       return (
-                        <tr
-                          key={call.sid}
-                          className={cn(
-                            'border-b border-border last:border-0 hover:bg-muted/20 transition-colors',
-                            missed && 'bg-red-50/60 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/30'
-                          )}
-                        >
-                          {/* Status icon */}
+                        <tr key={call.sid} className={cn(
+                          'border-b border-border last:border-0 hover:bg-muted/20 transition-colors',
+                          missed && 'bg-red-50/60 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/30'
+                        )}>
                           <td className="px-4 py-3">
                             <div className={cn(
                               'w-7 h-7 rounded-full flex items-center justify-center',
-                              missed        ? 'bg-red-100 dark:bg-red-900/40'
-                              : dir === 'inbound'  ? 'bg-green-100 dark:bg-green-900/40'
+                              missed ? 'bg-red-100 dark:bg-red-900/40'
+                              : dir === 'inbound' ? 'bg-green-100 dark:bg-green-900/40'
                               : 'bg-blue-100 dark:bg-blue-900/40'
                             )}>
                               {missed
@@ -730,8 +972,6 @@ export default function CommunicationsPage() {
                               }
                             </div>
                           </td>
-
-                          {/* Contact */}
                           <td className="px-4 py-3">
                             {matched ? (
                               <div>
@@ -746,43 +986,27 @@ export default function CommunicationsPage() {
                                     New caller
                                   </span>
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-xs px-2"
-                                  onClick={() => openAddCust(callerNum)}
-                                >
+                                <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openAddCust(callerNum)}>
                                   Add customer
                                 </Button>
                               </div>
                             )}
                           </td>
-
-                          {/* Time & Duration */}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <p className="text-foreground">{call.startTime ? fmtCallTime(call.startTime) : '—'}</p>
                             <p className="text-xs text-muted-foreground">
-                              {missed ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
-                                  Missed
-                                </span>
-                              ) : fmtDuration(call.duration)}
+                              {missed
+                                ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Missed</span>
+                                : fmtDuration(call.duration)
+                              }
                             </p>
                           </td>
-
-                          {/* Business line */}
                           <td className="px-4 py-3">
-                            <p className="text-sm text-foreground">
-                              {bizLabel?.friendly_name ?? bizLabel?.phone_number ?? bizLine}
-                            </p>
+                            <p className="text-sm text-foreground">{bizLabel?.friendly_name ?? bizLabel?.phone_number ?? bizLine}</p>
                           </td>
-
-                          {/* Quick action */}
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              title="Call back"
-                              onClick={() => toast.info('Browser calling coming soon. Use your Twilio number to call back.')}
+                            <button type="button" title="Call back"
+                              onClick={() => openCallDialog(callerNum)}
                               className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
                             >
                               <PhoneCall className="w-3.5 h-3.5" />
@@ -802,34 +1026,20 @@ export default function CommunicationsPage() {
                   const missed = isMissed(call.status) && dir === 'inbound'
                   const callerNum = getCallerNumber(call, dir)
                   const bizLine = getBusinessLine(call, dir)
-                  const bizLabel = purchasedNumbers.find(
-                    (n) => normalizePhone(n.phone_number) === normalizePhone(bizLine)
-                  )
-                  const matched = customers.find(
-                    (cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum)
-                  )
-
+                  const bizLabel = purchasedNumbers.find((n) => normalizePhone(n.phone_number) === normalizePhone(bizLine))
+                  const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
                   return (
-                    <div
-                      key={call.sid}
-                      className={cn(
-                        'p-4 space-y-2',
-                        missed && 'bg-red-50/60 dark:bg-red-950/20'
-                      )}
-                    >
+                    <div key={call.sid} className={cn('p-4 space-y-2', missed && 'bg-red-50/60 dark:bg-red-950/20')}>
                       <div className="flex items-start gap-3">
                         <div className={cn(
                           'w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5',
-                          missed        ? 'bg-red-100 dark:bg-red-900/40'
-                          : dir === 'inbound'  ? 'bg-green-100 dark:bg-green-900/40'
+                          missed ? 'bg-red-100 dark:bg-red-900/40'
+                          : dir === 'inbound' ? 'bg-green-100 dark:bg-green-900/40'
                           : 'bg-blue-100 dark:bg-blue-900/40'
                         )}>
-                          {missed
-                            ? <PhoneMissed className="w-4 h-4 text-red-600 dark:text-red-400" />
-                            : dir === 'inbound'
-                            ? <PhoneIncoming className="w-4 h-4 text-green-600 dark:text-green-400" />
-                            : <PhoneOutgoing className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          }
+                          {missed ? <PhoneMissed className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            : dir === 'inbound' ? <PhoneIncoming className="w-4 h-4 text-green-600 dark:text-green-400" />
+                            : <PhoneOutgoing className="w-4 h-4 text-blue-600 dark:text-blue-400" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           {matched ? (
@@ -840,31 +1050,22 @@ export default function CommunicationsPage() {
                           ) : (
                             <div>
                               <p className="font-mono text-sm text-foreground">{callerNum}</p>
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                                New caller
-                              </span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">New caller</span>
                             </div>
                           )}
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
                             <span>{call.startTime ? fmtCallTime(call.startTime) : '—'}</span>
-                            {missed
-                              ? <span className="text-red-600 dark:text-red-400 font-medium">Missed</span>
-                              : <span>{fmtDuration(call.duration)}</span>
-                            }
+                            {missed ? <span className="text-red-600 dark:text-red-400 font-medium">Missed</span>
+                              : <span>{fmtDuration(call.duration)}</span>}
                             <span>{bizLabel?.friendly_name ?? bizLabel?.phone_number ?? bizLine}</span>
                           </div>
                         </div>
                         <div className="flex gap-2 items-center">
                           {!matched && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openAddCust(callerNum)}>
-                              Add
-                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openAddCust(callerNum)}>Add</Button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => toast.info('Browser calling coming soon.')}
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
-                          >
+                          <button type="button" onClick={() => openCallDialog(callerNum)}
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                             <PhoneCall className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -881,22 +1082,12 @@ export default function CommunicationsPage() {
                     {((callPage - 1) * PAGE_SIZE) + 1}–{Math.min(callPage * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}
                   </p>
                   <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={callPage === 1}
-                      onClick={() => setCallPage((p) => p - 1)}
-                      className="h-8 w-8 p-0"
-                    >
+                    <Button size="sm" variant="outline" disabled={callPage === 1}
+                      onClick={() => setCallPage((p) => p - 1)} className="h-8 w-8 p-0">
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={callPage === totalPages}
-                      onClick={() => setCallPage((p) => p + 1)}
-                      className="h-8 w-8 p-0"
-                    >
+                    <Button size="sm" variant="outline" disabled={callPage === totalPages}
+                      onClick={() => setCallPage((p) => p + 1)} className="h-8 w-8 p-0">
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
@@ -911,16 +1102,13 @@ export default function CommunicationsPage() {
       {tab === 'phone-numbers' && (
         <Card>
           <div className="p-6 space-y-6">
-            {/* Search */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Search available numbers</h3>
               <div className="flex gap-2 max-w-sm">
                 <Input
-                  placeholder="Area code (e.g. 415)"
-                  value={areaCode}
+                  placeholder="Area code (e.g. 415)" value={areaCode}
                   onChange={(e) => { setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3)); setSearchError(''); setSearchResults([]) }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  maxLength={3}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()} maxLength={3}
                 />
                 <Button onClick={handleSearch} disabled={searching} className="gap-2 shrink-0">
                   {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -929,7 +1117,6 @@ export default function CommunicationsPage() {
               </div>
               {searchError && <p className="text-sm text-red-500 mt-2">{searchError}</p>}
             </div>
-
             {searchResults.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-3">Available numbers</h3>
@@ -940,12 +1127,7 @@ export default function CommunicationsPage() {
                         <p className="text-sm font-medium">{n.friendlyName}</p>
                         <p className="text-xs text-muted-foreground font-mono">{n.phoneNumber}</p>
                       </div>
-                      <Button
-                        size="sm"
-                        disabled={buying === n.phoneNumber}
-                        onClick={() => handleBuy(n.phoneNumber)}
-                        className="gap-1.5"
-                      >
+                      <Button size="sm" disabled={buying === n.phoneNumber} onClick={() => handleBuy(n.phoneNumber)} className="gap-1.5">
                         {buying === n.phoneNumber && <Loader2 className="w-3 h-3 animate-spin" />}
                         Buy
                       </Button>
@@ -954,7 +1136,6 @@ export default function CommunicationsPage() {
                 </div>
               </div>
             )}
-
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Your numbers</h3>
               {purchasedNumbers.length === 0 ? (
@@ -971,13 +1152,8 @@ export default function CommunicationsPage() {
                         <p className="text-xs text-muted-foreground font-mono">{num.phone_number}</p>
                         <p className="text-xs text-muted-foreground">Added {fmtDate(num.created_at)}</p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={releasing === num.id}
-                        onClick={() => handleRelease(num)}
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
+                      <Button size="sm" variant="ghost" disabled={releasing === num.id} onClick={() => handleRelease(num)}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
                         {releasing === num.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Release'}
                       </Button>
                     </div>
@@ -999,7 +1175,6 @@ export default function CommunicationsPage() {
               Send a Text
             </Button>
           </div>
-
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1024,9 +1199,7 @@ export default function CommunicationsPage() {
                     <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(msg.created_at)}</td>
                     <td className="px-6 py-3">{msg.customer_name ?? <span className="text-muted-foreground">—</span>}</td>
                     <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{msg.to_number}</td>
-                    <td className="px-6 py-3 max-w-xs">
-                      <p className="truncate text-foreground">{msg.body}</p>
-                    </td>
+                    <td className="px-6 py-3 max-w-xs"><p className="truncate text-foreground">{msg.body}</p></td>
                     <td className="px-6 py-3">
                       <span className={cn(
                         'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',

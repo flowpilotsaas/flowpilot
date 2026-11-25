@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { to, body, customerId, customerName } = await req.json()
+    const { to, body, customerId, customerName, from: fromParam } = await req.json()
     if (!to || !body?.trim()) {
       return Response.json({ error: 'to and body are required.' }, { status: 400 })
     }
@@ -42,15 +42,18 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: `Invalid phone number: ${to}` }, { status: 400 })
     }
 
+    const fromNumber = fromParam ?? process.env.TWILIO_PHONE_NUMBER
+    if (!fromNumber) {
+      return Response.json({ error: 'No sending number available.' }, { status: 400 })
+    }
+
     const twilio = (await import('twilio')).default
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     const msg = await client.messages.create({
-      from: process.env.TWILIO_PHONE_NUMBER,
+      from: fromNumber,
       to:   normalized,
       body: body.trim(),
     })
-
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER
     await supabase.from('text_messages').insert({
       user_id:         user.id,
       organization_id: membership.organization_id,
