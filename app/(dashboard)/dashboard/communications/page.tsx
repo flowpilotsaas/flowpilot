@@ -7,7 +7,11 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Phone, PhoneCall, MessageSquare, Search, Loader2, X, Send } from 'lucide-react'
+import {
+  Phone, MessageSquare, Search, Loader2, X, Send,
+  PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneCall,
+  Download, ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -45,6 +49,8 @@ type TwilioCall = {
 
 type Customer = { id: string; name: string; phone: string | null }
 
+type CallFilter = 'all' | 'missed' | 'answered' | 'outbound' | 'new-callers'
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string) {
@@ -53,23 +59,78 @@ function fmtDate(iso: string) {
   })
 }
 
-function fmtDuration(seconds: string) {
-  const s = parseInt(seconds, 10)
-  if (!s) return '0s'
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  return m ? `${m}m ${r}s` : `${r}s`
+function fmtCallTime(iso: string) {
+  const d = new Date(iso)
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
+  const isYesterday = new Date(now.getTime() - 86400000).toDateString() === d.toDateString()
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  if (isToday) return `Today ${time}`
+  if (isYesterday) return `Yesterday ${time}`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time
 }
 
-const CALL_STATUS_STYLE: Record<string, string> = {
-  completed:  'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  'no-answer': 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500',
-  busy:       'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  failed:     'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  canceled:   'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+function fmtDuration(seconds: string) {
+  const s = parseInt(seconds, 10)
+  if (!s) return '< 1s'
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  if (m === 0) return `${r}s`
+  if (r === 0) return `${m} min`
+  return `${m} min ${r}s`
+}
+
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  return digits.slice(-10)
+}
+
+function isMissed(status: string): boolean {
+  return ['no-answer', 'busy', 'failed', 'canceled'].includes(status)
+}
+
+function getDirection(call: TwilioCall, orgNumbers: Set<string>): 'inbound' | 'outbound' {
+  const toNorm = normalizePhone(call.to)
+  return orgNumbers.has(toNorm) ? 'inbound' : 'outbound'
+}
+
+function getCallerNumber(call: TwilioCall, direction: 'inbound' | 'outbound'): string {
+  return direction === 'inbound' ? call.from : call.to
+}
+
+function getBusinessLine(call: TwilioCall, direction: 'inbound' | 'outbound'): string {
+  return direction === 'inbound' ? call.to : call.from
+}
+
+function exportCsv(calls: TwilioCall[], customers: Customer[], orgNumbers: Set<string>) {
+  const rows = [['Status', 'Direction', 'Contact', 'Number', 'Business Line', 'Time', 'Duration']]
+  for (const c of calls) {
+    const dir = getDirection(c, orgNumbers)
+    const callerNum = getCallerNumber(c, dir)
+    const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
+    rows.push([
+      c.status,
+      dir,
+      matched?.name ?? '',
+      callerNum,
+      getBusinessLine(c, dir),
+      c.startTime ? fmtDate(c.startTime) : '',
+      fmtDuration(c.duration),
+    ])
+  }
+  const csv = rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `calls-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 25
 
 export default function CommunicationsPage() {
   const [tab, setTab] = React.useState<Tab>('calls')
@@ -113,9 +174,25 @@ export default function CommunicationsPage() {
   const [calls, setCalls]                     = React.useState<TwilioCall[]>([])
   const [loadingCalls, setLoadingCalls]       = React.useState(false)
   const [callsError, setCallsError]           = React.useState('')
+  const [callSearch, setCallSearch]           = React.useState('')
+  const [callFilter, setCallFilter]           = React.useState<CallFilter>('all')
+  const [callDateRange, setCallDateRange]     = React.useState('all')
+  const [callPage, setCallPage]               = React.useState(1)
 
-  // ── Quick Call ───────────────────────────────────────────────────────────
-  const [quickCallOpen, setQuickCallOpen]     = React.useState(false)
+  // ── Add customer dialog ──────────────────────────────────────────────────
+  const [addCustOpen, setAddCustOpen]         = React.useState(false)
+  const [addCustPhone, setAddCustPhone]       = React.useState('')
+  const [addCustName, setAddCustName]         = React.useState('')
+  const [addCustEmail, setAddCustEmail]       = React.useState('')
+  const [addCustAddress, setAddCustAddress]   = React.useState('')
+  const [addCustSaving, setAddCustSaving]     = React.useState(false)
+  const [addCustError, setAddCustError]       = React.useState('')
+
+  // ── Derived: org phone number set ────────────────────────────────────────
+  const orgNumberSet = React.useMemo(
+    () => new Set(purchasedNumbers.map((n) => normalizePhone(n.phone_number))),
+    [purchasedNumbers],
+  )
 
   // ── Data loading ─────────────────────────────────────────────────────────
 
@@ -277,12 +354,110 @@ export default function CommunicationsPage() {
     }
   }
 
+  // ── Add customer handler ──────────────────────────────────────────────────
+
+  const openAddCust = (phone: string) => {
+    setAddCustPhone(phone)
+    setAddCustName('')
+    setAddCustEmail('')
+    setAddCustAddress('')
+    setAddCustError('')
+    setAddCustOpen(true)
+  }
+
+  const handleAddCustomer = async () => {
+    if (!addCustName.trim()) { setAddCustError('Name is required.'); return }
+    setAddCustSaving(true)
+    setAddCustError('')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !orgId) throw new Error('Not authenticated.')
+      const { error } = await supabase.from('customers').insert({
+        name: addCustName.trim(),
+        email: addCustEmail.trim() || null,
+        phone: addCustPhone,
+        address: addCustAddress.trim() || null,
+        user_id: user.id,
+        organization_id: orgId,
+      })
+      if (error) throw new Error(error.message)
+      await fetchCustomers()
+      setAddCustOpen(false)
+      toast.success('Customer created')
+    } catch (err) {
+      setAddCustError((err as Error).message)
+    } finally {
+      setAddCustSaving(false)
+    }
+  }
+
+  // ── Calls filtering ───────────────────────────────────────────────────────
+
+  const filteredCalls = React.useMemo(() => {
+    let list = calls
+
+    // date range
+    if (callDateRange !== 'all') {
+      const now = Date.now()
+      const ms = callDateRange === 'today'
+        ? 86400000
+        : callDateRange === '7d'
+        ? 7 * 86400000
+        : 30 * 86400000
+      list = list.filter((c) => c.startTime && now - new Date(c.startTime).getTime() < ms)
+    }
+
+    // status filter
+    if (callFilter !== 'all') {
+      list = list.filter((c) => {
+        const dir = getDirection(c, orgNumberSet)
+        if (callFilter === 'missed')    return isMissed(c.status) && dir === 'inbound'
+        if (callFilter === 'answered')  return c.status === 'completed'
+        if (callFilter === 'outbound')  return dir === 'outbound'
+        if (callFilter === 'new-callers') {
+          const callerNum = getCallerNumber(c, dir)
+          return !customers.some((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
+        }
+        return true
+      })
+    }
+
+    // search
+    if (callSearch.trim()) {
+      const q = callSearch.toLowerCase()
+      list = list.filter((c) => {
+        const dir = getDirection(c, orgNumberSet)
+        const callerNum = getCallerNumber(c, dir)
+        const matched = customers.find((cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum))
+        return (
+          callerNum.toLowerCase().includes(q) ||
+          (matched?.name.toLowerCase().includes(q) ?? false)
+        )
+      })
+    }
+
+    return list
+  }, [calls, callFilter, callDateRange, callSearch, customers, orgNumberSet])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCalls.length / PAGE_SIZE))
+  const pagedCalls = filteredCalls.slice((callPage - 1) * PAGE_SIZE, callPage * PAGE_SIZE)
+
+  React.useEffect(() => { setCallPage(1) }, [callFilter, callDateRange, callSearch])
+
   // ── Tabs ─────────────────────────────────────────────────────────────────
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'calls',         label: 'Calls' },
     { id: 'phone-numbers', label: 'Phone Numbers' },
     { id: 'texting',       label: 'Texting' },
+  ]
+
+  const filterPills: { id: CallFilter; label: string }[] = [
+    { id: 'all',          label: 'All' },
+    { id: 'missed',       label: 'Missed' },
+    { id: 'answered',     label: 'Answered' },
+    { id: 'outbound',     label: 'Outbound' },
+    { id: 'new-callers',  label: 'New callers' },
   ]
 
   // ── Modals ────────────────────────────────────────────────────────────────
@@ -312,16 +487,10 @@ export default function CommunicationsPage() {
               ))}
             </select>
           </div>
-
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">To</label>
-            <Input
-              placeholder="+1 (555) 000-0000"
-              value={textTo}
-              onChange={(e) => setTextTo(e.target.value)}
-            />
+            <Input placeholder="+1 (555) 000-0000" value={textTo} onChange={(e) => setTextTo(e.target.value)} />
           </div>
-
           <div>
             <label className="text-sm font-medium text-foreground mb-1.5 block">Message</label>
             <textarea
@@ -333,7 +502,6 @@ export default function CommunicationsPage() {
             />
             <p className="text-xs text-muted-foreground mt-1 text-right">{textBody.length} chars</p>
           </div>
-
           {textError && <p className="text-sm text-red-500">{textError}</p>}
         </div>
 
@@ -349,34 +517,49 @@ export default function CommunicationsPage() {
     document.body,
   )
 
-  const quickCallModal = quickCallOpen && mounted && createPortal(
+  const addCustModal = addCustOpen && mounted && createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setQuickCallOpen(false)} />
-      <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
+      <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setAddCustOpen(false)} />
+      <div className="relative bg-background border border-border rounded-xl shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Quick Call</h2>
-          <button onClick={() => setQuickCallOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+          <h2 className="text-base font-semibold">Add Customer</h2>
+          <button onClick={() => setAddCustOpen(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-lg">
-          <div className="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center shrink-0">
-            <Phone className="w-5 h-5 text-green-500" />
+        <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Phone</label>
+            <Input value={addCustPhone} readOnly className="bg-muted/40 text-muted-foreground" />
           </div>
           <div>
-            <p className="text-sm font-medium">To make calls, dial from your Twilio number:</p>
-            <p className="text-base font-semibold mt-0.5">
-              {purchasedNumbers[0]?.friendly_name ?? purchasedNumbers[0]?.phone_number ?? 'No number purchased yet'}
-            </p>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Name <span className="text-red-500">*</span></label>
+            <Input
+              placeholder="Full name"
+              value={addCustName}
+              onChange={(e) => setAddCustName(e.target.value)}
+              autoFocus
+            />
           </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Email</label>
+            <Input placeholder="email@example.com" value={addCustEmail} onChange={(e) => setAddCustEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-foreground mb-1.5 block">Address</label>
+            <Input placeholder="123 Main St" value={addCustAddress} onChange={(e) => setAddCustAddress(e.target.value)} />
+          </div>
+          {addCustError && <p className="text-sm text-red-500">{addCustError}</p>}
         </div>
 
-        <p className="text-sm text-muted-foreground">
-          Browser-based calling with the Twilio Voice SDK will be available in a future update. For now, use your Twilio number from any phone or SIP client.
-        </p>
-
-        <Button variant="outline" className="w-full" onClick={() => setQuickCallOpen(false)}>Close</Button>
+        <div className="flex gap-2 justify-end pt-1">
+          <Button variant="outline" onClick={() => setAddCustOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddCustomer} disabled={addCustSaving} className="gap-2">
+            {addCustSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+            Save Customer
+          </Button>
+        </div>
       </div>
     </div>,
     document.body,
@@ -385,117 +568,348 @@ export default function CommunicationsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
       {textModal}
-      {quickCallModal}
+      {addCustModal}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Communications</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Messaging and calling for your team</p>
-        </div>
-        <Button className="gap-2" onClick={() => setQuickCallOpen(true)}>
-          <PhoneCall className="w-4 h-4" />
-          Quick Call
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold text-foreground">Communications</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Calls, texts and phone numbers in one place</p>
       </div>
 
-      {/* Info card */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-              <Phone className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-foreground">Messaging &amp; calling</p>
-              <p className="text-sm text-muted-foreground">Make calls, send texts, and manage your phone numbers all in one place.</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Pill tabs */}
+      <div className="flex gap-1.5 flex-wrap">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={cn(
+              'px-4 py-1.5 rounded-full text-sm font-medium transition-colors',
+              tab === t.id
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-background text-foreground border border-border hover:bg-muted/60'
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Tabs card */}
-      <Card className="overflow-hidden">
-        {/* Tab bar */}
-        <div className="flex border-b border-border">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'px-5 py-3 text-sm font-medium transition-colors border-b-2 -mb-px',
-                tab === t.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
+      {/* ── Calls tab ──────────────────────────────────────────────────────── */}
+      {tab === 'calls' && (
+        <Card>
+          {/* Toolbar */}
+          <div className="p-4 border-b border-border flex flex-wrap gap-3 items-center">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search calls…"
+                value={callSearch}
+                onChange={(e) => setCallSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+
+            {/* Filter pills */}
+            <div className="flex gap-1 flex-wrap">
+              {filterPills.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setCallFilter(f.id)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+                    callFilter === f.id
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground border-border hover:text-foreground hover:border-foreground/30'
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date range */}
+            <select
+              value={callDateRange}
+              onChange={(e) => setCallDateRange(e.target.value)}
+              className="border border-border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring/50 text-foreground"
             >
-              {t.label}
-            </button>
-          ))}
-        </div>
+              <option value="all">All time</option>
+              <option value="today">Today</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
 
-        {/* ── Calls tab ─────────────────────────────────────────────────── */}
-        {tab === 'calls' && (
-          <div>
-            {loadingCalls ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : callsError ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3">
-                <p className="text-sm text-red-500">{callsError}</p>
-                <Button variant="outline" size="sm" onClick={fetchCalls}>Retry</Button>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
+            {/* Export */}
+            {filteredCalls.length > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 ml-auto"
+                onClick={() => exportCsv(filteredCalls, customers, orgNumberSet)}
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </Button>
+            )}
+          </div>
+
+          {/* Table */}
+          {loadingCalls ? (
+            <div className="p-4 space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-14 bg-muted/40 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : callsError ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <p className="text-sm text-red-500">{callsError}</p>
+              <Button variant="outline" size="sm" onClick={fetchCalls}>Retry</Button>
+            </div>
+          ) : filteredCalls.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Phone className="w-10 h-10 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">
+                {calls.length === 0
+                  ? 'No calls yet. Calls to your business numbers will show up here.'
+                  : 'No calls match the current filters.'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
-                      {['Status', 'From', 'To', 'Time', 'Duration'].map((h) => (
-                        <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                      ))}
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground w-10" />
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Contact</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Time &amp; Duration</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground whitespace-nowrap">Business Line</th>
+                      <th className="px-4 py-3" />
                     </tr>
                   </thead>
                   <tbody>
-                    {calls.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-16 text-center">
-                          <div className="flex flex-col items-center gap-3">
-                            <Phone className="w-10 h-10 text-muted-foreground/30" />
-                            <p className="text-sm text-muted-foreground">No calls yet.</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : calls.map((call) => (
-                      <tr key={call.sid} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-3">
-                          <span className={cn(
-                            'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                            CALL_STATUS_STYLE[call.status] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                          )}>
-                            {call.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{call.from}</td>
-                        <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{call.to}</td>
-                        <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">
-                          {call.startTime ? fmtDate(call.startTime) : '—'}
-                        </td>
-                        <td className="px-6 py-3 text-muted-foreground">{fmtDuration(call.duration)}</td>
-                      </tr>
-                    ))}
+                    {pagedCalls.map((call) => {
+                      const dir = getDirection(call, orgNumberSet)
+                      const missed = isMissed(call.status) && dir === 'inbound'
+                      const callerNum = getCallerNumber(call, dir)
+                      const bizLine = getBusinessLine(call, dir)
+                      const bizLabel = purchasedNumbers.find(
+                        (n) => normalizePhone(n.phone_number) === normalizePhone(bizLine)
+                      )
+                      const matched = customers.find(
+                        (cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum)
+                      )
+
+                      return (
+                        <tr
+                          key={call.sid}
+                          className={cn(
+                            'border-b border-border last:border-0 hover:bg-muted/20 transition-colors',
+                            missed && 'bg-red-50/60 dark:bg-red-950/20 hover:bg-red-50 dark:hover:bg-red-950/30'
+                          )}
+                        >
+                          {/* Status icon */}
+                          <td className="px-4 py-3">
+                            <div className={cn(
+                              'w-7 h-7 rounded-full flex items-center justify-center',
+                              missed        ? 'bg-red-100 dark:bg-red-900/40'
+                              : dir === 'inbound'  ? 'bg-green-100 dark:bg-green-900/40'
+                              : 'bg-blue-100 dark:bg-blue-900/40'
+                            )}>
+                              {missed
+                                ? <PhoneMissed className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                                : dir === 'inbound'
+                                ? <PhoneIncoming className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                                : <PhoneOutgoing className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                              }
+                            </div>
+                          </td>
+
+                          {/* Contact */}
+                          <td className="px-4 py-3">
+                            {matched ? (
+                              <div>
+                                <p className="font-medium text-foreground">{matched.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{callerNum}</p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div>
+                                  <p className="font-mono text-sm text-foreground">{callerNum}</p>
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                    New caller
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => openAddCust(callerNum)}
+                                >
+                                  Add customer
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Time & Duration */}
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <p className="text-foreground">{call.startTime ? fmtCallTime(call.startTime) : '—'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {missed ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                                  Missed
+                                </span>
+                              ) : fmtDuration(call.duration)}
+                            </p>
+                          </td>
+
+                          {/* Business line */}
+                          <td className="px-4 py-3">
+                            <p className="text-sm text-foreground">
+                              {bizLabel?.friendly_name ?? bizLabel?.phone_number ?? bizLine}
+                            </p>
+                          </td>
+
+                          {/* Quick action */}
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              title="Call back"
+                              onClick={() => toast.info('Browser calling coming soon. Use your Twilio number to call back.')}
+                              className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ── Phone Numbers tab ──────────────────────────────────────────── */}
-        {tab === 'phone-numbers' && (
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y divide-border">
+                {pagedCalls.map((call) => {
+                  const dir = getDirection(call, orgNumberSet)
+                  const missed = isMissed(call.status) && dir === 'inbound'
+                  const callerNum = getCallerNumber(call, dir)
+                  const bizLine = getBusinessLine(call, dir)
+                  const bizLabel = purchasedNumbers.find(
+                    (n) => normalizePhone(n.phone_number) === normalizePhone(bizLine)
+                  )
+                  const matched = customers.find(
+                    (cu) => cu.phone && normalizePhone(cu.phone) === normalizePhone(callerNum)
+                  )
+
+                  return (
+                    <div
+                      key={call.sid}
+                      className={cn(
+                        'p-4 space-y-2',
+                        missed && 'bg-red-50/60 dark:bg-red-950/20'
+                      )}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          'w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5',
+                          missed        ? 'bg-red-100 dark:bg-red-900/40'
+                          : dir === 'inbound'  ? 'bg-green-100 dark:bg-green-900/40'
+                          : 'bg-blue-100 dark:bg-blue-900/40'
+                        )}>
+                          {missed
+                            ? <PhoneMissed className="w-4 h-4 text-red-600 dark:text-red-400" />
+                            : dir === 'inbound'
+                            ? <PhoneIncoming className="w-4 h-4 text-green-600 dark:text-green-400" />
+                            : <PhoneOutgoing className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          }
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {matched ? (
+                            <div>
+                              <p className="font-medium text-foreground">{matched.name}</p>
+                              <p className="text-xs text-muted-foreground font-mono">{callerNum}</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-mono text-sm text-foreground">{callerNum}</p>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                New caller
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+                            <span>{call.startTime ? fmtCallTime(call.startTime) : '—'}</span>
+                            {missed
+                              ? <span className="text-red-600 dark:text-red-400 font-medium">Missed</span>
+                              : <span>{fmtDuration(call.duration)}</span>
+                            }
+                            <span>{bizLabel?.friendly_name ?? bizLabel?.phone_number ?? bizLine}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 items-center">
+                          {!matched && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={() => openAddCust(callerNum)}>
+                              Add
+                            </Button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toast.info('Browser calling coming soon.')}
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    {((callPage - 1) * PAGE_SIZE) + 1}–{Math.min(callPage * PAGE_SIZE, filteredCalls.length)} of {filteredCalls.length}
+                  </p>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={callPage === 1}
+                      onClick={() => setCallPage((p) => p - 1)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={callPage === totalPages}
+                      onClick={() => setCallPage((p) => p + 1)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      )}
+
+      {/* ── Phone Numbers tab ──────────────────────────────────────────────── */}
+      {tab === 'phone-numbers' && (
+        <Card>
           <div className="p-6 space-y-6">
             {/* Search */}
             <div>
@@ -516,7 +930,6 @@ export default function CommunicationsPage() {
               {searchError && <p className="text-sm text-red-500 mt-2">{searchError}</p>}
             </div>
 
-            {/* Search results */}
             {searchResults.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-3">Available numbers</h3>
@@ -542,7 +955,6 @@ export default function CommunicationsPage() {
               </div>
             )}
 
-            {/* Purchased numbers */}
             <div>
               <h3 className="text-sm font-semibold text-foreground mb-3">Your numbers</h3>
               {purchasedNumbers.length === 0 ? (
@@ -574,64 +986,64 @@ export default function CommunicationsPage() {
               )}
             </div>
           </div>
-        )}
+        </Card>
+      )}
 
-        {/* ── Texting tab ────────────────────────────────────────────────── */}
-        {tab === 'texting' && (
-          <div>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-              <p className="text-sm text-muted-foreground">{textMessages.length} message{textMessages.length !== 1 ? 's' : ''}</p>
-              <Button size="sm" className="gap-2" onClick={() => { setTextModalOpen(true); setTextError('') }}>
-                <MessageSquare className="w-4 h-4" />
-                Send a Text
-              </Button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    {['Time', 'Customer', 'To', 'Message', 'Status'].map((h) => (
-                      <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {textMessages.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-16 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
-                          <p className="text-sm text-muted-foreground">No text messages yet.</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : textMessages.map((msg) => (
-                    <tr key={msg.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                      <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(msg.created_at)}</td>
-                      <td className="px-6 py-3">{msg.customer_name ?? <span className="text-muted-foreground">—</span>}</td>
-                      <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{msg.to_number}</td>
-                      <td className="px-6 py-3 max-w-xs">
-                        <p className="truncate text-foreground">{msg.body}</p>
-                      </td>
-                      <td className="px-6 py-3">
-                        <span className={cn(
-                          'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                          msg.status === 'delivered' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                          msg.status === 'failed'    ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                          'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                        )}>
-                          {msg.status ?? 'sent'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* ── Texting tab ────────────────────────────────────────────────────── */}
+      {tab === 'texting' && (
+        <Card>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <p className="text-sm text-muted-foreground">{textMessages.length} message{textMessages.length !== 1 ? 's' : ''}</p>
+            <Button size="sm" className="gap-2" onClick={() => { setTextModalOpen(true); setTextError('') }}>
+              <MessageSquare className="w-4 h-4" />
+              Send a Text
+            </Button>
           </div>
-        )}
-      </Card>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  {['Time', 'Customer', 'To', 'Message', 'Status'].map((h) => (
+                    <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {textMessages.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-16 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
+                        <p className="text-sm text-muted-foreground">No text messages yet.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : textMessages.map((msg) => (
+                  <tr key={msg.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(msg.created_at)}</td>
+                    <td className="px-6 py-3">{msg.customer_name ?? <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{msg.to_number}</td>
+                    <td className="px-6 py-3 max-w-xs">
+                      <p className="truncate text-foreground">{msg.body}</p>
+                    </td>
+                    <td className="px-6 py-3">
+                      <span className={cn(
+                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
+                        msg.status === 'delivered' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                        msg.status === 'failed'    ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                        'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                      )}>
+                        {msg.status ?? 'sent'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
