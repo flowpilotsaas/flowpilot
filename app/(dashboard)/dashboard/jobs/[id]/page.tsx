@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils'
 
 type JobStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Paid'
 
+type TeamMember = { user_id: string; email: string; role: string }
+
 type FullJob = {
   id: string
   user_id: string
@@ -38,6 +40,7 @@ type FullJob = {
   scheduled_date: string | null
   start_time: string | null
   end_time: string | null
+  assigned_to: string | null
   price: number | null
   created_at: string
   customers: {
@@ -54,6 +57,7 @@ type CustomerOption = { id: string; name: string }
 type FormData = {
   title: string
   customer_id: string
+  assigned_to: string
   status: JobStatus
   scheduled_date: string
   start_time: string
@@ -75,7 +79,7 @@ const STATUS_STYLES: Record<JobStatus, string> = {
 }
 
 const EMPTY_FORM: FormData = {
-  title: '', customer_id: '', status: 'Scheduled',
+  title: '', customer_id: '', assigned_to: '', status: 'Scheduled',
   scheduled_date: '', start_time: '', end_time: '',
   price: '', description: '', notes: '',
 }
@@ -131,6 +135,7 @@ export default function JobDetailPage() {
 
   const [job, setJob]           = React.useState<FullJob | null>(null)
   const [customers, setCustomers] = React.useState<CustomerOption[]>([])
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([])
   const [loading, setLoading]   = React.useState(true)
   const [notFound, setNotFound] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
@@ -145,7 +150,7 @@ export default function JobDetailPage() {
   // Payment modal
   const [payModalOpen, setPayModalOpen] = React.useState(false)
 
-  const { organizationId } = useOrganization()
+  const { organizationId, role } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
   const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
@@ -154,7 +159,7 @@ export default function JobDetailPage() {
   const loadJob = React.useCallback(async () => {
     if (!organizationId) return
 
-    const [jobRes, customersRes] = await Promise.all([
+    const [jobRes, customersRes, membersRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('*, customers(id, name, email, phone, address)')
@@ -166,6 +171,12 @@ export default function JobDetailPage() {
         .select('id, name')
         .eq('organization_id', organizationId)
         .order('name'),
+      supabase
+        .from('organization_members')
+        .select('user_id, email, role')
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .not('user_id', 'is', null),
     ])
 
     if (!jobRes.data) {
@@ -174,6 +185,7 @@ export default function JobDetailPage() {
       setJob(jobRes.data as FullJob)
     }
     if (customersRes.data) setCustomers(customersRes.data)
+    if (membersRes.data) setTeamMembers(membersRes.data as TeamMember[])
     setLoading(false)
   }, [id, organizationId])
 
@@ -220,6 +232,7 @@ export default function JobDetailPage() {
     setForm({
       title:          job.title,
       customer_id:    job.customer_id ?? '',
+      assigned_to:    job.assigned_to ?? '',
       status:         job.status,
       scheduled_date: job.scheduled_date ?? '',
       start_time:     job.start_time ?? '',
@@ -247,6 +260,7 @@ export default function JobDetailPage() {
     const payload = {
       title:          form.title.trim(),
       customer_id:    form.customer_id || null,
+      assigned_to:    form.assigned_to || null,
       status:         form.status,
       scheduled_date: form.scheduled_date || null,
       start_time:     form.start_time || null,
@@ -426,6 +440,23 @@ export default function JobDetailPage() {
                 value={`${fmtTime(job.start_time)} – ${fmtTime(job.end_time)}`}
               />
             )}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Technician</p>
+              {(role === 'owner' || role === 'admin') ? (
+                <InlineAssignSelect
+                  jobId={job.id}
+                  currentAssignedTo={job.assigned_to}
+                  teamMembers={teamMembers}
+                  onSaved={(uid) => setJob((prev) => prev ? { ...prev, assigned_to: uid } : prev)}
+                />
+              ) : (
+                <p className="text-sm text-foreground">
+                  {job.assigned_to
+                    ? (teamMembers.find((m) => m.user_id === job.assigned_to)?.email.split('@')[0] ?? '—')
+                    : <span className="text-muted-foreground/40">Unassigned</span>}
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -501,6 +532,19 @@ export default function JobDetailPage() {
               </NativeSelect>
             </Field>
 
+            {(role === 'owner' || role === 'admin') && (
+              <Field label="Assign Technician">
+                <NativeSelect value={form.assigned_to} onChange={setField('assigned_to')}>
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.email} · {m.role}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+
             <Field label="Status">
               <NativeSelect value={form.status} onChange={setField('status')}>
                 {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -562,6 +606,61 @@ export default function JobDetailPage() {
       </Sheet>
 
       <TrialExpiredModal open={trialModalOpen} onClose={() => setTrialModalOpen(false)} />
+    </div>
+  )
+}
+
+// ─── Inline assign select ─────────────────────────────────────────────────────
+
+function InlineAssignSelect({
+  jobId,
+  currentAssignedTo,
+  teamMembers,
+  onSaved,
+}: {
+  jobId: string
+  currentAssignedTo: string | null
+  teamMembers: TeamMember[]
+  onSaved: (uid: string | null) => void
+}) {
+  const [value, setValue] = React.useState(currentAssignedTo ?? '')
+  const [saving, setSaving] = React.useState(false)
+
+  React.useEffect(() => { setValue(currentAssignedTo ?? '') }, [currentAssignedTo])
+
+  const dirty = value !== (currentAssignedTo ?? '')
+
+  const save = async () => {
+    setSaving(true)
+    await supabase.from('jobs').update({ assigned_to: value || null }).eq('id', jobId)
+    onSaved(value || null)
+    setSaving(false)
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="h-8 rounded-md border border-input bg-transparent px-2 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 cursor-pointer"
+      >
+        <option value="">Unassigned</option>
+        {teamMembers.map((m) => (
+          <option key={m.user_id} value={m.user_id}>
+            {m.email.split('@')[0]} · {m.role}
+          </option>
+        ))}
+      </select>
+      {dirty && (
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
+        </button>
+      )}
     </div>
   )
 }

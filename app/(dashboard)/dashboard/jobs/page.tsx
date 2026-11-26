@@ -26,6 +26,8 @@ import { toast } from 'sonner'
 
 type JobStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Paid'
 
+type TeamMember = { user_id: string; email: string; role: string }
+
 type Job = {
   id: string
   user_id: string
@@ -37,6 +39,7 @@ type Job = {
   notes: string | null
   status: JobStatus
   scheduled_date: string | null
+  assigned_to: string | null
   price: number | null
   created_at: string
   customers?: { name: string; email: string | null; phone: string | null } | null
@@ -50,6 +53,7 @@ type Customer = {
 type FormData = {
   title: string
   customer_id: string
+  assigned_to: string
   status: JobStatus
   scheduled_date: string
   price: string
@@ -67,6 +71,7 @@ const STATUSES: JobStatus[] = ['Scheduled', 'In Progress', 'Completed']
 const EMPTY_FORM: FormData = {
   title: '',
   customer_id: '',
+  assigned_to: '',
   status: 'Scheduled',
   scheduled_date: '',
   price: '',
@@ -116,6 +121,7 @@ function fmtJobNumber(num: number | null | undefined, createdAt: string): string
 export default function JobsPage() {
   const [jobs, setJobs] = React.useState<Job[]>([])
   const [customers, setCustomers] = React.useState<Customer[]>([])
+  const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([])
   const [loading, setLoading] = React.useState(true)
   const [search, setSearch] = React.useState('')
 
@@ -133,7 +139,7 @@ export default function JobsPage() {
   const [payModalJob, setPayModalJob] = React.useState<Job | null>(null)
   const [notificationWarning, setNotificationWarning] = React.useState('')
 
-  const { organizationId } = useOrganization()
+  const { organizationId, role } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
   const [trialModalOpen, setTrialModalOpen] = React.useState(false)
 
@@ -142,7 +148,7 @@ export default function JobsPage() {
   const fetchData = React.useCallback(async () => {
     if (!organizationId) return
 
-    const [jobsRes, customersRes] = await Promise.all([
+    const [jobsRes, customersRes, membersRes] = await Promise.all([
       supabase
         .from('jobs')
         .select('*, customers(name, email, phone)')
@@ -153,10 +159,17 @@ export default function JobsPage() {
         .select('id, name')
         .eq('organization_id', organizationId)
         .order('name'),
+      supabase
+        .from('organization_members')
+        .select('user_id, email, role')
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .not('user_id', 'is', null),
     ])
 
     if (jobsRes.data) setJobs(jobsRes.data)
     if (customersRes.data) setCustomers(customersRes.data)
+    if (membersRes.data) setTeamMembers(membersRes.data as TeamMember[])
     setLoading(false)
   }, [organizationId])
 
@@ -202,6 +215,7 @@ export default function JobsPage() {
     setForm({
       title: job.title,
       customer_id: job.customer_id ?? '',
+      assigned_to: job.assigned_to ?? '',
       status: job.status,
       scheduled_date: job.scheduled_date ?? '',
       price: job.price !== null ? String(job.price) : '',
@@ -234,6 +248,7 @@ export default function JobsPage() {
     const payload = {
       title: form.title.trim(),
       customer_id: form.customer_id || null,
+      assigned_to: form.assigned_to || null,
       // Paid can only be set via the PaymentModal — never let the edit form overwrite it
       status: editingJob?.status === 'Paid' ? ('Paid' as JobStatus) : form.status,
       scheduled_date: form.scheduled_date || null,
@@ -348,6 +363,15 @@ export default function JobsPage() {
       }
       if (warns.length > 0) setNotificationWarning(`Status updated to Completed, but the notification failed (${warns.join('; ')}).`)
     }
+  }
+
+  // ─── Inline assignee change ───────────────────────────────────────────────
+
+  const canAssign = role === 'owner' || role === 'admin'
+
+  const handleAssigneeChange = async (jobId: string, userId: string) => {
+    setJobs((prev) => prev.map((j) => j.id === jobId ? { ...j, assigned_to: userId || null } : j))
+    await supabase.from('jobs').update({ assigned_to: userId || null }).eq('id', jobId)
   }
 
   // ─── Mark as Paid ─────────────────────────────────────────────────────
@@ -522,6 +546,7 @@ export default function JobsPage() {
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Title</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Customer</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Status</th>
+                    <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Technician</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Scheduled Date</th>
                     <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Price</th>
                     <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Actions</th>
@@ -556,6 +581,28 @@ export default function JobsPage() {
                           currentStatus={job.status}
                           onStatusChange={handleStatusChange}
                         />
+                      </td>
+                      <td className="px-6 py-3">
+                        {canAssign ? (
+                          <select
+                            value={job.assigned_to ?? ''}
+                            onChange={(e) => handleAssigneeChange(job.id, e.target.value)}
+                            className="h-7 max-w-[10rem] rounded-md border border-input bg-transparent px-2 text-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 cursor-pointer"
+                          >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map((m) => (
+                              <option key={m.user_id} value={m.user_id}>
+                                {m.email.split('@')[0]}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            {job.assigned_to
+                              ? (teamMembers.find((m) => m.user_id === job.assigned_to)?.email.split('@')[0] ?? '—')
+                              : '—'}
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
                         {formatDate(job.scheduled_date)}
@@ -642,6 +689,19 @@ export default function JobsPage() {
                 ))}
               </NativeSelect>
             </Field>
+
+            {canAssign && (
+              <Field label="Assign Technician">
+                <NativeSelect value={form.assigned_to} onChange={setField('assigned_to')}>
+                  <option value="">Unassigned</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.email} · {m.role}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
 
             <Field label="Status">
               {editingJob?.status === 'Paid' ? (
