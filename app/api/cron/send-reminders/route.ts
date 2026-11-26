@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
         const r = await fetch(`${baseUrl}/api/send-sms`, {
           method:  'POST',
           headers: internalHeaders,
-          body:    JSON.stringify({ to: customer.phone, type: 'job_reminder', data: reminderData }),
+          body:    JSON.stringify({ to: customer.phone, type: 'job_reminder', data: reminderData, orgId: job.organization_id }),
         })
         if (r.ok) {
           smsSent = true

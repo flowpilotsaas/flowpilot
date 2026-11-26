@@ -22,7 +22,7 @@ import { useDialer, fmtElapsed, type DialerContact } from '@/components/communic
 type Tab = 'calls' | 'phone-numbers' | 'texting'
 type AvailableNumber  = { phoneNumber: string; friendlyName: string }
 type PurchasedNumber  = { id: string; phone_number: string; friendly_name: string | null; twilio_sid: string; created_at: string }
-type TextMessage      = { id: string; to_number: string; from_number: string; body: string; status: string | null; customer_name: string | null; created_at: string }
+type TextMessage      = { id: string; to_number: string; from_number: string; body: string; status: string | null; customer_name: string | null; customer_id: string | null; created_at: string; direction: string | null }
 type TwilioCall       = { sid: string; status: string; from: string; to: string; startTime: string; duration: string }
 type Customer         = { id: string; name: string; phone: string | null; email: string | null }
 type CallFilter       = 'all' | 'missed' | 'answered' | 'outbound' | 'new-callers'
@@ -173,6 +173,12 @@ export default function CommunicationsPage() {
   const [textBody, setTextBody]                 = React.useState('')
   const [sendingText, setSendingText]           = React.useState(false)
   const [textError, setTextError]               = React.useState('')
+  const [optOutPhones, setOptOutPhones]         = React.useState<Set<string>>(new Set())
+  const [selectedConvPhone, setSelectedConvPhone] = React.useState<string | null>(null)
+  const [convReplyBody, setConvReplyBody]       = React.useState('')
+  const [convReplySending, setConvReplySending] = React.useState(false)
+  const [convReplyError, setConvReplyError]     = React.useState('')
+  const convEndRef = React.useRef<HTMLDivElement>(null)
 
   // ── Calls ────────────────────────────────────────────────────────────────
   const [calls, setCalls]                       = React.useState<TwilioCall[]>([])
@@ -248,8 +254,14 @@ export default function CommunicationsPage() {
 
   const fetchTextMessages = React.useCallback(async () => {
     if (!orgId) return
-    const { data } = await supabase.from('text_messages').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(100)
+    const { data } = await supabase.from('text_messages').select('*').eq('organization_id', orgId).order('created_at', { ascending: true }).limit(300)
     if (data) setTextMessages(data)
+  }, [orgId])
+
+  const fetchOptOuts = React.useCallback(async () => {
+    if (!orgId) return
+    const { data } = await supabase.from('sms_opt_outs').select('phone').eq('org_id', orgId)
+    if (data) setOptOutPhones(new Set(data.map((r) => r.phone as string)))
   }, [orgId])
 
   const fetchCustomers = React.useCallback(async () => {
@@ -275,7 +287,12 @@ export default function CommunicationsPage() {
     if (data) setRecordings(new Map(data.map((r) => [r.call_sid, r as CallRecording])))
   }, [orgId])
 
-  React.useEffect(() => { fetchPurchasedNumbers(); fetchTextMessages(); fetchCustomers() }, [fetchPurchasedNumbers, fetchTextMessages, fetchCustomers])
+  React.useEffect(() => { fetchPurchasedNumbers(); fetchTextMessages(); fetchCustomers(); fetchOptOuts() }, [fetchPurchasedNumbers, fetchTextMessages, fetchCustomers, fetchOptOuts])
+
+  // Scroll to bottom when conversation changes or new messages arrive
+  React.useEffect(() => {
+    if (selectedConvPhone) convEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [selectedConvPhone, textMessages.length])
   React.useEffect(() => { if (tab === 'calls') { fetchCalls(); fetchRecordings() } }, [tab, fetchCalls, fetchRecordings])
 
   // ── Phone number handlers ─────────────────────────────────────────────────
@@ -336,6 +353,25 @@ export default function CommunicationsPage() {
       await fetchTextMessages(); toast.success('Message sent')
     } catch (err) { setTextError((err as Error).message) }
     finally { setSendingText(false) }
+  }
+
+  // ── Inline conversation reply ─────────────────────────────────────────────
+
+  const handleConvReply = async () => {
+    if (!selectedConvPhone || !convReplyBody.trim()) return
+    setConvReplySending(true); setConvReplyError('')
+    try {
+      const customer = customers.find((c) => c.phone && normalizePhone(c.phone) === normalizePhone(selectedConvPhone))
+      const res = await fetch('/api/twilio/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: selectedConvPhone, body: convReplyBody, customerId: customer?.id ?? null, customerName: customer?.name ?? null }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send.')
+      setConvReplyBody(''); await fetchTextMessages()
+    } catch (err) { setConvReplyError((err as Error).message) }
+    finally { setConvReplySending(false) }
   }
 
   // ── Add customer handler ───────────────────────────────────────────────────
@@ -1108,51 +1144,139 @@ export default function CommunicationsPage() {
       )}
 
       {/* ── Texting tab ────────────────────────────────────────────────────── */}
-      {tab === 'texting' && (
-        <Card>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-            <p className="text-sm text-muted-foreground">{textMessages.length} message{textMessages.length !== 1 ? 's' : ''}</p>
-            <Button size="sm" className="gap-2" onClick={() => { setTextModalOpen(true); setTextError('') }}>
-              <MessageSquare className="w-4 h-4" />Send a Text
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  {['Time','Customer','To','Message','Status'].map((h) => (
-                    <th key={h} className="text-left px-6 py-3 font-medium text-muted-foreground whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {textMessages.length === 0 ? (
-                  <tr><td colSpan={5} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
-                      <p className="text-sm text-muted-foreground">No text messages yet.</p>
+      {tab === 'texting' && (() => {
+        // Build conversation list: group messages by the "other party" phone
+        const convMap = new Map<string, TextMessage[]>()
+        for (const msg of textMessages) {
+          const phone = msg.direction === 'inbound' ? msg.from_number : msg.to_number
+          if (!convMap.has(phone)) convMap.set(phone, [])
+          convMap.get(phone)!.push(msg)
+        }
+        // Sort conversations by last message time descending
+        const conversations = Array.from(convMap.entries())
+          .map(([phone, msgs]) => ({ phone, msgs, last: msgs[msgs.length - 1] }))
+          .sort((a, b) => new Date(b.last.created_at).getTime() - new Date(a.last.created_at).getTime())
+
+        const selectedMsgs = selectedConvPhone ? (convMap.get(selectedConvPhone) ?? []) : []
+        const selectedCustomer = selectedConvPhone
+          ? customers.find((c) => c.phone && normalizePhone(c.phone) === normalizePhone(selectedConvPhone))
+          : null
+        const isOptedOut = selectedConvPhone ? optOutPhones.has(selectedConvPhone) : false
+
+        return (
+          <Card className="overflow-hidden">
+            <div className="flex h-[600px]">
+              {/* Left pane: conversation list */}
+              <div className={cn('border-r border-border flex flex-col', selectedConvPhone ? 'hidden md:flex md:w-72 shrink-0' : 'flex flex-1 md:flex-none md:w-72 md:shrink-0')}>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+                  <p className="text-sm font-medium">Conversations</p>
+                  <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => { setTextModalOpen(true); setTextError('') }}>
+                    <MessageSquare className="w-3.5 h-3.5" />New
+                  </Button>
+                </div>
+                {conversations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center flex-1 gap-3 p-6">
+                    <MessageSquare className="w-8 h-8 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground text-center">No text messages yet. Send one to get started.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-y-auto flex-1">
+                    {conversations.map(({ phone, msgs, last }) => {
+                      const cust = customers.find((c) => c.phone && normalizePhone(c.phone) === normalizePhone(phone))
+                      const opted = optOutPhones.has(phone)
+                      const isSelected = selectedConvPhone === phone
+                      return (
+                        <button key={phone} type="button" onClick={() => setSelectedConvPhone(phone)}
+                          className={cn('w-full text-left px-4 py-3 border-b border-border last:border-0 hover:bg-muted/40 transition-colors',
+                            isSelected && 'bg-primary/8 dark:bg-primary/10'
+                          )}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-medium truncate">{cust?.name ?? phone}</p>
+                                {opted && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 shrink-0">Opted out</span>}
+                              </div>
+                              {cust && <p className="text-xs text-muted-foreground font-mono">{phone}</p>}
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">{last.body}</p>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{fmtDate(last.created_at)}</p>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{msgs.length} message{msgs.length !== 1 ? 's' : ''}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Right pane: thread */}
+              {selectedConvPhone ? (
+                <div className="flex flex-col flex-1 min-w-0">
+                  {/* Thread header */}
+                  <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+                    <button type="button" onClick={() => setSelectedConvPhone(null)} className="md:hidden text-muted-foreground hover:text-foreground">
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{selectedCustomer?.name ?? selectedConvPhone}</p>
+                      {selectedCustomer && <p className="text-xs text-muted-foreground font-mono">{selectedConvPhone}</p>}
                     </div>
-                  </td></tr>
-                ) : textMessages.map((msg) => (
-                  <tr key={msg.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
-                    <td className="px-6 py-3 text-muted-foreground whitespace-nowrap">{fmtDate(msg.created_at)}</td>
-                    <td className="px-6 py-3">{msg.customer_name ?? <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-6 py-3 font-mono text-xs text-muted-foreground">{msg.to_number}</td>
-                    <td className="px-6 py-3 max-w-xs"><p className="truncate text-foreground">{msg.body}</p></td>
-                    <td className="px-6 py-3">
-                      <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                        msg.status === 'delivered' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                        msg.status === 'failed'    ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                        'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                      )}>{msg.status ?? 'sent'}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+                    {isOptedOut && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">Opted out</span>}
+                  </div>
+
+                  {/* Messages */}
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+                    {selectedMsgs.map((msg) => {
+                      const isOut = msg.direction !== 'inbound'
+                      return (
+                        <div key={msg.id} className={cn('flex', isOut ? 'justify-end' : 'justify-start')}>
+                          <div className={cn('max-w-[72%] rounded-2xl px-3.5 py-2 text-sm shadow-sm',
+                            isOut
+                              ? 'bg-primary text-primary-foreground rounded-br-sm'
+                              : 'bg-muted text-foreground rounded-bl-sm'
+                          )}>
+                            <p className="break-words leading-relaxed">{msg.body}</p>
+                            <p className={cn('text-[10px] mt-1', isOut ? 'text-primary-foreground/60 text-right' : 'text-muted-foreground')}>
+                              {fmtDate(msg.created_at)}
+                              {isOut && msg.status && msg.status !== 'queued' && ` · ${msg.status}`}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={convEndRef} />
+                  </div>
+
+                  {/* Reply input */}
+                  <div className="border-t border-border px-4 py-3 shrink-0">
+                    {isOptedOut ? (
+                      <p className="text-sm text-muted-foreground text-center py-1">This contact opted out — you cannot send them texts.</p>
+                    ) : (
+                      <div className="flex gap-2 items-end">
+                        <textarea value={convReplyBody} onChange={(e) => setConvReplyBody(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleConvReply() } }}
+                          placeholder="Type a message… (Enter to send)"
+                          rows={2}
+                          className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none" />
+                        <Button onClick={handleConvReply} disabled={convReplySending || !convReplyBody.trim()} size="sm" className="h-9 gap-1.5 shrink-0">
+                          {convReplySending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                          Send
+                        </Button>
+                      </div>
+                    )}
+                    {convReplyError && <p className="text-xs text-red-500 mt-1">{convReplyError}</p>}
+                  </div>
+                </div>
+              ) : (
+                <div className="hidden md:flex flex-col items-center justify-center flex-1 gap-3 text-center p-8">
+                  <MessageSquare className="w-10 h-10 text-muted-foreground/30" />
+                  <p className="text-sm text-muted-foreground">Select a conversation to view messages</p>
+                </div>
+              )}
+            </div>
+          </Card>
+        )
+      })()}
     </div>
   )
 }

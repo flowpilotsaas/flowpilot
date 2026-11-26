@@ -1,15 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabase } from '@/lib/supabase-server'
 import { checkWriteAccess } from '@/lib/trial-gate'
-
-// ─── Phone normalizer ───────────────────────────────────────────────────────
-
-function toE164(phone: string): string | null {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 10) return `+1${digits}`
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`
-  return null
-}
+import { sendOrgSms } from '@/lib/sms'
 
 // ─── SMS templates ──────────────────────────────────────────────────────────
 
@@ -59,61 +51,49 @@ const TEMPLATES: Record<string, (d: Record<string, unknown>) => string> = {
 // ─── Route Handler ──────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Allow internal server-to-server calls (e.g. cron jobs) via CRON_SECRET
   const authHeader = req.headers.get('authorization')
-  const isInternal = process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
+  const isInternal = !!process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
+
+  let orgId: string | null = null
+
   if (!isInternal) {
     const supabase = await createServerSupabase()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
+
     const access = await checkWriteAccess(supabase, user.id)
     if (!access.allowed) {
       return Response.json({ error: access.message, code: access.code }, { status: 402 })
     }
-  }
 
-  console.log('[send-sms] POST hit')
-  console.log('[send-sms] TWILIO_ACCOUNT_SID present:', !!process.env.TWILIO_ACCOUNT_SID)
-  console.log('[send-sms] TWILIO_PHONE_NUMBER present:', !!process.env.TWILIO_PHONE_NUMBER)
-
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
-    console.error('[send-sms] FATAL: Twilio env vars missing. Restart dev server after adding to .env.local.')
-    return Response.json({ error: 'SMS not configured.' }, { status: 500 })
+    const { data: mem } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle()
+    orgId = mem?.organization_id ?? null
   }
 
   try {
-    const { to, type, data } = await req.json()
-    console.log('[send-sms] to:', to, '| type:', type)
+    const payload = await req.json()
+    const { to, type, data, orgId: bodyOrgId, customerId, customerName } = payload
+
+    if (isInternal && bodyOrgId) orgId = bodyOrgId
+    if (!orgId) return Response.json({ error: 'No organization found.' }, { status: 403 })
 
     if (!to || !type || !TEMPLATES[type]) {
-      console.error('[send-sms] Missing/invalid fields — to:', to, 'type:', type)
       return Response.json({ error: 'Missing or invalid fields.' }, { status: 400 })
     }
 
-    const normalized = toE164(to)
-    if (!normalized) {
-      console.error('[send-sms] Could not normalize phone number:', to)
-      return Response.json({ error: `Invalid phone number: ${to}` }, { status: 400 })
-    }
-
     const body = TEMPLATES[type](data ?? {})
-    console.log('[send-sms] message body:', body)
+    const result = await sendOrgSms({ orgId, to, body, customerId: customerId ?? null, customerName: customerName ?? null, type })
 
-    // Dynamic import avoids module-level init with undefined env vars
-    const twilio = (await import('twilio')).default
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-
-    const msg = await client.messages.create({
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to:   normalized,
-      body,
-    })
-
-    console.log('[send-sms] Twilio success. SID:', msg.sid)
-    return Response.json({ ok: true, sid: msg.sid })
+    if ('skipped' in result) return Response.json({ ok: true, skipped: result.skipped })
+    if (!result.ok) return Response.json({ error: result.error }, { status: 500 })
+    return Response.json({ ok: true, sid: result.sid })
   } catch (err) {
-    const e = err as Error
-    console.error('[send-sms] Error:', e.message)
-    return Response.json({ error: e.message }, { status: 500 })
+    console.error('[send-sms]', err)
+    return Response.json({ error: (err as Error).message }, { status: 500 })
   }
 }

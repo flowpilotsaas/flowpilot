@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
       voiceMethod: 'POST',
       statusCallback:       `${appUrl}/api/twilio/call-status`,
       statusCallbackMethod: 'POST',
+      smsUrl:    `${appUrl}/api/twilio/inbound-sms`,
+      smsMethod: 'POST',
     })
 
     const { error: dbError } = await supabase.from('phone_numbers').insert({
