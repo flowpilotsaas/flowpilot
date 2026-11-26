@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import * as React from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useOrganization } from '@/hooks/useOrganization'
 import { useTrialStatus } from '@/hooks/useTrialStatus'
@@ -53,6 +53,7 @@ function fmtCurrency(n: number) {
 
 export default function NewEstimatePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { organizationId } = useOrganization()
   const { isAllowed: trialAllowed, isLoading: trialLoading } = useTrialStatus()
 
@@ -101,11 +102,24 @@ export default function NewEstimatePage() {
         supabase.from('customers').select('id, name, email, phone, address').eq('organization_id', organizationId).order('name'),
         supabase.from('pricebook').select('id, name, description, price, unit').eq('organization_id', organizationId).order('name'),
       ])
-      if (custRes.data) setCustomers(custRes.data)
+      if (custRes.data) {
+        setCustomers(custRes.data)
+        const preId = searchParams.get('customerId')
+        if (preId) {
+          const pre = custRes.data.find((c) => c.id === preId)
+          if (pre) {
+            setSelectedCustomerId(pre.id)
+            setCustomerName(pre.name)
+            setCustomerEmail(pre.email ?? '')
+            setCustomerPhone(pre.phone ?? '')
+            setCustomerAddress(pre.address ?? '')
+          }
+        }
+      }
       if (pbRes.data) setPricebook(pbRes.data)
     }
     load()
-  }, [organizationId])
+  }, [organizationId, searchParams])
 
   // Close pricebook dropdown on outside click
   React.useEffect(() => {

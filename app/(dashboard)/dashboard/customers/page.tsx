@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import { useOrganization } from '@/hooks/useOrganization'
@@ -18,7 +19,7 @@ import {
   SheetTitle,
   SheetFooter,
 } from '@/components/ui/sheet'
-import { Plus, Search, Pencil, Trash2, Loader2, Users, MoreHorizontal } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Loader2, Users, MoreHorizontal, Briefcase, FileText, CheckCircle2 } from 'lucide-react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,8 @@ const EMPTY_FORM: FormData = { name: '', email: '', phone: '', address: '', note
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function CustomersPage() {
+  const router = useRouter()
+
   const [customers, setCustomers] = React.useState<Customer[]>([])
   const [loading, setLoading] = React.useState(true)
   const [search, setSearch] = React.useState('')
@@ -60,6 +63,7 @@ export default function CustomersPage() {
   const [form, setForm] = React.useState<FormData>(EMPTY_FORM)
   const [formError, setFormError] = React.useState('')
   const [saving, setSaving] = React.useState(false)
+  const [savedCustomer, setSavedCustomer] = React.useState<{ id: string; name: string } | null>(null)
 
   const [deleteTarget, setDeleteTarget] = React.useState<DeleteTarget>(null)
   const [deleting, setDeleting] = React.useState(false)
@@ -134,7 +138,7 @@ export default function CustomersPage() {
     setSheetOpen(true)
   }
 
-  const closeSheet = () => { setSheetOpen(false); setFormError('') }
+  const closeSheet = () => { setSheetOpen(false); setFormError(''); setSavedCustomer(null) }
 
   const setField = (field: keyof FormData) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -163,15 +167,21 @@ export default function CustomersPage() {
     if (editingCustomer) {
       const { error } = await supabase.from('customers').update(payload).eq('id', editingCustomer.id)
       if (error) { setFormError(error.message); setSaving(false); return }
+      toast.success('Customer updated')
+      setSaving(false)
+      closeSheet()
+      await fetchCustomers()
     } else {
-      const { error } = await supabase.from('customers').insert({ ...payload, user_id: user.id, organization_id: organizationId })
-      if (error) { setFormError(error.message); setSaving(false); return }
+      const { data: newCust, error } = await supabase
+        .from('customers')
+        .insert({ ...payload, user_id: user.id, organization_id: organizationId })
+        .select('id, name')
+        .single()
+      if (error || !newCust) { setFormError(error?.message ?? 'Failed to save.'); setSaving(false); return }
+      setSaving(false)
+      setSavedCustomer({ id: newCust.id, name: newCust.name })
+      await fetchCustomers()
     }
-
-    toast.success(editingCustomer ? 'Customer updated' : 'Customer created')
-    setSaving(false)
-    closeSheet()
-    await fetchCustomers()
   }
 
   // ─── Delete ──────────────────────────────────────────────────────────────
@@ -330,6 +340,7 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap">
                         <ActionMenu
+                          customerId={customer.id}
                           onEdit={() => openEdit(customer)}
                           onDelete={() => setDeleteTarget({ kind: 'single', id: customer.id, name: customer.name })}
                         />
@@ -363,44 +374,86 @@ export default function CustomersPage() {
       <Sheet open={sheetOpen} onOpenChange={closeSheet}>
         <SheetContent side="right" className="flex flex-col gap-0 p-0">
           <SheetHeader className="px-6 pt-6 pb-4 border-b border-border">
-            <SheetTitle>{editingCustomer ? 'Edit Customer' : 'Add Customer'}</SheetTitle>
+            <SheetTitle>
+              {savedCustomer ? 'Customer Added' : editingCustomer ? 'Edit Customer' : 'Add Customer'}
+            </SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
-            <Field label="Name" required>
-              <Input placeholder="Jane Smith" value={form.name} onChange={setField('name')} />
-            </Field>
-            <Field label="Email">
-              <Input type="email" placeholder="jane@example.com" value={form.email} onChange={setField('email')} />
-            </Field>
-            <Field label="Phone">
-              <Input type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={setField('phone')} />
-            </Field>
-            <Field label="Address">
-              <Input placeholder="123 Main St, Springfield" value={form.address} onChange={setField('address')} />
-            </Field>
-            <Field label="Notes">
-              <textarea
-                rows={4}
-                placeholder="Any additional notes…"
-                value={form.notes}
-                onChange={setField('notes')}
-                className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-              />
-            </Field>
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
-          </div>
+          {savedCustomer ? (
+            /* ── Success step ── */
+            <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="w-7 h-7 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-foreground">Customer added!</p>
+                <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+              </div>
+              <div className="flex flex-col gap-3 w-full">
+                <Button
+                  className="w-full rounded-full h-11 gap-2"
+                  onClick={() => { closeSheet(); router.push(`/dashboard/jobs/new?customerId=${savedCustomer.id}`) }}
+                >
+                  <Briefcase className="w-4 h-4" />
+                  Create job for {savedCustomer.name}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full rounded-full h-11 gap-2"
+                  onClick={() => { closeSheet(); router.push(`/dashboard/estimates/new?customerId=${savedCustomer.id}`) }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Create estimate for {savedCustomer.name}
+                </Button>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                onClick={closeSheet}
+              >
+                Done, back to customers
+              </button>
+            </div>
+          ) : (
+            /* ── Form ── */
+            <>
+              <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-4">
+                <Field label="Name" required>
+                  <Input placeholder="Jane Smith" value={form.name} onChange={setField('name')} />
+                </Field>
+                <Field label="Email">
+                  <Input type="email" placeholder="jane@example.com" value={form.email} onChange={setField('email')} />
+                </Field>
+                <Field label="Phone">
+                  <Input type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={setField('phone')} />
+                </Field>
+                <Field label="Address">
+                  <Input placeholder="123 Main St, Springfield" value={form.address} onChange={setField('address')} />
+                </Field>
+                <Field label="Notes">
+                  <textarea
+                    rows={4}
+                    placeholder="Any additional notes…"
+                    value={form.notes}
+                    onChange={setField('notes')}
+                    className="w-full rounded-[12px] border border-input bg-transparent px-2.5 py-2 text-sm shadow-xs outline-none resize-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  />
+                </Field>
+                {formError && <p className="text-sm text-destructive">{formError}</p>}
+              </div>
 
-          <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
-            <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
-              Cancel
-            </Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
-              {saving
-                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
-                : editingCustomer ? 'Save changes' : 'Add customer'}
-            </Button>
-          </SheetFooter>
+              <SheetFooter className="px-6 py-4 border-t border-border flex-row gap-2">
+                <Button variant="outline" className="flex-1" onClick={closeSheet} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleSave} disabled={saving || trialLoading}>
+                  {saving
+                    ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</>
+                    : editingCustomer ? 'Save changes' : 'Add customer'}
+                </Button>
+              </SheetFooter>
+            </>
+          )}
         </SheetContent>
       </Sheet>
 
@@ -411,7 +464,7 @@ export default function CustomersPage() {
 
 // ─── Action menu ─────────────────────────────────────────────────────────────
 
-function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+function ActionMenu({ customerId, onEdit, onDelete }: { customerId: string; onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen]     = React.useState(false)
   const [coords, setCoords] = React.useState({ top: 0, left: 0 })
   const triggerRef          = React.useRef<HTMLButtonElement>(null)
@@ -420,7 +473,7 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   const openMenu = () => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setCoords({ top: rect.bottom + 6, left: rect.right - 144 })
+    setCoords({ top: rect.bottom + 6, left: rect.right - 176 })
     setOpen(true)
   }
 
@@ -460,8 +513,27 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
           ref={menuRef}
           role="menu"
           style={{ top: coords.top, left: coords.left }}
-          className="fixed z-[9999] w-36 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm"
+          className="fixed z-[9999] w-44 rounded-lg border border-border bg-popover shadow-lg py-1 text-sm"
         >
+          <a
+            href={`/dashboard/jobs/new?customerId=${customerId}`}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <Briefcase className="w-3.5 h-3.5 text-muted-foreground" />
+            Add job
+          </a>
+          <a
+            href={`/dashboard/estimates/new?customerId=${customerId}`}
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 px-3 py-1.5 text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+            Create estimate
+          </a>
+          <div className="my-1 border-t border-border" />
           <button
             type="button"
             role="menuitem"
