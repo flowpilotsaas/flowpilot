@@ -382,34 +382,49 @@ export default function NewEstimatePage() {
 
           <div className="flex flex-col gap-3 w-full max-w-sm">
             {createdEstimate.wasSent ? (
-              <div className="flex items-center justify-center gap-2 w-full h-11 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium border border-green-200 dark:border-green-800">
-                <CheckCircle2 className="w-4 h-4" />
-                Sent to {createdEstimate.customerEmail ?? createdEstimate.customerName}
-              </div>
+              <>
+                <div className="flex items-center justify-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  Sent to {createdEstimate.customerEmail ?? createdEstimate.customerName}
+                </div>
+                <a
+                  href={`/dashboard/jobs/new?${jobParams.toString()}`}
+                  className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  Create job from this estimate
+                </a>
+                <a href="/dashboard/estimates" className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors text-center">
+                  Done, back to estimates
+                </a>
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={handleSendToCustomer}
-                disabled={sendingSent || !createdEstimate.customerEmail}
-                className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title={!createdEstimate.customerEmail ? 'No customer email on file' : undefined}
-              >
-                {sendingSent
-                  ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</>
-                  : <><Send className="w-4 h-4" />Send to customer</>}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleSendToCustomer}
+                  disabled={sendingSent || !createdEstimate.customerEmail}
+                  className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={!createdEstimate.customerEmail ? 'No customer email on file' : undefined}
+                >
+                  {sendingSent
+                    ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</>
+                    : <><Send className="w-4 h-4" />Send to customer</>}
+                </button>
+                <a
+                  href={`/dashboard/jobs/new?${jobParams.toString()}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1 text-center"
+                >
+                  Skip, create job from this estimate
+                </a>
+              </>
             )}
-            <a
-              href={`/dashboard/jobs/new?${jobParams.toString()}`}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
-            >
-              {createdEstimate.wasSent ? 'Create job from this estimate' : 'Skip, create job from this estimate'}
-            </a>
           </div>
 
-          <a href="/dashboard/estimates" className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors">
-            Done, back to estimates
-          </a>
+          {!createdEstimate.wasSent && (
+            <a href="/dashboard/estimates" className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+              Done, back to estimates
+            </a>
+          )}
         </div>
       </div>
     )
