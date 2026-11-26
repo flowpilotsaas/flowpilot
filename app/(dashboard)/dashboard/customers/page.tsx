@@ -20,6 +20,7 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet'
 import { Plus, Search, Pencil, Trash2, Loader2, Users, MoreHorizontal, Briefcase, FileText, CheckCircle2 } from 'lucide-react'
+import { StepBar } from '@/components/dashboard/StepBar'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -381,34 +382,33 @@ export default function CustomersPage() {
 
           {savedCustomer ? (
             /* ── Success step ── */
-            <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-base font-semibold text-foreground">Customer added!</p>
-                <p className="text-sm text-muted-foreground mt-1">What would you like to do next?</p>
+            <div className="flex-1 flex flex-col items-center justify-center px-6 py-6 gap-6 text-center">
+              <StepBar step={0} done />
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-base font-semibold text-foreground">{savedCustomer.name} added</p>
               </div>
               <div className="flex flex-col gap-3 w-full">
                 <Button
-                  className="w-full rounded-full h-11 gap-2"
-                  onClick={() => { closeSheet(); router.push(`/dashboard/jobs/new?customerId=${savedCustomer.id}`) }}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  Create job for {savedCustomer.name}
-                </Button>
-                <Button
-                  variant="outline"
                   className="w-full rounded-full h-11 gap-2"
                   onClick={() => { closeSheet(); router.push(`/dashboard/estimates/new?customerId=${savedCustomer.id}`) }}
                 >
                   <FileText className="w-4 h-4" />
                   Create estimate for {savedCustomer.name}
                 </Button>
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer py-1"
+                  onClick={() => { closeSheet(); router.push(`/dashboard/jobs/new?customerId=${savedCustomer.id}`) }}
+                >
+                  Skip, create job
+                </button>
               </div>
               <button
                 type="button"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
                 onClick={closeSheet}
               >
                 Done, back to customers

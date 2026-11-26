@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, CheckCircle2, Briefcase, FileText, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { StepBar } from '@/components/dashboard/StepBar'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -225,16 +226,19 @@ export default function NewJobPage() {
   // ─── Success step ──────────────────────────────────────────────────────────
 
   if (createdJob) {
+    const needsAssign = canAssign && !createdJob.assignedTo
+
     return (
       <div className="p-8 max-w-lg mx-auto">
         <div className="flex flex-col items-center gap-6 py-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-            <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
-          </div>
+          <StepBar step={2} done />
 
-          <div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
             <p className="text-xl font-semibold text-foreground">{createdJob.title}</p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 justify-center text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-sm text-muted-foreground">
               {createdJob.customerName && <span>{createdJob.customerName}</span>}
               {(createdJob.assigneeLabel || createdJob.assigneeEmail) && (
                 <span>→ {createdJob.assigneeLabel ?? createdJob.assigneeEmail?.split('@')[0]}</span>
@@ -244,70 +248,58 @@ export default function NewJobPage() {
           </div>
 
           <div className="flex flex-col gap-3 w-full max-w-sm">
-            <a
-              href={`/dashboard/estimates/new${createdJob.customerId ? `?customerId=${createdJob.customerId}` : ''}`}
-              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              Create estimate for this job
-            </a>
-
-            {canAssign && (
-              <div className="bg-muted/40 rounded-xl p-4 text-left space-y-2">
-                <p className="text-sm font-medium text-foreground">Assign or change technician</p>
-                <div className="flex gap-2">
-                  <NativeSelect
-                    className="flex-1"
-                    value={reassignTo}
-                    onChange={(e) => setReassignTo(e.target.value)}
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m.user_id} value={m.user_id}>
-                        {memberLabel(m)} · {m.role}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleReassign}
-                    disabled={reassignSaving}
-                    className="shrink-0"
-                  >
-                    {reassignSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
-                  </Button>
+            {needsAssign ? (
+              <>
+                <div className="bg-muted/40 rounded-xl p-4 text-left space-y-2">
+                  <p className="text-sm font-medium text-foreground">Assign technician</p>
+                  <div className="flex gap-2">
+                    <NativeSelect
+                      className="flex-1"
+                      value={reassignTo}
+                      onChange={(e) => setReassignTo(e.target.value)}
+                    >
+                      <option value="">— Select technician —</option>
+                      {teamMembers.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {memberLabel(m)} · {m.role}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleReassign}
+                      disabled={reassignSaving || !reassignTo}
+                      className="shrink-0"
+                    >
+                      {reassignSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Assign'}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {estimateId && (
+                <a
+                  href={`/dashboard/jobs/${createdJob.id}`}
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+                >
+                  Skip for now
+                </a>
+              </>
+            ) : (
               <a
-                href={`/dashboard/estimates/${estimateId}`}
-                className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+                href={`/dashboard/jobs/${createdJob.id}`}
+                className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
               >
-                <FileText className="w-4 h-4" />
-                Back to estimate
+                <Briefcase className="w-4 h-4" />
+                View job
               </a>
             )}
-
-            <a
-              href={`/dashboard/jobs/${createdJob.id}`}
-              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              <Briefcase className="w-4 h-4" />
-              View job
-            </a>
           </div>
 
-          <button
-            type="button"
-            onClick={resetForm}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          <a
+            href="/dashboard/jobs"
+            className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
-            Add another job
-          </button>
+            Done, back to jobs
+          </a>
         </div>
       </div>
     )
@@ -317,6 +309,11 @@ export default function NewJobPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto pb-28">
+      {/* Step bar */}
+      <div className="mb-8 max-w-sm">
+        <StepBar step={2} />
+      </div>
+
       <div className="mb-8">
         <h1 className="text-2xl font-semibold text-foreground">New Job</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Create and schedule a new job for a customer</p>

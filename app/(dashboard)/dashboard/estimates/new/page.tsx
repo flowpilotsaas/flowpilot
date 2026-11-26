@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, Trash2, Loader2, Search, CheckCircle2, Briefcase, Send, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { StepBar } from '@/components/dashboard/StepBar'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -366,19 +367,18 @@ export default function NewEstimatePage() {
     return (
       <div className="p-8 max-w-lg mx-auto">
         <div className="flex flex-col items-center gap-6 py-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-            <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
-          </div>
+          <StepBar step={1} done />
 
-          <div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
             <p className="text-lg font-semibold text-foreground font-mono">{fmtEstNum(createdEstimate.estimateNumber)}</p>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 justify-center text-sm text-muted-foreground">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center text-sm text-muted-foreground">
               {createdEstimate.customerName && <span>{createdEstimate.customerName}</span>}
               <span>{fmtCurrency(createdEstimate.total)}</span>
             </div>
           </div>
-
-          <p className="text-base font-semibold text-foreground -mb-2">What&apos;s next?</p>
 
           <div className="flex flex-col gap-3 w-full max-w-sm">
             {createdEstimate.wasSent ? (
@@ -399,26 +399,16 @@ export default function NewEstimatePage() {
                   : <><Send className="w-4 h-4" />Send to customer</>}
               </button>
             )}
-
             <a
               href={`/dashboard/jobs/new?${jobParams.toString()}`}
-              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
             >
-              <Briefcase className="w-4 h-4" />
-              Create job from this estimate
-            </a>
-
-            <a
-              href={`/dashboard/estimates/${createdEstimate.id}`}
-              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              <FileText className="w-4 h-4" />
-              View estimate
+              {createdEstimate.wasSent ? 'Create job from this estimate' : 'Skip, create job from this estimate'}
             </a>
           </div>
 
-          <a href="/dashboard/estimates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Back to estimates
+          <a href="/dashboard/estimates" className="text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors">
+            Done, back to estimates
           </a>
         </div>
       </div>
@@ -429,6 +419,11 @@ export default function NewEstimatePage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto pb-28">
+
+      {/* Step bar */}
+      <div className="mb-8 max-w-sm">
+        <StepBar step={1} />
+      </div>
 
       {/* Header */}
       <div className="mb-8">
