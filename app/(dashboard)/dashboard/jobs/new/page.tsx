@@ -16,7 +16,11 @@ import { cn } from '@/lib/utils'
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type Customer = { id: string; name: string; email: string | null; phone: string | null }
-type TeamMember = { user_id: string; email: string; role: OrgRole }
+type TeamMember = { user_id: string; email: string; display_name: string | null; role: OrgRole }
+
+function memberLabel(m: TeamMember): string {
+  return m.display_name || m.email.split('@')[0]
+}
 type JobStatus = 'Scheduled' | 'In Progress' | 'Completed'
 
 type CreatedJob = {
@@ -26,6 +30,7 @@ type CreatedJob = {
   customerName: string | null
   assignedTo: string | null
   assigneeEmail: string | null
+  assigneeLabel: string | null
   scheduledDate: string | null
 }
 
@@ -76,7 +81,7 @@ export default function NewJobPage() {
     if (!organizationId) return
     Promise.all([
       supabase.from('customers').select('id, name, email, phone').eq('organization_id', organizationId).order('name'),
-      supabase.from('organization_members').select('user_id, email, role').eq('organization_id', organizationId).eq('status', 'active').not('user_id', 'is', null),
+      supabase.from('organization_members').select('user_id, email, display_name, role').eq('organization_id', organizationId).eq('status', 'active').not('user_id', 'is', null),
     ]).then(([custRes, membersRes]) => {
       if (custRes.data) {
         setCustomers(custRes.data)
@@ -100,7 +105,7 @@ export default function NewJobPage() {
       .then(({ data }) => {
         if (data && data.length > 0) {
           const member = teamMembers.find((m) => m.user_id === assignedTo)
-          const name = member ? member.email.split('@')[0] : 'This technician'
+          const name = member ? memberLabel(member) : 'This technician'
           setOverlapWarning(`${name} already has ${data.length} job${data.length > 1 ? 's' : ''} scheduled on that day.`)
         } else {
           setOverlapWarning('')
@@ -150,7 +155,9 @@ export default function NewJobPage() {
     if (cust?.email) await fetch('/api/send-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: cust.email, type: 'job_confirmation', data: jobData }) }).catch(() => {})
     if (cust?.phone) await fetch('/api/send-sms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: cust.phone, type: 'job_confirmation', data: jobData }) }).catch(() => {})
 
-    const assigneeEmail = teamMembers.find((m) => m.user_id === assignedTo)?.email ?? null
+    const assigneeMember = teamMembers.find((m) => m.user_id === assignedTo)
+    const assigneeEmail = assigneeMember?.email ?? null
+    const assigneeLabel = assigneeMember ? memberLabel(assigneeMember) : null
     setSaving(false)
     setReassignTo(assignedTo)
     setCreatedJob({
@@ -160,6 +167,7 @@ export default function NewJobPage() {
       customerName: cust?.name ?? null,
       assignedTo: assignedTo || null,
       assigneeEmail,
+      assigneeLabel,
       scheduledDate: scheduledDate || null,
     })
   }
@@ -171,8 +179,10 @@ export default function NewJobPage() {
     setReassignSaving(true)
     const { error: err } = await supabase.from('jobs').update({ assigned_to: reassignTo || null }).eq('id', createdJob.id)
     if (!err) {
-      const assigneeEmail = teamMembers.find((m) => m.user_id === reassignTo)?.email ?? null
-      setCreatedJob({ ...createdJob, assignedTo: reassignTo || null, assigneeEmail })
+      const reassignMember = teamMembers.find((m) => m.user_id === reassignTo)
+      const assigneeEmail = reassignMember?.email ?? null
+      const assigneeLabel = reassignMember ? memberLabel(reassignMember) : null
+      setCreatedJob({ ...createdJob, assignedTo: reassignTo || null, assigneeEmail, assigneeLabel })
     }
     setReassignSaving(false)
   }
@@ -199,8 +209,8 @@ export default function NewJobPage() {
             <p className="text-xl font-semibold text-foreground">{createdJob.title}</p>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 justify-center text-sm text-muted-foreground">
               {createdJob.customerName && <span>{createdJob.customerName}</span>}
-              {createdJob.assigneeEmail && (
-                <span>→ {createdJob.assigneeEmail.split('@')[0]}</span>
+              {(createdJob.assigneeLabel || createdJob.assigneeEmail) && (
+                <span>→ {createdJob.assigneeLabel ?? createdJob.assigneeEmail?.split('@')[0]}</span>
               )}
               {createdJob.scheduledDate && <span>{fmtDate(createdJob.scheduledDate)}</span>}
             </div>
@@ -227,7 +237,7 @@ export default function NewJobPage() {
                     <option value="">Unassigned</option>
                     {teamMembers.map((m) => (
                       <option key={m.user_id} value={m.user_id}>
-                        {m.email.split('@')[0]} · {m.role}
+                        {memberLabel(m)} · {m.role}
                       </option>
                     ))}
                   </NativeSelect>

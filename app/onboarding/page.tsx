@@ -140,8 +140,8 @@ const AMBIENT_CSS = `
   }
 `
 
-// 5 question steps; completion is a separate screen
-const QUESTION_STEPS = 5
+// 6 question steps (step 1 = name, steps 2–6 = original 1–5); completion is a separate screen
+const QUESTION_STEPS = 6
 
 const LOADING_MSGS = [
   'Saving your preferences',
@@ -162,6 +162,7 @@ export default function OnboardingPage() {
   const { theme, setTheme } = useTheme()
 
   const [orgId,        setOrgId]        = React.useState<string | null>(null)
+  const [memberId,     setMemberId]     = React.useState<string | null>(null)
   const [step,         setStep]         = React.useState(1)
   const [showIntro,    setShowIntro]    = React.useState(false)
   const [showLoading,  setShowLoading]  = React.useState(false)
@@ -173,7 +174,10 @@ export default function OnboardingPage() {
   const [loadingMsgIdx, setLoadingMsgIdx] = React.useState(0)
   const [reducedMotion, setReducedMotion] = React.useState(false)
 
-  // step 1
+  // step 1 — name
+  const [firstName, setFirstName] = React.useState('')
+  const [lastName,  setLastName]  = React.useState('')
+  // step 2 (was 1)
   const [bizName, setBizName] = React.useState('')
   const [phone,   setPhone]   = React.useState('')
   // step 2 — standard ids + "Other" panel state
@@ -198,7 +202,7 @@ export default function OnboardingPage() {
 
       const { data: membership } = await supabase
         .from('organization_members')
-        .select('organization_id')
+        .select('id, organization_id, display_name')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .maybeSingle()
@@ -207,6 +211,12 @@ export default function OnboardingPage() {
 
       const oid = membership.organization_id
       setOrgId(oid)
+      setMemberId(membership.id)
+      if (membership.display_name) {
+        const parts = membership.display_name.split(' ')
+        setFirstName(parts[0] ?? '')
+        setLastName(parts.slice(1).join(' ') ?? '')
+      }
 
       const { data: org } = await supabase
         .from('organizations')
@@ -321,20 +331,35 @@ export default function OnboardingPage() {
     setSaving(true)
     try {
       if (step === 1) {
-        await saveStep({ name: bizName.trim() || null, phone: phone.trim() || null }, 2)
+        // Save name to organization_members
+        const first = firstName.trim()
+        const last  = lastName.trim()
+        if (!first || !last) { toast.error('Please enter your first and last name.'); return }
+        const displayName = `${first} ${last}`
+        if (memberId) {
+          const { error } = await supabase
+            .from('organization_members')
+            .update({ display_name: displayName })
+            .eq('id', memberId)
+          if (error) { toast.error(`Could not save name: ${error.message}`); return }
+        }
+        await saveStep({}, 2)
         setStep(2)
       } else if (step === 2) {
-        await saveStep({ industries: serializeIndustries(stdIndustries, otherSelected, otherTags) }, 3)
+        await saveStep({ name: bizName.trim() || null, phone: phone.trim() || null }, 3)
         setStep(3)
       } else if (step === 3) {
-        await saveStep({ team_size: teamSize || null }, 4)
+        await saveStep({ industries: serializeIndustries(stdIndustries, otherSelected, otherTags) }, 4)
         setStep(4)
       } else if (step === 4) {
-        await saveStep({ current_tool: currentTool || null }, 5)
+        await saveStep({ team_size: teamSize || null }, 5)
         setStep(5)
       } else if (step === 5) {
+        await saveStep({ current_tool: currentTool || null }, 6)
+        setStep(6)
+      } else if (step === 6) {
         // Theme is stored by next-themes; just advance the step counter
-        await saveStep({}, 6)
+        await saveStep({}, 7)
         setShowLoading(true)
       }
     } finally {
@@ -532,6 +557,31 @@ export default function OnboardingPage() {
 
                 {step === 1 && (
                   <StepWrap
+                    title="What's your name?"
+                    subtitle="This is how your team will see you."
+                  >
+                    <div className="space-y-4">
+                      <Field label="First name">
+                        <Input
+                          placeholder="Jane"
+                          value={firstName}
+                          onChange={e => setFirstName(e.target.value)}
+                          autoFocus
+                        />
+                      </Field>
+                      <Field label="Last name">
+                        <Input
+                          placeholder="Smith"
+                          value={lastName}
+                          onChange={e => setLastName(e.target.value)}
+                        />
+                      </Field>
+                    </div>
+                  </StepWrap>
+                )}
+
+                {step === 2 && (
+                  <StepWrap
                     title="About your business"
                     subtitle="Your business name appears on estimates and emails your customers receive. Phone is optional."
                   >
@@ -555,7 +605,7 @@ export default function OnboardingPage() {
                   </StepWrap>
                 )}
 
-                {step === 2 && (
+                {step === 3 && (
                   <StepWrap
                     title="What kind of work do you do?"
                     subtitle="Pick everything that applies."
@@ -581,7 +631,7 @@ export default function OnboardingPage() {
                   </StepWrap>
                 )}
 
-                {step === 3 && (
+                {step === 4 && (
                   <StepWrap title="How big is your team?">
                     <div className="grid grid-cols-2 gap-3">
                       {TEAM_SIZE_OPTS.map(opt => (
@@ -597,7 +647,7 @@ export default function OnboardingPage() {
                   </StepWrap>
                 )}
 
-                {step === 4 && (
+                {step === 5 && (
                   <StepWrap
                     title="How did you keep track of jobs before Jobigram?"
                     subtitle="Pick the closest one."
@@ -616,7 +666,7 @@ export default function OnboardingPage() {
                   </StepWrap>
                 )}
 
-                {step === 5 && (
+                {step === 6 && (
                   <StepWrap
                     title="Pick your look"
                     subtitle="Light or dark. You can switch any time from the toggle at the top of the dashboard."

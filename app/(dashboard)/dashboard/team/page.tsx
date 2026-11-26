@@ -35,6 +35,7 @@ type OrgMember = {
   organization_id: string
   user_id: string | null
   email: string
+  display_name: string | null
   role: OrgRole
   status: string
   invited_at: string | null
@@ -399,7 +400,7 @@ export default function TeamPage() {
                           />
                         </th>
                       )}
-                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Email</th>
+                      <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Member</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Role</th>
                       <th className="text-left px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap">Member Since</th>
                       {canManage && <th className="text-right px-6 py-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Actions</th>}
@@ -423,7 +424,11 @@ export default function TeamPage() {
                             )}
                           </td>
                         )}
-                        <td className="px-6 py-4 text-foreground">{member.email}</td>
+                        <td className="px-6 py-4">
+                          {member.display_name
+                            ? <><p className="text-sm font-medium text-foreground">{member.display_name}</p><p className="text-xs text-muted-foreground">{member.email}</p></>
+                            : <p className="text-sm text-foreground">{member.email}</p>}
+                        </td>
                         <td className="px-6 py-4">
                           {currentUserRole === 'owner' && member.role !== 'owner' ? (
                             <RoleDropdown

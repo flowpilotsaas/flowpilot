@@ -132,15 +132,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .maybeSingle()
 
       if (membership?.organization_id) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('onboarding_completed_at')
-          .eq('id', membership.organization_id)
-          .maybeSingle()
+        const [orgRes, memberRes] = await Promise.all([
+          supabase
+            .from('organizations')
+            .select('onboarding_completed_at')
+            .eq('id', membership.organization_id)
+            .maybeSingle(),
+          supabase
+            .from('organization_members')
+            .select('display_name')
+            .eq('user_id', session.user.id)
+            .eq('status', 'active')
+            .maybeSingle(),
+        ])
 
         // Only redirect if the column exists and is explicitly null
-        if (org && org.onboarding_completed_at === null) {
+        if (orgRes.data && orgRes.data.onboarding_completed_at === null) {
           router.replace('/onboarding')
+          return
+        }
+
+        // Gate: require display_name before entering dashboard
+        if (!memberRes.data?.display_name) {
+          router.replace('/setup-name')
           return
         }
       }

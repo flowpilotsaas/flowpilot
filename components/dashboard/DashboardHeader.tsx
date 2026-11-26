@@ -10,6 +10,7 @@ import {
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { useOrganization } from '@/hooks/useOrganization'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':               'Dashboard',
@@ -62,7 +63,12 @@ function buildBreadcrumbs(pathname: string): Crumb[] {
   return crumbs
 }
 
-function getInitials(email: string): string {
+function getInitials(displayName: string | null, email: string): string {
+  if (displayName) {
+    const parts = displayName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return parts[0].slice(0, 2).toUpperCase()
+  }
   const local = email.split('@')[0]
   const parts = local.split(/[._-]/).filter(Boolean)
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
@@ -264,6 +270,7 @@ export default function DashboardHeader() {
   const [email,    setEmail]    = useState<string | null>(null)
   const [dropOpen, setDropOpen] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
+  const { displayName } = useOrganization()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -292,7 +299,7 @@ export default function DashboardHeader() {
 
   const title    = resolveTitle(pathname)
   const crumbs   = buildBreadcrumbs(pathname)
-  const initials = email ? getInitials(email) : '…'
+  const initials = email ? getInitials(displayName, email) : '…'
 
   return (
     <header className="flex-shrink-0 flex items-center bg-card border-b border-border/80 z-20" style={{ height: '3.75rem' }}>
@@ -368,12 +375,14 @@ export default function DashboardHeader() {
 
           {dropOpen && (
             <div className="absolute right-0 top-full mt-2 w-52 bg-card border border-border rounded-xl shadow-lg shadow-black/5 py-1 z-50">
-              {email && (
+              {(displayName || email) && (
                 <div className="px-3 py-2.5 border-b border-border mb-1">
-                  <p className="text-[11px] font-medium text-muted-foreground/80 uppercase tracking-wide mb-0.5">
-                    Signed in as
-                  </p>
-                  <p className="text-xs text-foreground font-medium truncate">{email}</p>
+                  {displayName && (
+                    <p className="text-sm font-semibold text-foreground truncate leading-tight">{displayName}</p>
+                  )}
+                  {email && (
+                    <p className={`text-xs truncate ${displayName ? 'text-muted-foreground mt-0.5' : 'text-foreground font-medium'}`}>{email}</p>
+                  )}
                 </div>
               )}
               <Link

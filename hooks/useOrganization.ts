@@ -15,6 +15,7 @@ export type Organization = {
 export type OrgState = {
   organizationId: string | null
   role: OrgRole | null
+  displayName: string | null
   organization: Organization | null
   loading: boolean
 }
@@ -23,6 +24,7 @@ export function useOrganization(): OrgState {
   const [state, setState] = useState<OrgState>({
     organizationId: null,
     role:           null,
+    displayName:    null,
     organization:   null,
     loading:        true,
   })
@@ -30,13 +32,13 @@ export function useOrganization(): OrgState {
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      setState({ organizationId: null, role: null, organization: null, loading: false })
+      setState({ organizationId: null, role: null, displayName: null, organization: null, loading: false })
       return
     }
 
     const { data } = await supabase
       .from('organization_members')
-      .select('organization_id, role, organizations(id, name, owner_id, created_at)')
+      .select('organization_id, role, display_name, organizations(id, name, owner_id, created_at)')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .maybeSingle()
@@ -45,6 +47,7 @@ export function useOrganization(): OrgState {
       setState({
         organizationId: data.organization_id,
         role:           data.role as OrgRole,
+        displayName:    (data as unknown as { display_name: string | null }).display_name ?? null,
         organization:   data.organizations as unknown as Organization,
         loading:        false,
       })
@@ -60,7 +63,7 @@ export function useOrganization(): OrgState {
           // Re-query after provisioning
           const { data: retry } = await supabase
             .from('organization_members')
-            .select('organization_id, role, organizations(id, name, owner_id, created_at)')
+            .select('organization_id, role, display_name, organizations(id, name, owner_id, created_at)')
             .eq('user_id', user.id)
             .eq('status', 'active')
             .maybeSingle()
@@ -69,6 +72,7 @@ export function useOrganization(): OrgState {
             setState({
               organizationId: retry.organization_id,
               role:           retry.role as OrgRole,
+              displayName:    (retry as unknown as { display_name: string | null }).display_name ?? null,
               organization:   retry.organizations as unknown as Organization,
               loading:        false,
             })
@@ -78,7 +82,7 @@ export function useOrganization(): OrgState {
       } catch {
         // Provision failed silently — user will see empty state
       }
-      setState({ organizationId: null, role: null, organization: null, loading: false })
+      setState({ organizationId: null, role: null, displayName: null, organization: null, loading: false })
     }
   }, [])
 

@@ -54,6 +54,11 @@ export default function SettingsPage() {
   const [pwMsg, setPwMsg]             = React.useState('')
   const [pwError, setPwError]         = React.useState('')
 
+  // ── Your profile (display name) ─────────────────────────────────────────
+  const [displayName, setDisplayName] = React.useState('')
+  const [savingName, setSavingName]   = React.useState(false)
+  const [nameMsg, setNameMsg]         = React.useState('')
+
   // ── Account info ─────────────────────────────────────────────────────────
   const [email, setEmail]             = React.useState('')
   const [memberSince, setMemberSince] = React.useState('')
@@ -83,6 +88,16 @@ export default function SettingsPage() {
       if (!user) return
 
       setEmail(user.email ?? '')
+
+      // Load display name from organization_members
+      const { data: memberRow } = await supabase
+        .from('organization_members')
+        .select('display_name')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle()
+      if (memberRow?.display_name) setDisplayName(memberRow.display_name)
+
       setMemberSince(
         new Date(user.created_at).toLocaleDateString('en-US', {
           month: 'long', day: 'numeric', year: 'numeric',
@@ -291,6 +306,27 @@ export default function SettingsPage() {
   }
 
   const isPrivileged = orgRole === 'owner' || orgRole === 'admin'
+
+  const handleSaveName = async () => {
+    const trimmed = displayName.trim()
+    if (!trimmed) { setNameMsg('error:Name cannot be empty.'); return }
+    setSavingName(true)
+    setNameMsg('')
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setSavingName(false); return }
+    const { error } = await supabase
+      .from('organization_members')
+      .update({ display_name: trimmed })
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+    if (error) {
+      setNameMsg(`error:${error.message}`)
+    } else {
+      setNameMsg('success:Name updated.')
+      setTimeout(() => setNameMsg(''), 4000)
+    }
+    setSavingName(false)
+  }
 
   function toggleMulti(arr: string[], id: string, set: (v: string[]) => void) {
     set(arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id])
@@ -633,6 +669,29 @@ export default function SettingsPage() {
             logoBg="bg-blue-100 dark:bg-blue-900/30"
             logoColor="text-blue-700 dark:text-blue-400"
           />
+        </div>
+      </Section>
+
+      {/* ── Your Profile ── */}
+      <Section icon={User} title="Your Profile" subtitle="How your team sees you">
+        <div className="space-y-4">
+          <Field label="Display Name">
+            <Input
+              placeholder="e.g. Jane Smith"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+            />
+            <p className="text-xs text-muted-foreground mt-1">This is how your team will see you in job assignments and the team page.</p>
+          </Field>
+          {nameMsg && (
+            <p className={`text-sm ${nameMsg.startsWith('error:') ? 'text-destructive' : 'text-green-600 dark:text-green-400'}`}>
+              {nameMsg.replace(/^(error|success):/, '')}
+            </p>
+          )}
+          <Button onClick={handleSaveName} disabled={savingName} size="sm">
+            {savingName ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Saving…</> : 'Save name'}
+          </Button>
         </div>
       </Section>
 

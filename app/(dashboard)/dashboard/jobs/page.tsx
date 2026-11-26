@@ -26,7 +26,11 @@ import { toast } from 'sonner'
 
 type JobStatus = 'Scheduled' | 'In Progress' | 'Completed' | 'Paid'
 
-type TeamMember = { user_id: string; email: string; role: string }
+type TeamMember = { user_id: string; email: string; display_name: string | null; role: string }
+
+function memberLabel(m: TeamMember): string {
+  return m.display_name || m.email.split('@')[0]
+}
 
 type Job = {
   id: string
@@ -161,7 +165,7 @@ export default function JobsPage() {
         .order('name'),
       supabase
         .from('organization_members')
-        .select('user_id, email, role')
+        .select('user_id, email, display_name, role')
         .eq('organization_id', organizationId)
         .eq('status', 'active')
         .not('user_id', 'is', null),
@@ -592,14 +596,14 @@ export default function JobsPage() {
                             <option value="">Unassigned</option>
                             {teamMembers.map((m) => (
                               <option key={m.user_id} value={m.user_id}>
-                                {m.email.split('@')[0]}
+                                {memberLabel(m)}
                               </option>
                             ))}
                           </select>
                         ) : (
                           <span className="text-sm text-muted-foreground">
                             {job.assigned_to
-                              ? (teamMembers.find((m) => m.user_id === job.assigned_to)?.email.split('@')[0] ?? '—')
+                              ? (() => { const m = teamMembers.find((tm) => tm.user_id === job.assigned_to); return m ? memberLabel(m) : '—' })()
                               : '—'}
                           </span>
                         )}
@@ -696,7 +700,7 @@ export default function JobsPage() {
                   <option value="">Unassigned</option>
                   {teamMembers.map((m) => (
                     <option key={m.user_id} value={m.user_id}>
-                      {m.email} · {m.role}
+                      {memberLabel(m)} · {m.role}
                     </option>
                   ))}
                 </NativeSelect>
