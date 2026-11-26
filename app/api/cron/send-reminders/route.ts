@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendNotificationEmail } from '@/lib/send-notification-email'
+import { sendOrgSms } from '@/lib/sms'
 
 function getSupabase() {
   return createClient(
@@ -48,12 +49,6 @@ export async function GET(req: NextRequest) {
   type JobResult = { jobId: string; email?: string; sms?: string }
   const results: JobResult[] = []
   const allErrors: { jobId: string; errors: string[] }[] = []
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-  const internalHeaders = {
-    'Content-Type':  'application/json',
-    'Authorization': `Bearer ${process.env.CRON_SECRET}`,
-  }
 
   for (const job of jobs ?? []) {
     type Customer = { name: string; email: string | null; phone: string | null }
@@ -104,23 +99,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // ── SMS (HTTP to /api/send-sms which has auth + Twilio logic) ──────────
+    // ── SMS (direct server call — no HTTP round-trip) ─────────────────────
     if (customer?.phone) {
+      const reminderBody =
+        `Hi ${reminderData.customerName}, reminder: '${reminderData.title}' is scheduled for ${reminderData.scheduledDate}. Contact us if you need to reschedule. Reply STOP to opt out.`
       try {
-        const r = await fetch(`${baseUrl}/api/send-sms`, {
-          method:  'POST',
-          headers: internalHeaders,
-          body:    JSON.stringify({ to: customer.phone, type: 'job_reminder', data: reminderData, orgId: job.organization_id }),
+        const smsResult = await sendOrgSms({
+          orgId:        job.organization_id,
+          to:           customer.phone,
+          body:         reminderBody,
+          customerName: customer.name ?? null,
         })
-        if (r.ok) {
+        if ('ok' in smsResult && smsResult.ok) {
           smsSent = true
           result.sms = 'sent'
           console.log('[send-reminders] SMS sent for job', job.id)
+        } else if ('skipped' in smsResult) {
+          result.sms = 'skipped (opt-out)'
+          console.log('[send-reminders] SMS skipped (opt-out) for job', job.id)
         } else {
-          const body = await r.text().catch(() => '')
-          result.sms = `failed (${r.status})`
-          jobErrors.push(`sms (${r.status}): ${body}`)
-          console.error('[send-reminders] SMS failed for job', job.id, `— status ${r.status}:`, body)
+          result.sms = `failed: ${smsResult.error}`
+          jobErrors.push(`sms: ${smsResult.error}`)
+          console.error('[send-reminders] SMS failed for job', job.id, ':', smsResult.error)
         }
       } catch (err) {
         const msg = (err as Error).message

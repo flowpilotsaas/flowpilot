@@ -48,46 +48,42 @@ const TEMPLATES: Record<string, (d: Record<string, unknown>) => string> = {
   },
 }
 
-// ─── Route Handler ──────────────────────────────────────────────────────────
+// ─── Route Handler — requires an authenticated, active org member ───────────
 
 export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  const isInternal = !!process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`
+  const supabase = await createServerSupabase()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-  let orgId: string | null = null
-
-  if (!isInternal) {
-    const supabase = await createServerSupabase()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const access = await checkWriteAccess(supabase, user.id)
-    if (!access.allowed) {
-      return Response.json({ error: access.message, code: access.code }, { status: 402 })
-    }
-
-    const { data: mem } = await supabase
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle()
-    orgId = mem?.organization_id ?? null
+  const access = await checkWriteAccess(supabase, user.id)
+  if (!access.allowed) {
+    return Response.json({ error: access.message, code: access.code }, { status: 402 })
   }
 
-  try {
-    const payload = await req.json()
-    const { to, type, data, orgId: bodyOrgId, customerId, customerName } = payload
+  const { data: mem } = await supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', user.id)
+    .eq('status', 'active')
+    .maybeSingle()
+  if (!mem) return Response.json({ error: 'No organization found.' }, { status: 403 })
 
-    if (isInternal && bodyOrgId) orgId = bodyOrgId
-    if (!orgId) return Response.json({ error: 'No organization found.' }, { status: 403 })
+  try {
+    const { to, type, data, customerId, customerName } = await req.json()
 
     if (!to || !type || !TEMPLATES[type]) {
       return Response.json({ error: 'Missing or invalid fields.' }, { status: 400 })
     }
 
     const body = TEMPLATES[type](data ?? {})
-    const result = await sendOrgSms({ orgId, to, body, customerId: customerId ?? null, customerName: customerName ?? null, type })
+    const result = await sendOrgSms({
+      orgId:        mem.organization_id,
+      to,
+      body,
+      customerId:   customerId ?? null,
+      customerName: customerName ?? null,
+      type,
+    })
 
     if ('skipped' in result) return Response.json({ ok: true, skipped: result.skipped })
     if (!result.ok) return Response.json({ error: result.error }, { status: 500 })

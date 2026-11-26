@@ -26,6 +26,8 @@ export async function sendOrgSms(params: SendOrgSmsParams): Promise<SendOrgSmsRe
   const { orgId, to, body, customerId, customerName } = params
 
   try {
+    if (body.length > 1000) return { ok: false, error: 'Message body exceeds 1000 characters.' }
+
     const normalized = toE164(to)
     if (!normalized) return { ok: false, error: `Invalid phone number: ${to}` }
 
