@@ -58,6 +58,11 @@ type LineItem = {
 
 const STATUSES: EstimateStatus[] = ['Draft', 'Sent', 'Approved', 'Declined']
 
+const NEXT_STATUS: Partial<Record<EstimateStatus, EstimateStatus>> = {
+  Draft: 'Sent',
+  Sent:  'Approved',
+}
+
 const STATUS_STYLES: Record<EstimateStatus, string> = {
   Draft:    'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
   Sent:     'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -564,6 +569,18 @@ export default function EstimateDetailPage({
             onStatusChange={handleStatusChange}
             updating={updatingStatus}
           />
+          {NEXT_STATUS[estimate.status] && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleStatusChange(NEXT_STATUS[estimate.status]!)}
+              disabled={updatingStatus}
+              className="gap-1.5"
+            >
+              {updatingStatus && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Mark as {NEXT_STATUS[estimate.status]}
+            </Button>
+          )}
           {estimate.status === 'Approved' && linkedJobId !== undefined && (
             linkedJobId ? (
               <Button variant="outline" size="sm" asChild className="gap-1.5">
@@ -594,6 +611,37 @@ export default function EstimateDetailPage({
         <p className="text-sm text-amber-600 dark:text-amber-400 mb-6">
           {notificationWarning}
         </p>
+      )}
+
+      {/* Approved banner */}
+      {estimate.status === 'Approved' && linkedJobId !== undefined && (
+        linkedJobId ? (
+          <div className="mb-6 flex items-center gap-3 flex-wrap rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-5 py-4">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+            <p className="text-sm font-medium text-green-800 dark:text-green-300 flex-1">Estimate approved — job created.</p>
+            <Button size="sm" variant="outline" asChild className="gap-1.5 shrink-0">
+              <Link href={`/dashboard/jobs/${linkedJobId}`}>
+                <Briefcase className="w-3.5 h-3.5" />
+                View job
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-6 flex items-center gap-3 flex-wrap rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-5 py-4">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+            <p className="text-sm font-medium text-green-800 dark:text-green-300 flex-1">Estimate approved. Create a job now?</p>
+            <Button
+              size="sm"
+              asChild
+              className="shrink-0 gap-1.5"
+            >
+              <Link href={`/dashboard/jobs/new?${new URLSearchParams({ estimateId: id, ...(estimate.customer_id ? { customerId: estimate.customer_id } : {}) }).toString()}`}>
+                <Briefcase className="w-3.5 h-3.5" />
+                Create job
+              </Link>
+            </Button>
+          </div>
+        )
       )}
 
       {/* Estimate header */}

@@ -140,6 +140,7 @@ export default function JobDetailPage() {
   const [job, setJob]           = React.useState<FullJob | null>(null)
   const [customers, setCustomers] = React.useState<CustomerOption[]>([])
   const [teamMembers, setTeamMembers] = React.useState<TeamMember[]>([])
+  const [estimateNum, setEstimateNum] = React.useState<number | null>(null)
   const [loading, setLoading]   = React.useState(true)
   const [notFound, setNotFound] = React.useState(false)
   const [updatingStatus, setUpdatingStatus] = React.useState(false)
@@ -187,6 +188,14 @@ export default function JobDetailPage() {
       setNotFound(true)
     } else {
       setJob(jobRes.data as FullJob)
+      if ((jobRes.data as FullJob).estimate_id) {
+        supabase
+          .from('estimates')
+          .select('estimate_number')
+          .eq('id', (jobRes.data as FullJob).estimate_id!)
+          .maybeSingle()
+          .then(({ data }) => { if (data) setEstimateNum(data.estimate_number) })
+      }
     }
     if (customersRes.data) setCustomers(customersRes.data)
     if (membersRes.data) setTeamMembers(membersRes.data as TeamMember[])
@@ -443,6 +452,19 @@ export default function JobDetailPage() {
                 label="Time"
                 value={`${fmtTime(job.start_time)} – ${fmtTime(job.end_time)}`}
               />
+            )}
+            {job.estimate_id && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Estimate</p>
+                <Link
+                  href={`/dashboard/estimates/${job.estimate_id}`}
+                  className="text-sm text-primary hover:underline"
+                >
+                  {estimateNum != null
+                    ? `EST-${String(estimateNum).padStart(4, '0')}`
+                    : 'View estimate'} →
+                </Link>
+              </div>
             )}
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Technician</p>

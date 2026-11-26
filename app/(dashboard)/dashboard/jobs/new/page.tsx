@@ -65,6 +65,9 @@ export default function NewJobPage() {
   const [description, setDescription] = React.useState('')
   const [notes, setNotes] = React.useState('')
 
+  const estimateId = searchParams.get('estimateId')
+  const estimatePrefilled = React.useRef(false)
+
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState('')
   const [overlapWarning, setOverlapWarning] = React.useState('')
@@ -91,6 +94,25 @@ export default function NewJobPage() {
       if (membersRes.data) setTeamMembers(membersRes.data as TeamMember[])
     })
   }, [organizationId, searchParams])
+
+  // ─── Prefill from estimate ────────────────────────────────────────────────
+
+  React.useEffect(() => {
+    if (!estimateId || !organizationId || estimatePrefilled.current) return
+    estimatePrefilled.current = true
+    supabase
+      .from('estimates')
+      .select('estimate_number, notes, total')
+      .eq('id', estimateId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setTitle((prev) => prev || `Job for EST-${String(data.estimate_number).padStart(4, '0')}`)
+        if (data.notes) setDescription((prev) => prev || data.notes)
+        if (data.total) setPrice((prev) => prev || String(data.total))
+      })
+  }, [estimateId, organizationId])
 
   // ─── Overlap check ─────────────────────────────────────────────────────────
 
@@ -146,6 +168,11 @@ export default function NewJobPage() {
       .single()
 
     if (jobErr || !newJob) { setError(jobErr?.message ?? 'Failed to save job.'); setSaving(false); return }
+
+    // Link estimate if came from one
+    if (estimateId) {
+      await supabase.from('jobs').update({ estimate_id: estimateId }).eq('id', (newJob as { id: string }).id)
+    }
 
     type JobRow = { id: string; job_number: number | null; title: string; scheduled_date: string | null; customers: { name?: string; email?: string | null; phone?: string | null } | null }
     const j = newJob as unknown as JobRow
@@ -253,6 +280,16 @@ export default function NewJobPage() {
                   </Button>
                 </div>
               </div>
+            )}
+
+            {estimateId && (
+              <a
+                href={`/dashboard/estimates/${estimateId}`}
+                className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Back to estimate
+              </a>
             )}
 
             <a

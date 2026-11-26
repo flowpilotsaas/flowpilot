@@ -9,7 +9,7 @@ import { TrialExpiredModal } from '@/components/TrialExpiredModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Trash2, Loader2, Search } from 'lucide-react'
+import { Plus, Trash2, Loader2, Search, CheckCircle2, Briefcase, Send, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -39,6 +39,19 @@ type LineItem = {
   unit_price: number
 }
 
+// ─── Types ─────────────────────────────────────────────────────────────────
+
+type CreatedEstimate = {
+  id: string
+  estimateNumber: number
+  customerId: string | null
+  customerName: string
+  customerEmail: string | null
+  total: number
+  publicToken: string | null
+  wasSent: boolean
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function genId() {
@@ -47,6 +60,10 @@ function genId() {
 
 function fmtCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n)
+}
+
+function fmtEstNum(n: number) {
+  return `EST-${String(n).padStart(4, '0')}`
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -92,6 +109,10 @@ export default function NewEstimatePage() {
   const [saving, setSaving] = React.useState<'draft' | 'sent' | null>(null)
   const [error, setError] = React.useState('')
   const [trialModalOpen, setTrialModalOpen] = React.useState(false)
+
+  // Success step
+  const [createdEstimate, setCreatedEstimate] = React.useState<CreatedEstimate | null>(null)
+  const [sendingSent, setSendingSent] = React.useState(false)
 
   // ─── Load data ────────────────────────────────────────────────────────────
 
@@ -302,10 +323,107 @@ export default function NewEstimatePage() {
     }
 
     setSaving(null)
-    router.push('/dashboard/estimates')
+    setCreatedEstimate({
+      id: est.id,
+      estimateNumber: nextNum,
+      customerId: selectedCustomerId || null,
+      customerName: customerName.trim() || 'Customer',
+      customerEmail: customerEmail.trim() || null,
+      total,
+      publicToken: estPublicToken,
+      wasSent: status === 'Sent',
+    })
+  }
+
+  const handleSendToCustomer = async () => {
+    if (!createdEstimate?.customerEmail) return
+    setSendingSent(true)
+    const portalUrl = createdEstimate.publicToken
+      ? `${window.location.origin}/e/${createdEstimate.publicToken}`
+      : undefined
+    await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        to: createdEstimate.customerEmail,
+        type: 'estimate_sent',
+        data: { customerName: createdEstimate.customerName, total: createdEstimate.total, portalUrl },
+      }),
+    }).catch(() => {})
+    await supabase.from('estimates').update({ status: 'Sent' }).eq('id', createdEstimate.id)
+    setCreatedEstimate((prev) => prev ? { ...prev, wasSent: true } : prev)
+    setSendingSent(false)
   }
 
   const isSaving = saving !== null
+
+  // ─── Success step ──────────────────────────────────────────────────────────
+
+  if (createdEstimate) {
+    const jobParams = new URLSearchParams({ estimateId: createdEstimate.id })
+    if (createdEstimate.customerId) jobParams.set('customerId', createdEstimate.customerId)
+
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <div className="flex flex-col items-center gap-6 py-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+            <CheckCircle2 className="w-8 h-8 text-green-600 dark:text-green-400" />
+          </div>
+
+          <div>
+            <p className="text-lg font-semibold text-foreground font-mono">{fmtEstNum(createdEstimate.estimateNumber)}</p>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 justify-center text-sm text-muted-foreground">
+              {createdEstimate.customerName && <span>{createdEstimate.customerName}</span>}
+              <span>{fmtCurrency(createdEstimate.total)}</span>
+            </div>
+          </div>
+
+          <p className="text-base font-semibold text-foreground -mb-2">What&apos;s next?</p>
+
+          <div className="flex flex-col gap-3 w-full max-w-sm">
+            {createdEstimate.wasSent ? (
+              <div className="flex items-center justify-center gap-2 w-full h-11 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium border border-green-200 dark:border-green-800">
+                <CheckCircle2 className="w-4 h-4" />
+                Sent to {createdEstimate.customerEmail ?? createdEstimate.customerName}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSendToCustomer}
+                disabled={sendingSent || !createdEstimate.customerEmail}
+                className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!createdEstimate.customerEmail ? 'No customer email on file' : undefined}
+              >
+                {sendingSent
+                  ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</>
+                  : <><Send className="w-4 h-4" />Send to customer</>}
+              </button>
+            )}
+
+            <a
+              href={`/dashboard/jobs/new?${jobParams.toString()}`}
+              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Briefcase className="w-4 h-4" />
+              Create job from this estimate
+            </a>
+
+            <a
+              href={`/dashboard/estimates/${createdEstimate.id}`}
+              className="inline-flex items-center justify-center gap-2 w-full h-11 rounded-full border border-border text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              View estimate
+            </a>
+          </div>
+
+          <a href="/dashboard/estimates" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Back to estimates
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
